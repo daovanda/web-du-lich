@@ -42,8 +42,14 @@ export default function MapPage() {
     } as CSSStyleDeclaration);
     document.body.appendChild(tooltip);
 
-    const showTooltip = (text: string) => { tooltip.textContent = text; tooltip.style.opacity = "1"; };
-    const moveTooltip = (x: number, y: number) => { tooltip.style.left = `${x + 14}px`; tooltip.style.top = `${y + 14}px`; };
+    const showTooltip = (text: string) => {
+      tooltip.textContent = text;
+      tooltip.style.opacity = "1";
+    };
+    const moveTooltip = (x: number, y: number) => {
+      tooltip.style.left = `${x + 14}px`;
+      tooltip.style.top = `${y + 14}px`;
+    };
     const hideTooltip = () => (tooltip.style.opacity = "0");
 
     const titleCase = (s: string) =>
@@ -106,8 +112,8 @@ export default function MapPage() {
       };
 
       const onEnter = (e: Event) => {
-        showTooltip(getProvinceName(p));
         const me = e as MouseEvent;
+        showTooltip(getProvinceName(p));
         moveTooltip(me.clientX, me.clientY);
       };
       const onMove = (e: Event) => {
@@ -116,34 +122,36 @@ export default function MapPage() {
       };
       const onLeave = () => hideTooltip();
 
-      p.addEventListener("click", onClick);
-      p.addEventListener("mouseenter", onEnter);
-      p.addEventListener("mousemove", onMove);
-      p.addEventListener("mouseleave", onLeave);
+      p.addEventListener("click", onClick as EventListener);
+      p.addEventListener("mouseenter", onEnter as EventListener);
+      p.addEventListener("mousemove", onMove as EventListener);
+      p.addEventListener("mouseleave", onLeave as EventListener);
 
-      const onTouch = (e: TouchEvent) => {
-        const t = e.touches[0];
+      const onTouch = (e: Event) => {
+        const t = (e as TouchEvent).touches[0];
         if (!t) return;
         showTooltip(getProvinceName(p));
         moveTooltip(t.clientX, t.clientY);
         setTimeout(hideTooltip, 1200);
       };
-      p.addEventListener("touchstart", onTouch, { passive: true });
+      p.addEventListener("touchstart", onTouch as EventListener, { passive: true });
 
       toCleanup.push({
         el: p,
         handlers: [
-          { type: "click", fn: onClick },
-          { type: "mouseenter", fn: onEnter },
-          { type: "mousemove", fn: onMove },
-          { type: "mouseleave", fn: onLeave },
-          { type: "touchstart", fn: onTouch },
+          { type: "click", fn: onClick as EventListener },
+          { type: "mouseenter", fn: onEnter as EventListener },
+          { type: "mousemove", fn: onMove as EventListener },
+          { type: "mouseleave", fn: onLeave as EventListener },
+          { type: "touchstart", fn: onTouch as EventListener },
         ],
       });
     });
 
     return () => {
-      toCleanup.forEach(({ el, handlers }) => handlers.forEach(({ type, fn }) => el.removeEventListener(type, fn)));
+      toCleanup.forEach(({ el, handlers }) =>
+        handlers.forEach(({ type, fn }) => el.removeEventListener(type, fn))
+      );
       tooltip.remove();
     };
   }, [svg]);
