@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import SpecialEventsMarquee from "@/components/SpecialEvents"; // import mới
 
 export default function Home() {
   const [services, setServices] = useState<any[]>([]);
@@ -19,14 +20,12 @@ export default function Home() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Fetch services
         const { data: servicesData, error: servicesError } = await supabase
           .from("services")
           .select("*");
         if (servicesError) throw new Error(servicesError.message);
         setServices(servicesData || []);
 
-        // Fetch locations
         const { data: locationsData, error: locationsError } = await supabase
           .from("locations")
           .select("*");
@@ -49,7 +48,6 @@ export default function Home() {
     { label: "Thuê xe máy", type: "motorbike", id: "motorbike" },
   ];
 
-  // Filter services and locations based on search query
   const filteredServices = services.filter(
     (s) =>
       s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -66,6 +64,10 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <Hero />
+
+      {/* Import marquee sự kiện */}
+      <SpecialEventsMarquee />
+
       <main className="flex-grow px-4 py-6 max-w-7xl mx-auto w-full">
         <div className="mb-6">
           <input
