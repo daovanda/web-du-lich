@@ -1,12 +1,9 @@
-// Updated login page: app/login/page.tsx
 "use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Header from "@/components/Header"; // Assuming Header is in components folder
-import Footer from "@/components/Footer"; // Assuming Footer is in components folder
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -54,38 +51,37 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <div className="flex-grow flex items-center justify-center bg-gray-50 px-4 py-6">
-        <div className="w-full max-w-md bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-          <h1 className="text-xl sm:text-2xl font-bold mb-6 text-center text-gray-900">
+    <div className="flex flex-col min-h-screen bg-black text-white">
+      <div className="flex-grow flex items-center justify-center px-4 py-6">
+        <div className="w-full max-w-md bg-gray-900 p-6 sm:p-8 rounded-lg shadow-lg border border-gray-700">
+          <h1 className="text-xl sm:text-2xl font-bold mb-6 text-center">
             Đăng nhập
           </h1>
 
           {error && (
-            <div className="mb-4 text-red-600 text-sm text-center">{error}</div>
+            <div className="mb-4 text-red-400 text-sm text-center">{error}</div>
           )}
 
           <form onSubmit={handleLogin}>
-            <label className="block text-sm font-semibold mb-2 text-gray-900">
+            <label className="block text-sm font-semibold mb-2">
               Email
             </label>
             <input
               type="email"
-              className="w-full border border-gray-300 px-3 py-2 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full border border-gray-700 px-3 py-2 rounded-lg bg-gray-900 focus:outline-none focus:border-gray-500"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="Nhập email của bạn"
             />
 
-            <label className="block text-sm font-semibold mb-2 text-gray-900">
+            <label className="block text-sm font-semibold mb-2 mt-4">
               Mật khẩu
             </label>
             <div className="relative mb-6">
               <input
                 type={showPassword ? "text" : "password"}
-                className="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full border border-gray-700 px-3 py-2 rounded-lg bg-gray-900 focus:outline-none focus:border-gray-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -93,7 +89,7 @@ export default function LoginPage() {
               />
               <button
                 type="button"
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-600"
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
@@ -138,7 +134,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded disabled:opacity-50 mb-4 transition duration-200"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg disabled:opacity-50 mb-4 transition duration-200"
               disabled={loading}
             >
               {loading ? "Đang xử lý..." : "Đăng nhập"}
@@ -147,10 +143,10 @@ export default function LoginPage() {
 
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
+              <div className="w-full border-t border-gray-700"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="bg-white px-2 text-gray-600">
+              <span className="bg-gray-900 px-2 text-gray-400">
                 Hoặc tiếp tục với
               </span>
             </div>
@@ -159,7 +155,7 @@ export default function LoginPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               onClick={() => handleOAuthLogin("google")}
-              className="flex items-center justify-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-900 font-semibold py-2 rounded transition duration-200"
+              className="flex items-center justify-center bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg transition duration-200"
               disabled={loading}
             >
               <img
@@ -171,7 +167,7 @@ export default function LoginPage() {
             </button>
             <button
               onClick={() => handleOAuthLogin("facebook")}
-              className="flex items-center justify-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-900 font-semibold py-2 rounded transition duration-200"
+              className="flex items-center justify-center bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg transition duration-200"
               disabled={loading}
             >
               <img
@@ -183,7 +179,7 @@ export default function LoginPage() {
             </button>
             <button
               onClick={() => handleOAuthLogin("apple")}
-              className="flex items-center justify-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-900 font-semibold py-2 rounded transition duration-200"
+              className="flex items-center justify-center bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg transition duration-200"
               disabled={loading}
             >
               <img src="/apple-icon.svg" alt="Apple" className="w-5 h-5 mr-2" />
@@ -191,15 +187,14 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <p className="mt-6 text-center text-sm text-gray-900">
+          <p className="mt-6 text-center text-sm text-gray-400">
             Chưa có tài khoản?{" "}
-            <Link href="/register" className="text-blue-600 hover:underline">
+            <Link href="/register" className="text-blue-400 hover:underline">
               Đăng ký ngay
             </Link>
           </p>
         </div>
       </div>
-      <Footer />
     </div>
   );
 }

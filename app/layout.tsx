@@ -1,20 +1,16 @@
 import "./globals.css";
-import { ReactNode } from "react";
+import ResizableLayout from "@/components/ResizableLayout";
 
 export const metadata = {
-  title: "Travel Việt Nam",
-  description: "Đặt phòng, thuê xe, khám phá dễ dàng",
-  viewport: "width=device-width, initial-scale=1",
+  title: "chagmihaydi",
+  description: "Nền tảng du lịch dành cho giới trẻ",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body className="min-h-screen bg-gray-100 text-gray-900 flex flex-col">
-        {children}
+      <body>
+        <ResizableLayout>{children}</ResizableLayout>
       </body>
     </html>
   );

@@ -1,0 +1,67 @@
+"use client";
+
+import LeftSidebar from "@/components/LeftSidebar";
+import MainContent from "@/components/MainContent";
+import RightSidebar from "@/components/RightSidebar";
+
+export default function ResizableLayout({ children }: { children: React.ReactNode }) {
+  const leftWidth = 260;
+  const rightWidth = 200;
+
+  return (
+    <div
+      className="container"
+      style={{ paddingLeft: `${leftWidth}px`, paddingRight: `${rightWidth}px` }}
+    >
+      <LeftSidebar width={leftWidth} />
+      <div className="resizer-left hidden sm:block"></div>
+      <div className="content-wrapper">
+        <MainContent>{children}</MainContent>
+      </div>
+      <RightSidebar width={rightWidth} />
+      <style jsx>{`
+        .container {
+          display: flex;
+          min-height: 100vh;
+          background-color: #000;
+          color: #fff;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .content-wrapper {
+          flex: 1;
+          display: flex;
+          justify-content: center;
+          align-items: flex-start;
+          min-width: 0;
+          width: 100%;
+        }
+        .resizer-left {
+          width: 5px;
+          background: #4a5568;
+          user-select: none;
+          z-index: 10;
+        }
+        @media (max-width: 1024px) {
+          .container {
+            padding-right: 0;
+          }
+          .content-wrapper {
+            width: 100%;
+          }
+        }
+        @media (max-width: 640px) {
+          .container {
+            padding-left: 0;
+          }
+          .resizer-left {
+            display: none;
+          }
+          .content-wrapper {
+            width: 100%;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
