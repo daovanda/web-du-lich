@@ -14,7 +14,6 @@ export default function LeftSidebar({ width }: { width: number }) {
     };
     checkUser();
 
-    // Lắng nghe sự kiện đăng nhập / đăng xuất
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user || null);
@@ -25,13 +24,13 @@ export default function LeftSidebar({ width }: { width: number }) {
   }, []);
 
   const categories = [
+    { id: "", label: "Trang chủ" }, // thêm nút Trang chủ
     { id: "stay", label: "Chỗ ở" },
     { id: "car", label: "Xe di chuyển" },
     { id: "motorbike", label: "Thuê xe máy" },
     { id: "location", label: "Địa điểm du lịch" },
-    // Nếu có user thì đi /profile, nếu không thì đi /login
     { id: user ? "profile" : "login", label: "Trang cá nhân" },
-    { id: "about", label: "Về chúng tôi" },
+    { id: "map", label: "Bản đồ Việt Nam" },
   ];
 
   return (

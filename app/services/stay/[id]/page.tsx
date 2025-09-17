@@ -1,20 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import BookingForm from "@/components/BookingForm";
 
 // ---- Types ----
 type Service = {
   id: string;
   title: string;
   description: string | null;
-  type: "stay" | "car" | "motorbike";
+  type: "stay";
   location: string | null;
   price: string | null;
-  image_url: string | null;
+  images: string[];
+  amenities: { name: string }[];
+  average_rating: number;
+  reviews_count: number;
 };
 
 type NearbyLocation = {
@@ -25,266 +27,253 @@ type NearbyLocation = {
   image_url: string | null;
 };
 
-// ---- Utils ----
-const todayISO = () => new Date().toISOString().slice(0, 10);
+type ServiceReview = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  user: {
+    full_name?: string | null;
+    username?: string | null;
+  } | null;
+};
 
 export default function StayDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-
-  // ép id về string an toàn
-  const rawId = params?.id as string | string[] | undefined;
-  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+  const { id: rawId } = useParams();
+  const id = Array.isArray(rawId) ? rawId[0] : rawId ?? "";
 
   const [service, setService] = useState<Service | null>(null);
   const [nearby, setNearby] = useState<NearbyLocation[]>([]);
+  const [reviews, setReviews] = useState<ServiceReview[]>([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
-  // Booking form state
-  const [from, setFrom] = useState<string>("");
-  const [to, setTo] = useState<string>("");
-
-  // ===== Gallery: dùng ảnh local trong /public =====
-  const gallery = ["/anh1.jpeg", "/anh2.jpeg", "/anh3.jpeg", "/anh4.jpeg", "/anh5.jpeg"];
-
-  // điểm & lượng đánh giá giả lập
-  const rating = 8.4;
-  const reviewsCount = 772;
-
-  // điều kiện cho phép đặt
-  const canBook = !!from && !!to && from <= to && !!id;
+  const [error, setError] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    if (!id) return; // chưa có id thì thôi
-    (async () => {
+    if (!id) return;
+
+    const fetchData = async () => {
       try {
-        // Fetch service
-        const { data, error } = await supabase
+        // Lấy thông tin dịch vụ stay
+        const { data, error: fetchError } = await supabase
           .from("services")
           .select("*")
           .eq("id", id)
           .eq("type", "stay")
           .single();
-        if (error) throw error;
+
+        if (fetchError) throw new Error(fetchError.message);
         setService(data as Service);
 
-        // Nearby by region ~ location
-        const region = (data?.location as string) || "";
+        // Nearby (dựa trên region/location)
+        const region = data?.location || "";
         if (region) {
           const { data: locs } = await supabase
             .from("locations")
             .select("*")
             .ilike("region", `%${region}%`)
             .limit(6);
-          setNearby((locs as any) || []);
+          setNearby(locs || []);
         }
-      } catch (e: any) {
-        console.error(e);
-        setErr("Không tìm thấy dịch vụ.");
+
+        // Reviews
+        const { data: rv } = await supabase
+          .from("service_reviews")
+          .select(
+            `
+            id,
+            rating,
+            comment,
+            user:profiles(full_name, username)
+          `
+          )
+          .eq("service_id", id)
+          .order("created_at", { ascending: false })
+          .limit(4);
+
+        setReviews(
+          (rv || []).map((r: any) => ({
+            ...r,
+            user: Array.isArray(r.user) ? r.user[0] : r.user,
+          }))
+        );
+      } catch (err: any) {
+        setError("Không tìm thấy dịch vụ.");
+        console.error("Error fetching stay service:", err);
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
   }, [id]);
 
-  const onSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!canBook) return;
-  router.push(`/services/stay/${encodeURIComponent(id!)}`
-    + `/room?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-};
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const width = e.currentTarget.clientWidth;
+    const index = Math.round(scrollLeft / width);
+    setCurrentIndex(index);
+  };
 
+  if (loading) return <p className="p-6 text-gray-400">Đang tải...</p>;
+  if (error || !service)
+    return <p className="p-6 text-red-400">{error || "Không tìm thấy dịch vụ"}</p>;
 
-  if (loading) return <p className="p-6">Đang tải...</p>;
-  if (err || !service) return <p className="p-6">{err || "Không tìm thấy dịch vụ"}</p>;
+  const gallery =
+    service.images && service.images.length > 0 ? service.images : ["/anh1.jpeg"];
 
   return (
-    <div className="flex min-h-screen flex-col bg-black text-white">
-      <Header />
-
-      <main className="container mx-auto flex-1 px-3 py-6 md:px-6">
-        {/* Breadcrumb + title */}
-        <div className="mb-3 text-sm text-gray-300">
+    <div className="min-h-screen bg-black text-white">
+      <main className="max-w-4xl mx-auto px-4 py-6 space-y-8">
+        {/* Breadcrumb */}
+        <div className="text-sm text-gray-400">
           <span className="opacity-80">Việt Nam</span>
           {service.location ? <> &nbsp;/&nbsp; <span>{service.location}</span></> : null}
           &nbsp;/&nbsp; <span className="text-gray-100">{service.title}</span>
         </div>
 
-        <h1 className="mb-3 text-2xl font-bold">Chỗ ở: {service.title}</h1>
-
-        {/* Rating / meta row */}
-        <div className="mb-4 flex flex-wrap items-center gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-blue-600 px-2 py-1 font-semibold">{rating}</span>
-            <span className="text-gray-300">{reviewsCount} đánh giá</span>
+        {/* Title + meta */}
+        <div>
+          <h1 className="mb-2 text-2xl font-bold">{service.title}</h1>
+          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-blue-600 px-2 py-1 font-semibold text-white">
+                {service.average_rating?.toFixed(1) || "0.0"}
+              </span>
+              <span>{service.reviews_count} đánh giá</span>
+            </div>
+            <span>• Khách sạn / Homestay</span>
+            {service.location && <span>• {service.location}</span>}
           </div>
-          <div className="text-gray-300">• {service.type === "stay" ? "Khách sạn/Homestay" : service.type}</div>
-          {service.location && <div className="text-gray-300">• {service.location}</div>}
         </div>
 
-        {/* Top grid: gallery + booking card */}
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Gallery */}
-          <section className="md:col-span-2">
-            <div className="grid grid-cols-4 gap-2 overflow-hidden rounded-2xl">
-              <div className="col-span-4 md:col-span-2">
+        {/* Gallery */}
+        <div className="relative">
+          <div
+            className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
+            onScroll={handleScroll}
+          >
+            {gallery.map((src, i) => (
+              <div key={i} className="flex-shrink-0 w-full snap-center">
                 <img
-                  src={gallery[0]}
-                  alt={service.title}
-                  className="h-72 w-full rounded-xl object-cover md:h-[420px]"
+                  src={src}
+                  alt={`${service.title} - ${i + 1}`}
+                  className="w-full h-72 md:h-[420px] object-cover rounded-2xl"
                 />
               </div>
-              {gallery.slice(1, 5).map((src) => (
-                <img key={src} src={src} alt="" className="hidden h-36 w-full rounded-xl object-cover md:block" />
+            ))}
+          </div>
+          <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+            {gallery.map((_, i) => (
+              <span
+                key={i}
+                className={`h-2 w-2 rounded-full ${
+                  i === currentIndex ? "bg-white" : "bg-gray-500"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Tiện ích */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <h3 className="mb-3 text-lg font-semibold">Tiện ích chính</h3>
+          <ul className="grid grid-cols-2 gap-2 text-sm text-gray-300 md:grid-cols-3">
+            {service.amenities?.length > 0 ? (
+              service.amenities.map((a, i) => <li key={i}>• {a.name}</li>)
+            ) : (
+              <li>• Không có dữ liệu</li>
+            )}
+          </ul>
+        </div>
+
+        {/* Mô tả */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <h3 className="mb-2 text-lg font-semibold">Mô tả</h3>
+          <p className="text-gray-300">
+            {service.description || "Chưa có mô tả cho dịch vụ này."}
+          </p>
+        </div>
+
+        {/* Bản đồ */}
+        {service.location && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h3 className="mb-2 text-lg font-semibold">Bản đồ</h3>
+            <iframe
+              title="map"
+              className="h-72 w-full rounded-xl"
+              loading="lazy"
+              src={`https://www.google.com/maps?q=${encodeURIComponent(
+                service.location
+              )}&output=embed`}
+            />
+          </div>
+        )}
+
+        {/* Nearby */}
+        {nearby.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h3 className="mb-3 text-lg font-semibold">Trong khu vực</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {nearby.map((l) => (
+                <div
+                  key={l.id}
+                  className="overflow-hidden rounded-xl border border-white/10 bg-black/30 hover:bg-white/10 transition"
+                >
+                  <img
+                    src={l.image_url || "/anh1.jpeg"}
+                    alt={l.name}
+                    className="h-40 w-full object-cover"
+                  />
+                  <div className="p-3">
+                    <div className="text-xs uppercase text-gray-400">
+                      {l.type} • {l.region || service.location}
+                    </div>
+                    <div className="mt-1 font-medium">{l.name}</div>
+                  </div>
+                </div>
               ))}
             </div>
+          </div>
+        )}
 
-            {/* Tiện ích chính */}
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <h3 className="mb-3 text-lg font-semibold">Tiện ích chính</h3>
-              <ul className="grid grid-cols-2 gap-2 text-sm text-gray-300 md:grid-cols-3">
-                <li>• Wi-Fi</li>
-                <li>• Lễ tân 24h</li>
-                <li>• Máy lạnh</li>
-                <li>• Bãi đỗ xe</li>
-                <li>• Ăn sáng</li>
-                <li>• Hủy linh hoạt (tùy loại phòng)</li>
-              </ul>
-            </div>
-
-            {/* Mô tả */}
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <h3 className="mb-2 text-lg font-semibold">Mô tả</h3>
-              <p className="whitespace-pre-line text-gray-300">
-                {service.description || "Chỗ nghỉ tiện nghi, vị trí thuận tiện để khám phá khu vực."}
-              </p>
-            </div>
-
-            {/* Bản đồ */}
-            {service.location && (
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="mb-2 text-lg font-semibold">Bản đồ</h3>
-                <p className="mb-3 text-sm text-gray-300">Khu vực: {service.location}</p>
-                <iframe
-                  title="map"
-                  className="h-72 w-full rounded-xl"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(service.location)}&output=embed`}
-                />
-              </div>
-            )}
-
-            {/* Gợi ý quanh đây */}
-            {nearby.length > 0 && (
-              <div className="mt-6">
-                <h3 className="mb-3 text-lg font-semibold">Trong khu vực</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {nearby.map((l) => (
-                    <div key={l.id} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
-                      <img
-                        src={l.image_url || "/anh1.jpeg"}
-                        alt={l.name}
-                        className="h-32 w-full object-cover"
-                      />
-                      <div className="p-3">
-                        <div className="text-xs uppercase text-gray-400">
-                          {l.type} • {l.region || service.location}
-                        </div>
-                        <div className="mt-1 font-medium">{l.name}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Đánh giá (demo) */}
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Đánh giá từ khách</h3>
-                <button className="rounded-lg border border-white/20 px-3 py-1.5 text-sm">Xem thêm</button>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+        {/* Đánh giá */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Đánh giá từ khách</h3>
+            <button className="rounded-lg border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10">
+              Xem thêm
+            </button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {reviews.length > 0 ? (
+              reviews.map((r) => (
+                <div
+                  key={r.id}
+                  className="rounded-xl border border-white/10 bg-black/20 p-3"
+                >
                   <div className="text-sm text-gray-300">
-                    Bùi P. T. • <span className="font-semibold">9.7/10</span>
+                    {r.user?.full_name || r.user?.username || "Khách"} •{" "}
+                    <span className="font-semibold">{r.rating}/5</span>
                   </div>
                   <p className="mt-1 text-gray-200">
-                    Rất thích và đúng với ảnh trên app, nhân viên phục vụ chu đáo nhiệt tình.
+                    {r.comment || "Không có bình luận."}
                   </p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-                  <div className="text-sm text-gray-300">
-                    Thi Han Tran • <span className="font-semibold">9.7/10</span>
-                  </div>
-                  <p className="mt-1 text-gray-200">Phòng ổn so với giá tiền, đi lại cũng khá thuận tiện.</p>
+              ))
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-sm text-gray-300">
+                  Chưa có đánh giá • <span className="font-semibold">0/5</span>
                 </div>
+                <p className="mt-1 text-gray-200">Chưa có bình luận.</p>
               </div>
-              <p className="mt-2 text-xs text-gray-400">
-                *Demo đánh giá. Có thể gắn bảng `reviews` nếu map với `services`.
-              </p>
-            </div>
-          </section>
-
-          {/* Booking sticky card */}
-          <aside className="md:col-span-1">
-            <div className="sticky top-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="mb-3 text-right text-sm text-gray-300">Giá/đêm từ</div>
-              <div className="mb-4 text-right text-2xl font-bold text-blue-400">
-                {service.price || "Liên hệ"}
-              </div>
-
-              <form onSubmit={onSubmit} className="space-y-3">
-                <div>
-                  <label className="mb-1 block text-sm text-gray-300">Ngày đến</label>
-                  <input
-                    type="date"
-                    required
-                    min={todayISO()}
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                    className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-gray-300">Ngày đi</label>
-                  <input
-                    type="date"
-                    required
-                    min={from || todayISO()}
-                    value={to}
-                    onChange={(e) => setTo(e.target.value)}
-                    className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white outline-none"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!canBook}
-                  className="w-full rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Chọn phòng
-                </button>
-
-                <p className="text-xs text-gray-400">
-                  *Đặt phòng demo (chưa trừ tồn). Có thể bật kiểm tra trùng ngày & trạng thái.
-                </p>
-              </form>
-
-              {/* Hỗ trợ nhanh */}
-              <div className="mt-4 space-y-1 text-sm text-gray-300">
-                <div>• Xác nhận tức thì</div>
-                <div>• Không cần thẻ tín dụng</div>
-                <div>• Hỗ trợ 24/7</div>
-              </div>
-            </div>
-          </aside>
+            )}
+          </div>
         </div>
-      </main>
 
-      <Footer />
+        {/* Booking Form */}
+        <BookingForm serviceId={service.id} price={service.price} />
+      </main>
     </div>
   );
 }

@@ -90,3 +90,24 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE, Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* file globals.css hoặc styles/globals.css */
+.react-datepicker-wrapper {
+  display: block !important;
+  width: 100% !important;
+}
+.react-datepicker__input-container {
+  display: block !important;
+  width: 100% !important;
+}
+.react-datepicker__input-container input {
+  width: 100% !important;
+}

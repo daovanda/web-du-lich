@@ -1,82 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import Marquee from "react-fast-marquee";
+import { useRef, useState, useEffect } from "react";
 
-export default function SpecialEventsMarquee() {
+export default function SpecialEventsCarousel() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const events = [
+    { href: "/events/hue", img: "/events/hue.jpg", alt: "Festival Huế" },
+    { href: "/events/nha-trang", img: "/events/nha-trang.jpg", alt: "Lễ hội biển Nha Trang" },
+    { href: "/events/da-nang", img: "/events/da-nang.jpg", alt: "Pháo hoa Đà Nẵng" },
+    { href: "/events/tay-nguyen", img: "/events/tay-nguyen.jpg", alt: "Festival Tây Nguyên" },
+    { href: "/map", img: "/map-thumbnail.png", alt: "Bản đồ hành trình" },
+  ];
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const scrollLeft = container.scrollLeft;
+      const width = container.clientWidth;
+      const index = Math.round(scrollLeft / width);
+      setActiveIndex(index);
+    };
+
+    container.addEventListener("scroll", onScroll);
+    return () => container.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <div className="w-full overflow-hidden" style={{ backgroundColor: "#0b0b0b", height: "192px" }}>
-      <Marquee gradient={false} speed={50} pauseOnHover={true} loop={0}>
-        <div className="px-2 flex-shrink-0">
-          <Link href="/events/hue">
-            <div className="bg-[#0b0b0b] p-1 rounded-2xl shadow-md">
+    <div className="w-full bg-black">
+      <div
+        ref={containerRef}
+        className="flex overflow-x-scroll snap-x snap-mandatory scroll-smooth no-scrollbar"
+        style={{ height: "480px" }} // cao hơn, chiếm nửa màn hình
+      >
+        {events.map((e, idx) => (
+          <div
+            key={idx}
+            className="flex-shrink-0 w-full snap-center"
+          >
+            <Link href={e.href}>
               <img
-                src="/events/hue.jpg"
-                alt="Festival Huế"
-                className="w-80 h-48 rounded-xl object-cover"
+                src={e.img}
+                alt={e.alt}
+                className="w-full h-full object-cover"
               />
-            </div>
-          </Link>
-        </div>
+            </Link>
+          </div>
+        ))}
+      </div>
 
-        <div className="px-2 flex-shrink-0">
-          <Link href="/events/nha-trang">
-            <div className="bg-[#0b0b0b] p-1 rounded-2xl shadow-md">
-              <img
-                src="/events/nha-trang.jpg"
-                alt="Lễ hội biển Nha Trang"
-                className="w-80 h-48 rounded-xl object-cover"
-              />
-            </div>
-          </Link>
-        </div>
+      {/* Dấu chấm */}
+      <div className="flex justify-center mt-4 space-x-2">
+        {events.map((_, idx) => (
+          <span
+            key={idx}
+            className={`h-3 w-3 rounded-full transition ${
+              activeIndex === idx ? "bg-white" : "bg-gray-600"
+            }`}
+          />
+        ))}
+      </div>
 
-        <div className="px-2 flex-shrink-0">
-          <Link href="/events/da-nang">
-            <div className="bg-[#0b0b0b] p-1 rounded-2xl shadow-md">
-              <img
-                src="/events/da-nang.jpg"
-                alt="Pháo hoa Đà Nẵng"
-                className="w-80 h-48 rounded-xl object-cover"
-              />
-            </div>
-          </Link>
-        </div>
-
-        <div className="px-2 flex-shrink-0">
-          <Link href="/events/tay-nguyen">
-            <div className="bg-[#0b0b0b] p-1 rounded-2xl shadow-md">
-              <img
-                src="/events/tay-nguyen.jpg"
-                alt="Festival Tây Nguyên"
-                className="w-80 h-48 rounded-xl object-cover"
-              />
-            </div>
-          </Link>
-        </div>
-
-        <div className="px-2 flex-shrink-0">
-          <Link href="/map">
-            <div className="bg-[#0b0b0b] p-1 rounded-2xl shadow-md">
-              <img
-                src="/map-thumbnail.png"
-                alt="Bản đồ hành trình"
-                className="w-80 h-48 rounded-xl object-cover"
-              />
-            </div>
-          </Link>
-        </div>
-      </Marquee>
       <style jsx>{`
-        .w-full {
-          width: 100%;
-          overflow-y: hidden;
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
         }
-        @media (max-width: 896px) {
-          .w-full {
-            padding-left: 1rem;
-            padding-right: 1rem;
-          }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
     </div>

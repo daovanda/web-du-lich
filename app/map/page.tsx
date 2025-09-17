@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Header from "@/components/Header";
 
 export default function MapPage() {
   const [visitedCount, setVisitedCount] = useState<number>(0);
@@ -12,7 +11,6 @@ export default function MapPage() {
   const STROKE_WIDTH_PX = 1;
   const TOTAL_PROVINCES = 63;
 
-  // Map hiển thị tên tỉnh/đảo
   const mapIdToName = (id: string) => {
     const mapping: { [key: string]: string } = {
       "province-1": "Yên Bái",
@@ -84,13 +82,11 @@ export default function MapPage() {
     return mapping[id] || id;
   };
 
-  // Map đặc biệt: đảo -> tỉnh chính
   const specialProvinceMap: Record<string, string> = {
-    "province-64": "province-57", // Hoàng Sa -> Đà Nẵng
-    "province-65": "province-4",  // Trường Sa -> Khánh Hòa
+    "province-64": "province-57",
+    "province-65": "province-4",
   };
 
-  // Load SVG + attach events
   useEffect(() => {
     if (!svgContainerRef.current || eventsAttachedRef.current) return;
 
@@ -104,7 +100,6 @@ export default function MapPage() {
           const provinces = svgContainerRef.current.querySelectorAll<SVGPathElement>('path[id^="province-"]');
           const provinceIds = Array.from(provinces).map((p) => p.getAttribute("id") || "");
 
-          // Tooltip
           const tooltip = document.createElement("div");
           tooltip.id = "map-tooltip";
           Object.assign(tooltip.style, {
@@ -143,7 +138,6 @@ export default function MapPage() {
 
             const targetId = specialProvinceMap[id] || id;
 
-            // Initial fill
             if (visitedRef.current.has(targetId)) {
               const color = colors[Math.floor(Math.random() * colors.length)];
               p.style.fill = color;
@@ -194,45 +188,42 @@ export default function MapPage() {
   const percent = ((visitedCount / TOTAL_PROVINCES) * 100).toFixed(1);
 
   return (
-    <div className="min-h-screen bg-[#0b0b0b] text-white">
-      <Header />
-
+    <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Hero */}
-      <section className="relative h-[240px] sm:h-[320px] md:h-[400px] overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1f2937] to-[#0b0b0b]" />
-        <div className="absolute inset-0 flex items-center justify-center text-center">
-          <div className="px-4">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight drop-shadow-lg">
-              Hành Trình Việt Nam
-            </h1>
-            <p className="mt-3 text-sm sm:text-lg text-white/80 max-w-xl mx-auto">
-              Khám phá bản đồ du lịch Việt Nam 🌏. Click để đánh dấu nơi bạn đã đi và theo dõi hành trình của mình!
-            </p>
-            <a
-              href="#vn-map-root"
-              className="inline-block mt-5 rounded-xl bg-emerald-500 hover:bg-emerald-600 px-5 py-2 text-sm sm:text-base font-semibold transition"
-            >
-              Khám phá ngay
-            </a>
-          </div>
-        </div>
+      <section className="border-b border-gray-700 py-10 text-center">
+        <h1 className="text-4xl font-extrabold tracking-tight">Hành Trình Việt Nam</h1>
+        <p className="mt-3 text-gray-400 max-w-xl mx-auto">
+          Khám phá bản đồ Việt Nam 🌏 — đánh dấu nơi bạn đã đi và theo dõi hành trình cá nhân.
+        </p>
+        <a
+          href="#vn-map-root"
+          className="inline-block mt-6 rounded-full border border-white px-5 py-2 text-sm font-semibold hover:bg-white hover:text-black transition"
+        >
+          Khám phá ngay
+        </a>
       </section>
 
       {/* Main */}
-      <main className="p-6 space-y-6 max-w-6xl mx-auto">
-        <div className="text-center">
-          <div className="inline-block bg-white/10 px-6 py-4 rounded-2xl shadow-md">
-            <p className="text-lg font-semibold">
-              Bạn đã đi được{" "}
-              <span className="text-emerald-400 text-2xl">{visitedCount}</span> / {TOTAL_PROVINCES} tỉnh thành
-            </p>
-            <p className="text-sm text-gray-400 mt-1">
-              Hoàn thành <span className="text-orange-400">{percent}%</span> hành trình Việt Nam
-            </p>
-          </div>
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-10 space-y-10">
+        {/* Line: Thống kê */}
+        <div className="border border-gray-700 rounded-2xl p-6 text-center bg-black">
+          <p className="text-lg font-semibold">
+            Bạn đã đi được{" "}
+            <span className="text-white text-2xl">{visitedCount}</span> / {TOTAL_PROVINCES} tỉnh thành
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Hoàn thành <span className="text-white">{percent}%</span> hành trình
+          </p>
         </div>
 
-        <div id="vn-map-root" ref={svgContainerRef} className="w-full bg-white/5 rounded-2xl shadow-lg p-2" />
+        {/* Line: Bản đồ */}
+        <div
+          id="vn-map-root"
+          ref={svgContainerRef}
+          className="w-full bg-[#111] rounded-2xl shadow border border-gray-700 overflow-hidden p-2"
+          style={{ minHeight: "500px" }}
+
+        />
       </main>
 
       <style jsx>{`
@@ -241,13 +232,13 @@ export default function MapPage() {
           height: auto;
         }
         #vn-map-root path {
-          stroke: #fff;
-          stroke-width: ${STROKE_WIDTH_PX}px;
-          stroke-linejoin: round;
-          stroke-linecap: round;
-          vector-effect: non-scaling-stroke;
-          cursor: pointer;
-          transition: fill 0.2s ease;
+  stroke: #fff; /* viền trắng nổi bật trên nền đen */
+  stroke-width: ${STROKE_WIDTH_PX}px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  transition: fill 0.2s ease;
         }
         #map-tooltip:empty {
           opacity: 0 !important;

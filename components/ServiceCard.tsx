@@ -5,28 +5,43 @@ type Props = {
     id: string;
     title: string;
     description: string;
-    image_url: string; // Sửa từ image thành image_url để khớp dữ liệu Supabase
+    image_url: string;
     price: string;
     type: "car" | "motorbike" | "stay";
+    location?: string;
   };
 };
 
 export default function ServiceCard({ service }: Props) {
   return (
     <Link href={`/services/${service.type}/${service.id}`}>
-      <div className="bg-white rounded-xl shadow p-4 transition-transform hover:scale-105 cursor-pointer">
-        <img
-          src={service.image_url} // Sửa từ service.image thành service.image_url
-          alt={service.title}
-          className="rounded-md w-full h-40 sm:h-48 object-cover mb-3"
-        />
-        <h2 className="font-semibold text-base sm:text-lg">{service.title}</h2>
-        <p className="text-xs sm:text-sm text-gray-600">
-          {service.description}
-        </p>
-        <p className="mt-2 text-blue-600 font-bold text-sm sm:text-base">
-          {service.price}
-        </p>
+      <div className="bg-neutral-900 text-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition duration-300 cursor-pointer flex flex-col">
+        {/* Ảnh dịch vụ */}
+        <div className="relative w-full h-52 overflow-hidden">
+          <img
+            src={service.image_url}
+            alt={service.title}
+            className="w-full h-full object-cover transform hover:scale-105 transition duration-300"
+          />
+        </div>
+
+        {/* Nội dung */}
+        <div className="p-4 flex flex-col flex-grow justify-between">
+          <div>
+            <h2 className="font-semibold text-lg mb-1 line-clamp-1">
+              {service.title}
+            </h2>
+            {service.location && (
+              <p className="text-sm text-gray-400 mb-1 line-clamp-1">
+                📍 {service.location}
+              </p>
+            )}
+            <p className="text-sm text-gray-300 line-clamp-2">
+              {service.description}
+            </p>
+          </div>
+          <p className="mt-3 text-pink-400 font-semibold">{service.price}</p>
+        </div>
       </div>
     </Link>
   );

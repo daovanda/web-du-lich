@@ -85,7 +85,6 @@ export default function ProfilePage() {
     setError(null);
     setSuccess(null);
 
-    // Kiểm tra số điện thoại
     if (!validatePhoneNumber(phone)) {
       setError(
         "Số điện thoại không hợp lệ. Vui lòng nhập +84xxxxxxxxx hoặc 0xxxxxxxxx"
@@ -94,14 +93,12 @@ export default function ProfilePage() {
       return;
     }
 
-    // Kiểm tra email
     if (!validateEmail(email)) {
       setError("Email không hợp lệ");
       setLoading(false);
       return;
     }
 
-    // Nếu email thay đổi → update qua Supabase
     if (email !== (user?.email || "")) {
       const { error: updateEmailError } = await supabase.auth.updateUser({
         email,
@@ -122,7 +119,6 @@ export default function ProfilePage() {
       );
     }
 
-    // Upload avatar nếu có file mới
     let avatarUrlToUpdate = avatarUrl;
     if (avatarFile) {
       const fileExt = avatarFile.name.split(".").pop();
@@ -147,7 +143,6 @@ export default function ProfilePage() {
       }
     }
 
-    // Update profiles
     const updates = {
       full_name: fullName,
       username,
@@ -190,6 +185,7 @@ export default function ProfilePage() {
                     className="w-24 h-24 rounded-full border border-gray-700 object-cover"
                   />
                 )}
+
                 <label className="mt-3 cursor-pointer border border-blue-500 text-blue-500 px-3 py-1 rounded-lg text-sm hover:bg-blue-500 hover:text-white transition">
                   Đổi ảnh
                   <input
@@ -265,7 +261,9 @@ export default function ProfilePage() {
                 {loading ? "Đang cập nhật..." : "Cập nhật hồ sơ"}
               </button>
               {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-              {success && <p className="text-green-400 text-sm mt-2">{success}</p>}
+              {success && (
+                <p className="text-green-400 text-sm mt-2">{success}</p>
+              )}
             </div>
 
             {/* Service History */}
@@ -313,6 +311,19 @@ export default function ProfilePage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Logout button cuối trang */}
+            <div className="pt-6">
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.href = "/";
+                }}
+                className="w-full border border-red-500 text-red-500 py-2 rounded-lg text-sm font-semibold hover:bg-red-500 hover:text-white transition"
+              >
+                Đăng xuất
+              </button>
             </div>
           </>
         ) : (
