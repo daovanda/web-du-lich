@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Booking = {
@@ -18,7 +18,7 @@ type Booking = {
   } | null;
 };
 
-export default function PaymentPage() {
+function PaymentContent() {
   const params = useSearchParams();
   const bookingId = params.get("bookingId");
 
@@ -60,8 +60,6 @@ export default function PaymentPage() {
     setError(null);
 
     try {
-      // Thực tế: gọi API thanh toán
-      // Ở đây demo: cập nhật trạng thái thành "confirmed"
       const { error } = await supabase
         .from("bookings")
         .update({ status: "confirmed" })
@@ -173,7 +171,6 @@ export default function PaymentPage() {
             Thanh toán thành công! Vui lòng kiểm tra đơn trong trang cá nhân.
           </p>
         )}
-
         {error && <p className="text-center text-red-400">{error}</p>}
 
         <p className="text-center text-xs text-gray-400">
@@ -182,5 +179,19 @@ export default function PaymentPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-black text-white">
+          Đang tải...
+        </div>
+      }
+    >
+      <PaymentContent />
+    </Suspense>
   );
 }
