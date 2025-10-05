@@ -31,13 +31,13 @@ export default function DetailedStats() {
           </tr>
         </thead>
         <tbody>
-          {Object.entries(stats.byType).map(([type, values]: any) => (
+          {Object.entries(stats.byType).map(([type, values]: [string, any]) => (
             <tr key={type} className="border-b border-neutral-800">
-              <td className="py-2">{type}</td>
-              <td>{values.total}</td>
-              <td>{values.active || 0}</td>
-              <td>{values.inactive || 0}</td>
-              <td>{values.new || values.pending || 0}</td>
+              <td className="py-2 capitalize">{type}</td>
+              <td>{String(values.total)}</td>
+              <td>{String(values.active || 0)}</td>
+              <td>{String(values.inactive || 0)}</td>
+              <td>{String(values.new || values.pending || 0)}</td>
             </tr>
           ))}
         </tbody>
@@ -46,12 +46,12 @@ export default function DetailedStats() {
       {/* Thống kê theo trạng thái */}
       <h3 className="text-lg font-semibold mt-8 mb-3">By Status</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Object.entries(stats.byStatus).map(([status, count]) => (
+        {Object.entries(stats.byStatus).map(([status, count]: [string, any]) => (
           <div
             key={status}
             className="bg-neutral-800 p-4 rounded-xl text-center border border-neutral-700"
           >
-            <p className="text-xl font-bold text-white">{count}</p>
+            <p className="text-xl font-bold text-white">{String(count)}</p>
             <p className="text-sm text-gray-400 capitalize">{status}</p>
           </div>
         ))}
