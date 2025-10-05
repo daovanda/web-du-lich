@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ServiceCard from "@/components/ServiceCard";
 import SpecialEventsMarquee from "@/components/SpecialEvents";
+import ResizableLayout from "@/components/ResizableLayout";
 
 export default function StayServices() {
   const [services, setServices] = useState<any[]>([]);
@@ -37,6 +38,7 @@ export default function StayServices() {
   }, [searchQuery]);
 
   return (
+    <ResizableLayout>
     <div className="text-white">
       {/* Tagline / giá trị cốt lõi */}
       <div className="max-w-3xl mx-auto px-6 text-center py-8">
@@ -88,5 +90,6 @@ export default function StayServices() {
         )}
       </div>
     </div>
+    </ResizableLayout>
   );
 }

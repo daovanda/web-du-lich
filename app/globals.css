@@ -111,3 +111,12 @@ html {
 .react-datepicker__input-container input {
   width: 100% !important;
 }
+
+/* Ẩn scrollbar trên tất cả trình duyệt */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE, Edge */
+  scrollbar-width: none;     /* Firefox */
+}

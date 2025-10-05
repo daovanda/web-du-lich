@@ -1,10 +1,23 @@
 "use client";
 
-import LeftSidebar from "@/components/LeftSidebar";
-import MainContent from "@/components/MainContent";
-import RightSidebar from "@/components/RightSidebar";
+import React from "react";
+import DefaultLeftSidebar from "@/components/LeftSidebar";
+import DefaultMainContent from "@/components/MainContent";
+import DefaultRightSidebar from "@/components/RightSidebar";
 
-export default function ResizableLayout({ children }: { children: React.ReactNode }) {
+type ResizableLayoutProps = {
+  children?: React.ReactNode;
+  LeftSidebar?: React.ReactNode;
+  MainContent?: React.ReactNode;
+  RightSidebar?: React.ReactNode;
+};
+
+export default function ResizableLayout({
+  children,
+  LeftSidebar,
+  MainContent,
+  RightSidebar,
+}: ResizableLayoutProps) {
   const leftWidth = 260;
   const rightWidth = 200;
 
@@ -13,12 +26,19 @@ export default function ResizableLayout({ children }: { children: React.ReactNod
       className="container"
       style={{ paddingLeft: `${leftWidth}px`, paddingRight: `${rightWidth}px` }}
     >
-      <LeftSidebar width={leftWidth} />
+      {/* Left Sidebar */}
+      {LeftSidebar || <DefaultLeftSidebar width={leftWidth} />}
+
       <div className="resizer-left hidden sm:block"></div>
+
+      {/* Main Content */}
       <div className="content-wrapper">
-        <MainContent>{children}</MainContent>
+        {MainContent || <DefaultMainContent>{children}</DefaultMainContent>}
       </div>
-      <RightSidebar width={rightWidth} />
+
+      {/* Right Sidebar */}
+      {RightSidebar || <DefaultRightSidebar width={rightWidth} />}
+
       <style jsx>{`
         .container {
           display: flex;

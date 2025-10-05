@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import ResizableLayout from "@/components/ResizableLayout";
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
@@ -166,170 +167,172 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
-        {user ? (
-          <>
-            {/* Header */}
-            <div className="flex items-center space-x-6">
-              <div className="flex flex-col items-center">
-                {(avatarFile || avatarUrl) && (
-                  <img
-                    src={
-                      avatarFile
-                        ? URL.createObjectURL(avatarFile)
-                        : avatarUrl ||
-                          "https://via.placeholder.com/150/000000/FFFFFF?text=Avatar"
-                    }
-                    alt="Avatar"
-                    className="w-24 h-24 rounded-full border border-gray-700 object-cover"
-                  />
+    <ResizableLayout>
+      <div className="min-h-screen bg-black text-white">
+        <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
+          {user ? (
+            <>
+              {/* Header */}
+              <div className="flex items-center space-x-6">
+                <div className="flex flex-col items-center">
+                  {(avatarFile || avatarUrl) && (
+                    <img
+                      src={
+                        avatarFile
+                          ? URL.createObjectURL(avatarFile)
+                          : avatarUrl ||
+                            "https://via.placeholder.com/150/000000/FFFFFF?text=Avatar"
+                      }
+                      alt="Avatar"
+                      className="w-24 h-24 rounded-full border border-gray-700 object-cover"
+                    />
+                  )}
+
+                  <label className="mt-3 cursor-pointer border border-blue-500 text-blue-500 px-3 py-1 rounded-lg text-sm hover:bg-blue-500 hover:text-white transition">
+                    Đổi ảnh
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        setAvatarFile(e.target.files?.[0] || null)
+                      }
+                    />
+                  </label>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold">{username || "username"}</h1>
+                  <p className="text-sm text-gray-400">{email}</p>
+                </div>
+              </div>
+
+              {/* Form */}
+              <div className="bg-neutral-900 rounded-xl p-6 shadow">
+                <h2 className="text-lg font-semibold mb-6">Chỉnh sửa hồ sơ</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">
+                      Họ và tên
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">
+                      Số điện thoại
+                    </label>
+                    <input
+                      type="tel"
+                      className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={handleUpdateProfile}
+                  className="mt-6 w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-2 rounded-lg hover:opacity-90 transition"
+                  disabled={loading}
+                >
+                  {loading ? "Đang cập nhật..." : "Cập nhật hồ sơ"}
+                </button>
+                {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+                {success && (
+                  <p className="text-green-400 text-sm mt-2">{success}</p>
                 )}
-
-                <label className="mt-3 cursor-pointer border border-blue-500 text-blue-500 px-3 py-1 rounded-lg text-sm hover:bg-blue-500 hover:text-white transition">
-                  Đổi ảnh
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setAvatarFile(e.target.files?.[0] || null)
-                    }
-                  />
-                </label>
               </div>
+
+              {/* Service History */}
               <div>
-                <h1 className="text-2xl font-bold">{username || "username"}</h1>
-                <p className="text-sm text-gray-400">{email}</p>
-              </div>
-            </div>
-
-            {/* Form */}
-            <div className="bg-neutral-900 rounded-xl p-6 shadow">
-              <h2 className="text-lg font-semibold mb-6">Chỉnh sửa hồ sơ</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Họ và tên
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Số điện thoại
-                  </label>
-                  <input
-                    type="tel"
-                    className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    className="w-full bg-neutral-800 border border-neutral-700 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleUpdateProfile}
-                className="mt-6 w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-2 rounded-lg hover:opacity-90 transition"
-                disabled={loading}
-              >
-                {loading ? "Đang cập nhật..." : "Cập nhật hồ sơ"}
-              </button>
-              {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-              {success && (
-                <p className="text-green-400 text-sm mt-2">{success}</p>
-              )}
-            </div>
-
-            {/* Service History */}
-            <div>
-              <h2 className="text-lg font-semibold mb-4">
-                Lịch sử sử dụng dịch vụ
-              </h2>
-              {serviceHistory.length === 0 ? (
-                <p className="text-gray-400 text-center">
-                  Chưa có dịch vụ nào được sử dụng.
-                </p>
-              ) : (
-                <div className="space-y-6">
-                  {serviceHistory.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-neutral-900 rounded-xl overflow-hidden shadow hover:shadow-lg transition"
-                    >
-                      {item.services?.image_url && (
-                        <img
-                          src={item.services.image_url}
-                          alt={item.services.title}
-                          className="w-full h-56 object-cover"
-                        />
-                      )}
-                      <div className="p-4">
-                        <h3 className="font-semibold text-lg">
-                          {item.services?.title}
-                        </h3>
-                        <p className="text-sm text-gray-400">
-                          Loại: {item.services?.type}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(item.created_at).toLocaleString()} –{" "}
-                          <span
-                            className={`font-medium ${getStatusColor(
-                              item.status
-                            )}`}
-                          >
-                            {item.status}
-                          </span>
-                        </p>
+                <h2 className="text-lg font-semibold mb-4">
+                  Lịch sử sử dụng dịch vụ
+                </h2>
+                {serviceHistory.length === 0 ? (
+                  <p className="text-gray-400 text-center">
+                    Chưa có dịch vụ nào được sử dụng.
+                  </p>
+                ) : (
+                  <div className="space-y-6">
+                    {serviceHistory.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-neutral-900 rounded-xl overflow-hidden shadow hover:shadow-lg transition"
+                      >
+                        {item.services?.image_url && (
+                          <img
+                            src={item.services.image_url}
+                            alt={item.services.title}
+                            className="w-full h-56 object-cover"
+                          />
+                        )}
+                        <div className="p-4">
+                          <h3 className="font-semibold text-lg">
+                            {item.services?.title}
+                          </h3>
+                          <p className="text-sm text-gray-400">
+                            Loại: {item.services?.type}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(item.created_at).toLocaleString()} –{" "}
+                            <span
+                              className={`font-medium ${getStatusColor(
+                                item.status
+                              )}`}
+                            >
+                              {item.status}
+                            </span>
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Logout button cuối trang */}
-            <div className="pt-6">
-              <button
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  window.location.href = "/";
-                }}
-                className="w-full border border-red-500 text-red-500 py-2 rounded-lg text-sm font-semibold hover:bg-red-500 hover:text-white transition"
-              >
-                Đăng xuất
-              </button>
-            </div>
-          </>
-        ) : (
-          <p className="text-center text-gray-500">Đang tải dữ liệu...</p>
-        )}
-      </main>
-    </div>
+              {/* Logout button cuối trang */}
+              <div className="pt-6">
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    window.location.href = "/";
+                  }}
+                  className="w-full border border-red-500 text-red-500 py-2 rounded-lg text-sm font-semibold hover:bg-red-500 hover:text-white transition"
+                >
+                  Đăng xuất
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-gray-500">Đang tải dữ liệu...</p>
+          )}
+        </main>
+      </div>
+    </ResizableLayout>
   );
 }
