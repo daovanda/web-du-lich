@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useUser } from "@supabase/auth-helpers-react";
+import { useSupabase } from "@/components/SupabaseProvider";
 
 type ChatBoxProps = {
   roomId: string;
@@ -10,21 +9,35 @@ type ChatBoxProps = {
 };
 
 export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
+  const supabase = useSupabase();
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState<string | null>(null);
-  const user = useUser();
+  const [user, setUser] = useState<any>(null);
 
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // 🧩 Lấy user hiện tại từ Supabase SSR client
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (!error && user) {
+        setUser(user);
+      }
+    })();
+  }, [supabase]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Load 10 tin nhắn mới nhất
+  // 🧩 Load 10 tin nhắn mới nhất
   const loadInitialMessages = async () => {
     const { data, error } = await supabase
       .from("chat_messages")
@@ -47,7 +60,7 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     }
   };
 
-  // Load thêm 10 tin nhắn cũ
+  // 🧩 Load thêm tin nhắn cũ
   const loadMoreMessages = async () => {
     if (!hasMore || loadingMore || !lastMessageTime) return;
     setLoadingMore(true);
@@ -73,7 +86,6 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
       }
       if (data.length < 10) setHasMore(false);
 
-      // giữ nguyên vị trí scroll sau khi load thêm
       setTimeout(() => {
         if (container) {
           const newScrollHeight = container.scrollHeight;
@@ -85,7 +97,7 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     setLoadingMore(false);
   };
 
-  // Lắng nghe realtime tin nhắn mới
+  // 🧩 Lắng nghe realtime tin nhắn mới
   useEffect(() => {
     loadInitialMessages();
 
@@ -112,9 +124,9 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId]);
+  }, [roomId, supabase]);
 
-  // Bắt sự kiện scroll để load thêm
+  // 🧩 Bắt sự kiện scroll để load thêm
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -129,6 +141,7 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [lastMessageTime, hasMore, loadingMore]);
 
+  // 🧩 Gửi tin nhắn
   const sendMessage = async () => {
     if (!input.trim() || !user) return;
 
@@ -185,9 +198,7 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
           return (
             <div
               key={msg.id}
-              className={`flex flex-col ${
-                isMine ? "items-end" : "items-start"
-              }`}
+              className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
             >
               {!isMine && (
                 <span className="text-xs text-gray-400 mb-1 ml-1">

@@ -11,14 +11,19 @@ export default function AdminRightSidebar({ width }: { width: number }) {
           <li>Đơn đặt: 230</li>
         </ul>
       </div>
+
       <style jsx>{`
         .admin-right-sidebar {
           width: ${width}px;
           border-left: 1px solid #2d3748;
           padding: 1rem;
-          overflow-y: auto;
-          min-height: 100vh;
+          position: sticky;
+          top: 0;
+          height: 100vh;
+          overflow: hidden; /* ❌ Ngăn cuộn riêng */
+          flex-shrink: 0;
         }
+
         @media (max-width: 1024px) {
           .admin-right-sidebar {
             display: none;

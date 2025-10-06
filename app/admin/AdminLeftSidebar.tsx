@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 
-export default function AdminLeftSidebar({ width }: { width: number }) {
+export default function AdminLeftSidebar({
+  width,
+  overlay = false, // ✅ thêm prop overlay
+}: {
+  width: number;
+  overlay?: boolean;
+}) {
   const menus = [
     { href: "/admin", label: "Tổng quan" },
     { href: "/admin/guide", label: "Hướng dẫn" },
@@ -13,7 +19,15 @@ export default function AdminLeftSidebar({ width }: { width: number }) {
   ];
 
   return (
-    <aside className="admin-left-sidebar hidden lg:flex flex-col justify-between">
+    <aside
+      className={`flex flex-col justify-between h-full ${
+        overlay ? "block" : "hidden md:flex"
+      }`}
+      style={{
+        width: `${width}px`,
+        padding: "1rem",
+      }}
+    >
       <div>
         <h1 className="text-2xl font-extrabold mb-6">chagmihaydi</h1>
         <nav className="space-y-2">
@@ -28,21 +42,11 @@ export default function AdminLeftSidebar({ width }: { width: number }) {
           ))}
         </nav>
       </div>
+
       <div className="space-y-2 text-sm text-gray-400">
         <p>© 2025 Admin System</p>
         <p>Hỗ trợ • Chính sách • Liên hệ</p>
       </div>
-      <style jsx>{`
-        .admin-left-sidebar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: ${width}px;
-          height: 100vh;
-          padding: 1rem;
-          z-index: 1000;
-        }
-      `}</style>
     </aside>
   );
 }

@@ -1,11 +1,9 @@
 // lib/supabase.ts
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// 👇 In ra console để kiểm tra
-console.log("Supabase URL:", supabaseUrl);
-console.log("Supabase Key exists:", !!supabaseAnonKey);
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// ✅ Client dành cho phía client (trình duyệt)
+// Cookie tự động đồng bộ giữa client và middleware
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);

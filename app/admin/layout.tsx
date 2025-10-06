@@ -13,7 +13,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <SupabaseProvider>
       <ResizableLayout
-        LeftSidebar={<AdminLeftSidebar width={240} />}
+        LeftSidebar={<AdminLeftSidebar width={240} overlay={true} />}
         RightSidebar={<AdminRightSidebar width={260} />}
       >
         {children}

@@ -53,8 +53,8 @@ export default function RightSidebar({ width }: { width: number }) {
   }, []);
 
   return (
-    <aside className="right-sidebar hidden lg:flex flex-col space-y-6">
-      <div className="p-4">
+    <aside className="right-sidebar hidden lg:flex flex-col space-y-6 border-l border-gray-800 p-4 bg-black h-screen sticky top-0 overflow-y-auto">
+      <div className="p-2">
         {user ? (
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden">
@@ -89,7 +89,7 @@ export default function RightSidebar({ width }: { width: number }) {
           <div>
             <Link
               href="/login"
-              className="text-xl font-semibold text-white block text-left w-full py-2 px-3 rounded-lg hover:bg-gray-900 transition ml-[-1.75rem] mt-2"
+              className="text-xl font-semibold text-white block text-left w-full py-2 px-3 rounded-lg hover:bg-gray-900 transition mt-2"
             >
               Đăng nhập
             </Link>
@@ -101,20 +101,6 @@ export default function RightSidebar({ width }: { width: number }) {
         <p>© 2025 chagmihaydi</p>
         <p>Thông tin • Liên hệ • Chính sách</p>
       </div>
-      <style jsx>{`
-        .right-sidebar {
-          width: ${width}px;
-          border-left: 1px solid #2d3748;
-          padding: 1rem;
-          overflow-y: auto;
-          min-height: 100vh;
-        }
-        @media (max-width: 1024px) {
-          .right-sidebar {
-            display: none;
-          }
-        }
-      `}</style>
     </aside>
   );
 }

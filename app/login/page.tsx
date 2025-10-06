@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ResizableLayout from "@/components/ResizableLayout";
+import { useSupabase } from "@/components/SupabaseProvider"; // ✅ dùng client chung với middleware
 
 export default function LoginPage() {
+  const supabase = useSupabase(); // ✅ lấy supabase client từ provider
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -14,15 +15,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  // 🔹 Đăng nhập bằng email + password
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -33,8 +32,9 @@ export default function LoginPage() {
       return;
     }
 
+    const user = data.user;
     if (user) {
-      // Lấy role trong profiles
+      // 🔹 Lấy role trong bảng profiles
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -51,16 +51,14 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const handleOAuthLogin = async (
-    provider: "google" | "facebook" | "apple"
-  ) => {
+  // 🔹 Đăng nhập OAuth (Google, Facebook, Apple)
+  const handleOAuthLogin = async (provider: "google" | "facebook" | "apple") => {
     setLoading(true);
     setError(null);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        // Về /auth/callback để xử lý role
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -68,6 +66,7 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     }
+
     setLoading(false);
   };
 
@@ -184,11 +183,7 @@ export default function LoginPage() {
                 className="flex items-center justify-center bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg transition duration-200"
                 disabled={loading}
               >
-                <img
-                  src="/facebook-icon.svg"
-                  alt="Facebook"
-                  className="w-5 h-5 mr-2"
-                />
+                <img src="/facebook-icon.svg" alt="Facebook" className="w-5 h-5 mr-2" />
                 Facebook
               </button>
               <button

@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
-export default function LeftSidebar({ width }: { width: number }) {
+export default function LeftSidebar({
+  width,
+  overlay = false,
+}: {
+  width: number;
+  overlay?: boolean;
+}) {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -24,7 +30,7 @@ export default function LeftSidebar({ width }: { width: number }) {
   }, []);
 
   const categories = [
-    { id: "", label: "Trang chủ" }, // thêm nút Trang chủ
+    { id: "", label: "Trang chủ" },
     { id: "stay", label: "Chỗ ở" },
     { id: "car", label: "Xe di chuyển" },
     { id: "motorbike", label: "Thuê xe máy" },
@@ -33,10 +39,20 @@ export default function LeftSidebar({ width }: { width: number }) {
     { id: "map", label: "Bản đồ Việt Nam" },
   ];
 
+  const responsiveClass = overlay ? "flex" : "hidden md:flex";
+  const heightClass = overlay ? "h-full" : "h-screen sticky top-0";
+
   return (
-    <aside className="left-sidebar hidden sm:flex flex-col justify-between">
+    <aside
+      className={`${responsiveClass} flex-col justify-between border-r border-gray-800 p-4 bg-black ${heightClass}`}
+      style={overlay ? undefined : { width: `${width}px` }}
+    >
       <div>
-        <h1 className="text-2xl font-extrabold mb-6">chagmihaydi</h1>
+        {/* 🔹 Ẩn logo khi ở overlay (để không trùng với chữ ngoài) */}
+        {!overlay && (
+          <h1 className="text-2xl font-extrabold mb-6">chagmihaydi</h1>
+        )}
+
         <nav className="space-y-4">
           {categories.map((cat) => (
             <Link
@@ -63,18 +79,6 @@ export default function LeftSidebar({ width }: { width: number }) {
           Về chúng tôi
         </Link>
       </div>
-      <style jsx>{`
-        .left-sidebar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: ${width}px;
-          height: 100vh;
-          border-right: 1px solid #2d3748;
-          padding: 1rem;
-          z-index: 1000;
-        }
-      `}</style>
     </aside>
   );
 }
