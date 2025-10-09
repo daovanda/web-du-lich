@@ -7,8 +7,14 @@ type Props = {
     description: string;
     image_url: string;
     price: string;
-    type: "car" | "motorbike" | "stay";
+    type: "car" | "motorbike" | "stay" | "tour";
     location?: string;
+    average_rating?: number;   // ✅ thêm
+    reviews_count?: number;    // ✅ thêm
+    extra?: {                  // ✅ thêm cho dữ liệu phụ của tour
+      duration_days?: number;
+      guide_name?: string;
+    };
   };
 };
 

@@ -34,7 +34,7 @@ export default function LeftSidebar({
     { id: "stay", label: "Chỗ ở" },
     { id: "car", label: "Xe di chuyển" },
     { id: "motorbike", label: "Thuê xe máy" },
-    { id: "location", label: "Địa điểm du lịch" },
+    { id: "tour", label: "Tour du lịch" },
     { id: user ? "profile" : "login", label: "Trang cá nhân" },
     { id: "map", label: "Bản đồ Việt Nam" },
   ];
