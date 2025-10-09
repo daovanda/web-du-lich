@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ResizableLayout from "@/components/ResizableLayout";
+import HeroSection from "./components/HeroSection";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -17,14 +19,14 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
 
-  // Kiểm tra phiên đăng nhập khi tải trang
+  // Kiểm tra phiên đăng nhập khi tải trang (giữ nguyên)
   useEffect(() => {
     const checkUser = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session?.user) {
-        router.push("/"); // Redirect nếu đã đăng nhập
+        router.push("/"); // Redirect nếu đã đăng nhập (giữ nguyên)
       }
     };
     checkUser();
@@ -58,7 +60,7 @@ export default function RegisterPage() {
           setError("Đã xảy ra lỗi: " + error.message);
         }
       } else if (data.user) {
-        // Kiểm tra identities để xác định email đã tồn tại chưa
+        // Kiểm tra identities để xác định email đã tồn tại chưa (giữ nguyên)
         if (data.user.identities && data.user.identities.length === 0) {
           setError("Email này đã được đăng ký");
         } else {
@@ -98,22 +100,27 @@ export default function RegisterPage() {
 
   return (
     <ResizableLayout>
-      <div className="flex flex-col min-h-screen bg-black text-white">
-        <div className="flex-grow flex items-center justify-center px-4 py-6">
-          <div className="w-full max-w-md bg-gray-900 p-6 sm:p-8 rounded-lg shadow-lg border border-gray-700">
+      <div className="flex flex-col min-h-screen bg-black text-white overflow-hidden">
+        {/* HeroSection (giữ nguyên nội dung; chỉ để layout giống login) */}
+        <HeroSection />
+
+        {/* Form đăng ký: animation nhẹ (không ảnh hưởng logic) */}
+        <div className="flex-grow flex items-start justify-center px-4 pb-16">
+          <motion.div
+            className="w-full max-w-md bg-gray-900 p-6 sm:p-8 rounded-lg shadow-lg border border-gray-700"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+          >
             <h1 className="text-xl sm:text-2xl font-bold mb-6 text-center">
               Đăng ký tài khoản
             </h1>
 
             {error && (
-              <div className="mb-4 text-red-400 text-sm text-center">
-                {error}
-              </div>
+              <div className="mb-4 text-red-400 text-sm text-center">{error}</div>
             )}
             {success && (
-              <div className="mb-4 text-green-400 text-sm text-center">
-                {success}
-              </div>
+              <div className="mb-4 text-green-400 text-sm text-center">{success}</div>
             )}
 
             <form onSubmit={handleRegister}>
@@ -197,11 +204,7 @@ export default function RegisterPage() {
                 className="flex items-center justify-center bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg transition duration-200"
                 disabled={loading}
               >
-                <img
-                  src="/google-icon.svg"
-                  alt="Google"
-                  className="w-5 h-5 mr-2"
-                />
+                <img src="/google-icon.svg" alt="Google" className="w-5 h-5 mr-2" />
                 Google
               </button>
               <button
@@ -209,11 +212,7 @@ export default function RegisterPage() {
                 className="flex items-center justify-center bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg transition duration-200"
                 disabled={loading}
               >
-                <img
-                  src="/facebook-icon.svg"
-                  alt="Facebook"
-                  className="w-5 h-5 mr-2"
-                />
+                <img src="/facebook-icon.svg" alt="Facebook" className="w-5 h-5 mr-2" />
                 Facebook
               </button>
               <button
@@ -221,11 +220,7 @@ export default function RegisterPage() {
                 className="flex items-center justify-center bg-gray-800 border border-gray-700 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg transition duration-200"
                 disabled={loading}
               >
-                <img
-                  src="/apple-icon.svg"
-                  alt="Apple"
-                  className="w-5 h-5 mr-2"
-                />
+                <img src="/apple-icon.svg" alt="Apple" className="w-5 h-5 mr-2" />
                 Apple
               </button>
             </div>
@@ -236,7 +231,7 @@ export default function RegisterPage() {
                 Đăng nhập
               </Link>
             </p>
-          </div>
+          </motion.div>
         </div>
       </div>
     </ResizableLayout>

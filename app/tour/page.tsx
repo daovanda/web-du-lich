@@ -53,7 +53,9 @@ export default function TourPage() {
 
   return (
     <ResizableLayout>
-      <div className="text-white">
+      {/* ✅ Giống file map/page.tsx — đảm bảo không bị header đè */}
+      <div className="text-white mt-16 md:mt-0">
+        {/* Hero section */}
         <div className="max-w-3xl mx-auto px-6 text-center py-8">
           <h1 className="text-3xl font-extrabold mb-3">
             Khám phá Việt Nam qua từng hành trình
@@ -63,7 +65,9 @@ export default function TourPage() {
           </p>
         </div>
 
+        {/* Nội dung chính */}
         <div className="max-w-2xl mx-auto p-6">
+          {/* Thanh tìm kiếm */}
           <div className="my-4">
             <input
               type="text"

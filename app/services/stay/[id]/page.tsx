@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import BookingForm from "@/components/BookingForm";
 import ResizableLayout from "@/components/ResizableLayout";
 
-// ---- Types ----
+/* -------------------- Types -------------------- */
 type Service = {
   id: string;
   title: string;
@@ -15,6 +15,7 @@ type Service = {
   location: string | null;
   price: string | null;
   images: string[];
+  address: string | null; 
   amenities: { name: string }[];
   average_rating: number;
   reviews_count: number;
@@ -38,6 +39,7 @@ type ServiceReview = {
   } | null;
 };
 
+/* -------------------- Component -------------------- */
 export default function StayDetailPage() {
   const { id: rawId } = useParams();
   const id = Array.isArray(rawId) ? rawId[0] : rawId ?? "";
@@ -54,7 +56,6 @@ export default function StayDetailPage() {
 
     const fetchData = async () => {
       try {
-        // Lấy thông tin dịch vụ stay
         const { data, error: fetchError } = await supabase
           .from("services")
           .select("*")
@@ -79,14 +80,12 @@ export default function StayDetailPage() {
         // Reviews
         const { data: rv } = await supabase
           .from("service_reviews")
-          .select(
-            `
+          .select(`
             id,
             rating,
             comment,
             user:profiles(full_name, username)
-          `
-          )
+          `)
           .eq("service_id", id)
           .order("created_at", { ascending: false })
           .limit(4);
@@ -122,14 +121,20 @@ export default function StayDetailPage() {
   const gallery =
     service.images && service.images.length > 0 ? service.images : ["/anh1.jpeg"];
 
+  /* -------------------- UI -------------------- */
   return (
     <ResizableLayout>
-      <div className="min-h-screen bg-black text-white">
-        <main className="max-w-4xl mx-auto px-4 py-6 space-y-8">
+      <div className="min-h-screen bg-black text-white overflow-hidden">
+        <main className="max-w-4xl mx-auto px-4 py-10 space-y-10">
           {/* Breadcrumb */}
           <div className="text-sm text-gray-400">
             <span className="opacity-80">Việt Nam</span>
-            {service.location ? <> &nbsp;/&nbsp; <span>{service.location}</span></> : null}
+            {service.location && (
+              <>
+                {" "}
+                &nbsp;/&nbsp; <span>{service.location}</span>
+              </>
+            )}
             &nbsp;/&nbsp; <span className="text-gray-100">{service.title}</span>
           </div>
 
@@ -168,7 +173,7 @@ export default function StayDetailPage() {
               {gallery.map((_, i) => (
                 <span
                   key={i}
-                  className={`h-2 w-2 rounded-full ${
+                  className={`h-2 w-2 rounded-full transition ${
                     i === currentIndex ? "bg-white" : "bg-gray-500"
                   }`}
                 />
@@ -177,7 +182,7 @@ export default function StayDetailPage() {
           </div>
 
           {/* Tiện ích */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <h3 className="mb-3 text-lg font-semibold">Tiện ích chính</h3>
             <ul className="grid grid-cols-2 gap-2 text-sm text-gray-300 md:grid-cols-3">
               {service.amenities?.length > 0 ? (
@@ -186,18 +191,18 @@ export default function StayDetailPage() {
                 <li>• Không có dữ liệu</li>
               )}
             </ul>
-          </div>
+          </section>
 
           {/* Mô tả */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <h3 className="mb-2 text-lg font-semibold">Mô tả</h3>
             <p className="text-gray-300">
               {service.description || "Chưa có mô tả cho dịch vụ này."}
             </p>
-          </div>
+          </section>
 
           {/* Bản đồ */}
-          {service.location && (
+          {service.address && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <h3 className="mb-2 text-lg font-semibold">Bản đồ</h3>
               <iframe
@@ -205,7 +210,7 @@ export default function StayDetailPage() {
                 className="h-72 w-full rounded-xl"
                 loading="lazy"
                 src={`https://www.google.com/maps?q=${encodeURIComponent(
-                  service.location
+                  service.address
                 )}&output=embed`}
               />
             </div>
@@ -213,7 +218,7 @@ export default function StayDetailPage() {
 
           {/* Nearby */}
           {nearby.length > 0 && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <h3 className="mb-3 text-lg font-semibold">Trong khu vực</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {nearby.map((l) => (
@@ -235,11 +240,11 @@ export default function StayDetailPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Đánh giá */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          {/* Reviews */}
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Đánh giá từ khách</h3>
               <button className="rounded-lg border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10">
@@ -271,7 +276,7 @@ export default function StayDetailPage() {
                 </div>
               )}
             </div>
-          </div>
+          </section>
 
           {/* Booking Form */}
           <BookingForm serviceId={service.id} price={service.price} />

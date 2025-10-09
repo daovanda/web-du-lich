@@ -15,6 +15,7 @@ type Service = {
   location: string | null;
   price: string | null;
   images: string[];
+  address: string | null; 
   amenities: { name: string }[];
   average_rating: number;
   reviews_count: number;
@@ -54,7 +55,6 @@ export default function CarDetailPage() {
 
     const fetchData = async () => {
       try {
-        // Lấy chi tiết service car
         const { data, error: fetchError } = await supabase
           .from("services")
           .select("*")
@@ -65,7 +65,6 @@ export default function CarDetailPage() {
         if (fetchError) throw new Error(fetchError.message);
         setService(data as Service);
 
-        // Nearby
         const region = data?.location || "";
         if (region) {
           const { data: locs } = await supabase
@@ -76,7 +75,6 @@ export default function CarDetailPage() {
           setNearby(locs || []);
         }
 
-        // Reviews
         const { data: rv } = await supabase
           .from("service_reviews")
           .select(
@@ -124,7 +122,8 @@ export default function CarDetailPage() {
 
   return (
     <ResizableLayout>
-      <div className="min-h-screen bg-black text-white">
+      {/* margin top để tránh navbar đè nội dung */}
+      <div className="min-h-screen bg-black text-white mt-16 md:mt-0">
         <main className="max-w-4xl mx-auto px-4 py-6 space-y-8">
           {/* Breadcrumb */}
           <div className="text-sm text-gray-400">
@@ -197,7 +196,7 @@ export default function CarDetailPage() {
           </div>
 
           {/* Bản đồ */}
-          {service.location && (
+          {service.address && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <h3 className="mb-2 text-lg font-semibold">Bản đồ</h3>
               <iframe
@@ -205,12 +204,11 @@ export default function CarDetailPage() {
                 className="h-72 w-full rounded-xl"
                 loading="lazy"
                 src={`https://www.google.com/maps?q=${encodeURIComponent(
-                  service.location
+                  service.address
                 )}&output=embed`}
               />
             </div>
           )}
-
           {/* Nearby */}
           {nearby.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">

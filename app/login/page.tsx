@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import ResizableLayout from "@/components/ResizableLayout";
-import { useSupabase } from "@/components/SupabaseProvider"; // ✅ dùng client chung với middleware
+import { useSupabase } from "@/components/SupabaseProvider";
+import HeroSection from "@/app/login/components/HeroSection";
 
 export default function LoginPage() {
-  const supabase = useSupabase(); // ✅ lấy supabase client từ provider
+  const supabase = useSupabase();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,53 +36,62 @@ export default function LoginPage() {
 
     const user = data.user;
     if (user) {
-      // 🔹 Lấy role trong bảng profiles
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (profile?.role === "admin") {
-        router.push("/admin");
-      } else {
-        router.push("/");
-      }
+      if (profile?.role === "admin") router.push("/admin");
+      else router.push("/");
     }
 
     setLoading(false);
   };
 
-  // 🔹 Đăng nhập OAuth (Google, Facebook, Apple)
+  // 🔹 Đăng nhập OAuth
   const handleOAuthLogin = async (provider: "google" | "facebook" | "apple") => {
     setLoading(true);
     setError(null);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
 
-    if (error) {
-      setError(error.message);
-    }
-
+    if (error) setError(error.message);
     setLoading(false);
   };
 
   return (
     <ResizableLayout>
-      <div className="flex flex-col min-h-screen bg-black text-white">
-        <div className="flex-grow flex items-center justify-center px-4 py-6">
-          <div className="w-full max-w-md bg-gray-900 p-6 sm:p-8 rounded-lg shadow-lg border border-gray-700">
+      <div className="flex flex-col min-h-screen bg-black text-white overflow-hidden">
+        {/* 🔹 Hero Section — sát trên, giống style của map/page.tsx */}
+        <div className="max-w-3xl mx-auto px-6 text-center pt-8 pb-6 sm:pt-10 sm:pb-8">
+          <HeroSection />
+        </div>
+
+        {/* 🔹 Form đăng nhập — hiệu ứng mượt, không tạo scrollbar */}
+        <motion.div
+          className="flex-grow flex items-start justify-center px-4 pb-16"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <motion.div
+            className="w-full max-w-md bg-gray-900 p-6 sm:p-8 rounded-lg shadow-lg border border-gray-700"
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
+          >
             <h1 className="text-xl sm:text-2xl font-bold mb-6 text-center">
               Đăng nhập
             </h1>
 
             {error && (
-              <div className="mb-4 text-red-400 text-sm text-center">{error}</div>
+              <div className="mb-4 text-red-400 text-sm text-center">
+                {error}
+              </div>
             )}
 
             <form onSubmit={handleLogin}>
@@ -202,8 +213,8 @@ export default function LoginPage() {
                 Đăng ký ngay
               </Link>
             </p>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     </ResizableLayout>
   );

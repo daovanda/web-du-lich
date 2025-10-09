@@ -39,57 +39,61 @@ export default function StayServices() {
 
   return (
     <ResizableLayout>
-    <div className="text-white">
-      {/* Tagline / giá trị cốt lõi */}
-      <div className="max-w-3xl mx-auto px-6 text-center py-8">
-        <h1 className="text-3xl font-extrabold mb-3">
-          Chạm – Kết nối – Trải nghiệm
-        </h1>
-        <p className="text-gray-400 text-sm sm:text-base">
-          Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và đậm chất Instagram, 
-          nơi bạn có thể ghi dấu từng trải nghiệm trên bản đồ Việt Nam.
-        </p>
-      </div>
-
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="my-4">
-          <input
-            type="text"
-            placeholder="Tìm kiếm chỗ ở..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full p-2 rounded-lg bg-gray-900 text-white border border-gray-700 focus:outline-none focus:border-gray-500"
-          />
+      {/* ✅ Thêm margin-top để tránh bị header đè (đặc biệt ở mobile) */}
+      <div className="text-white mt-16 md:mt-0">
+        {/* Tagline / giá trị cốt lõi */}
+        <div className="max-w-3xl mx-auto px-6 text-center py-8">
+          <h1 className="text-3xl font-extrabold mb-3">
+            Chạm – Kết nối – Trải nghiệm
+          </h1>
+          <p className="text-gray-400 text-sm sm:text-base">
+            Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và
+            đậm chất Instagram, nơi bạn có thể ghi dấu từng trải nghiệm trên
+            bản đồ Việt Nam.
+          </p>
         </div>
 
-        <h2 className="text-xl font-bold mb-4">Dịch vụ chỗ ở</h2>
-
-        {error && <div className="text-red-400 text-center mb-4">{error}</div>}
-
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                className="bg-gray-900 rounded-lg p-4 animate-pulse h-56"
-              >
-                <div className="w-full h-32 bg-gray-800 rounded mb-3"></div>
-                <div className="h-4 bg-gray-800 rounded mb-2"></div>
-                <div className="h-4 bg-gray-800 rounded w-1/2"></div>
-              </div>
-            ))}
+        <div className="max-w-2xl mx-auto p-6">
+          <div className="my-4">
+            <input
+              type="text"
+              placeholder="Tìm kiếm chỗ ở..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full p-2 rounded-lg bg-gray-900 text-white border border-gray-700 focus:outline-none focus:border-gray-500"
+            />
           </div>
-        ) : services.length === 0 ? (
-          <p className="text-gray-400 text-center">Không tìm thấy dịch vụ nào.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {services.map((service) => (
-              <ServiceCard key={service.id} service={service} />
-            ))}
-          </div>
-        )}
+
+          <h2 className="text-xl font-bold mb-4">Dịch vụ chỗ ở</h2>
+
+          {error && <div className="text-red-400 text-center mb-4">{error}</div>}
+
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-gray-900 rounded-lg p-4 animate-pulse h-56"
+                >
+                  <div className="w-full h-32 bg-gray-800 rounded mb-3"></div>
+                  <div className="h-4 bg-gray-800 rounded mb-2"></div>
+                  <div className="h-4 bg-gray-800 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          ) : services.length === 0 ? (
+            <p className="text-gray-400 text-center">
+              Không tìm thấy dịch vụ nào.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {services.map((service) => (
+                <ServiceCard key={service.id} service={service} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </ResizableLayout>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import BookingForm from "@/components/BookingForm"; // 👈 nhớ tạo file BookingForm.tsx riêng
+import BookingForm from "@/components/BookingForm";
 import ResizableLayout from "@/components/ResizableLayout";
 
 type Service = {
@@ -13,6 +13,7 @@ type Service = {
   type: "stay" | "car" | "motorbike";
   location: string | null;
   price: string | null;
+  address: string | null; 
   images: string[] | null;
   average_rating: number;
   reviews_count: number;
@@ -52,11 +53,11 @@ export default function MotorbikeDetailPage() {
     if (!id) return;
     (async () => {
       try {
-        // Lấy dịch vụ
+        // Dịch vụ
         const { data: serviceData, error: serviceError } = await supabase
           .from("services")
           .select(
-            "id, title, description, type, location, price, images, average_rating, reviews_count, amenities"
+            "id, title, description, type, location, price, images, average_rating, reviews_count, amenities, address"
           )
           .eq("id", id)
           .eq("type", "motorbike")
@@ -65,7 +66,7 @@ export default function MotorbikeDetailPage() {
         if (serviceError) throw serviceError;
         setService(serviceData as Service);
 
-        // Lấy địa điểm lân cận
+        // Địa điểm lân cận
         const region = (serviceData?.location as string) || "";
         if (region) {
           const { data: locs } = await supabase
@@ -76,7 +77,7 @@ export default function MotorbikeDetailPage() {
           setNearby((locs as NearbyLocation[]) || []);
         }
 
-        // Lấy đánh giá dịch vụ
+        // Đánh giá
         const { data: reviewsData } = await supabase
           .from("service_reviews")
           .select(
@@ -118,7 +119,7 @@ export default function MotorbikeDetailPage() {
 
   return (
     <ResizableLayout>
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-black text-white mt-16 md:mt-0">
         <main className="max-w-4xl mx-auto px-4 py-6 space-y-8">
           {/* Breadcrumb */}
           <div className="text-sm text-gray-400">
@@ -199,7 +200,7 @@ export default function MotorbikeDetailPage() {
           </div>
 
           {/* Bản đồ */}
-          {service.location && (
+          {service.address && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <h3 className="mb-2 text-lg font-semibold">Bản đồ</h3>
               <iframe
@@ -207,7 +208,7 @@ export default function MotorbikeDetailPage() {
                 className="h-72 w-full rounded-xl"
                 loading="lazy"
                 src={`https://www.google.com/maps?q=${encodeURIComponent(
-                  service.location
+                  service.address
                 )}&output=embed`}
               />
             </div>
@@ -279,7 +280,7 @@ export default function MotorbikeDetailPage() {
             </div>
           </div>
 
-          {/* Booking form component */}
+          {/* Booking form */}
           <BookingForm serviceId={service.id} price={service.price} />
         </main>
       </div>

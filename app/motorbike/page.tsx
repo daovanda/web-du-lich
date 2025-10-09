@@ -39,18 +39,21 @@ export default function MotorbikeServices() {
 
   return (
     <ResizableLayout>
-      <div className="text-white">
+      {/* ✅ Thêm margin-top để tránh bị header cố định đè lên nội dung khi ở mobile */}
+      <div className="text-white mt-16 md:mt-0">
         {/* Tagline / giá trị cốt lõi */}
         <div className="max-w-3xl mx-auto px-6 text-center py-8">
           <h1 className="text-3xl font-extrabold mb-3">
             Chạm – Kết nối – Trải nghiệm
           </h1>
           <p className="text-gray-400 text-sm sm:text-base">
-            Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và đậm chất Instagram, 
-            nơi bạn có thể ghi dấu từng trải nghiệm trên bản đồ Việt Nam.
+            Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và
+            đậm chất Instagram, nơi bạn có thể ghi dấu từng trải nghiệm trên bản
+            đồ Việt Nam.
           </p>
         </div>
 
+        {/* Ô tìm kiếm và danh sách dịch vụ */}
         <div className="max-w-2xl mx-auto p-6">
           <div className="my-4">
             <input
@@ -80,7 +83,9 @@ export default function MotorbikeServices() {
               ))}
             </div>
           ) : services.length === 0 ? (
-            <p className="text-gray-400 text-center">Không tìm thấy dịch vụ nào.</p>
+            <p className="text-gray-400 text-center">
+              Không tìm thấy dịch vụ nào.
+            </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {services.map((service) => (

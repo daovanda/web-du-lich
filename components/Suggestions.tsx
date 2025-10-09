@@ -8,9 +8,14 @@ export default function Suggestions() {
 
   useEffect(() => {
     const fetchSuggestions = async () => {
-      const { data } = await supabase.from("services").select("*").limit(5);
+      const { data, error } = await supabase.rpc("random_services"); // 👉 gọi function SQL
+      if (error) {
+        console.error("Lỗi khi tải gợi ý:", error);
+        return;
+      }
       if (data) setSuggestions(data);
     };
+
     fetchSuggestions();
   }, []);
 
@@ -19,7 +24,10 @@ export default function Suggestions() {
       <h3 className="font-semibold mb-3">Gợi ý cho bạn</h3>
       <div className="space-y-3">
         {suggestions.map((s) => (
-          <div key={s.id} className="flex items-center space-x-3">
+          <div
+            key={s.id}
+            className="flex items-center space-x-3 hover:bg-gray-800/30 p-2 rounded-lg transition"
+          >
             <img
               src={s.image_url || "/next.svg"}
               alt={s.title}

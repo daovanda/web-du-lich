@@ -12,6 +12,7 @@ type Tour = {
   location: string | null;
   price: string | null;
   images: string[] | null;
+  address: string | null; 
   duration: string | null;
   start_date: string | null;
   end_date: string | null;

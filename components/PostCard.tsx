@@ -10,7 +10,6 @@ type Author = { username?: string; avatar_url?: string };
 type ServiceRef = { id?: string; title?: string };
 
 type Post = {
-  id: string;
   caption?: string;
   created_at?: string;
   author?: Author;
@@ -26,9 +25,10 @@ type PostCardProps = {
 export default function PostCard({ post, currentUser }: PostCardProps) {
   const [currentImage, setCurrentImage] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+
   const images: PostImage[] = Array.isArray(post.images) ? post.images : [];
 
-  // 🧠 Lấy tỷ lệ ảnh đầu tiên
+  // Lấy tỷ lệ ảnh đầu tiên
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     if (aspectRatio) return; // chỉ lấy lần đầu
     const img = e.currentTarget;
@@ -65,12 +65,12 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
         <EllipsisHorizontalIcon className="w-5 h-5 text-gray-400 hover:text-gray-200 transition cursor-pointer" />
       </div>
 
-      {/* Ảnh bài đăng — tự động fit tỷ lệ ảnh đầu tiên */}
+      {/* Ảnh bài đăng */}
       {images.length > 0 && (
         <div
           className="relative w-full bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-md"
           style={{
-            aspectRatio: aspectRatio ? `${aspectRatio}` : "1 / 1", // tạm 1:1 trước khi load
+            aspectRatio: aspectRatio ? `${aspectRatio}` : "1 / 1",
           }}
         >
           <Image
