@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 
 type PostImage = { image_url: string; id?: string };
@@ -22,19 +22,78 @@ type PostCardProps = {
   currentUser?: any;
 };
 
-export default function PostCard({ post, currentUser }: PostCardProps) {
+export default function PostCard({ post }: PostCardProps) {
   const [currentImage, setCurrentImage] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
+  const [expanded, setExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  const captionVisibleRef = useRef<HTMLParagraphElement | null>(null);
+
   const images: PostImage[] = Array.isArray(post.images) ? post.images : [];
 
-  // Lấy tỷ lệ ảnh đầu tiên
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    if (aspectRatio) return; // chỉ lấy lần đầu
+    if (aspectRatio) return;
     const img = e.currentTarget;
     const ratio = img.naturalWidth / img.naturalHeight;
     setAspectRatio(ratio);
   };
+
+  // Kiểm tra xem caption có vượt quá 2 dòng hay không
+  useEffect(() => {
+    const caption = post.caption ?? "";
+    if (!caption) {
+      setIsOverflowing(false);
+      return;
+    }
+
+    const visibleEl = captionVisibleRef.current;
+    if (!visibleEl) {
+      setIsOverflowing(caption.length > 200);
+      return;
+    }
+
+    const width = Math.max(visibleEl.clientWidth, 100);
+
+    const measure = document.createElement("div");
+    measure.style.position = "absolute";
+    measure.style.left = "-99999px";
+    measure.style.top = "-99999px";
+    measure.style.width = `${width}px`;
+    measure.style.whiteSpace = "pre-line";
+    measure.style.visibility = "hidden";
+    measure.style.fontSize = window.getComputedStyle(visibleEl).fontSize;
+    measure.style.lineHeight = window.getComputedStyle(visibleEl).lineHeight;
+    measure.style.fontFamily = window.getComputedStyle(visibleEl).fontFamily;
+    measure.style.fontWeight = window.getComputedStyle(visibleEl).fontWeight;
+    measure.style.letterSpacing = window.getComputedStyle(visibleEl).letterSpacing;
+    measure.innerText = caption;
+    document.body.appendChild(measure);
+
+    const single = document.createElement("div");
+    single.style.position = "absolute";
+    single.style.left = "-99999px";
+    single.style.top = "-99999px";
+    single.style.visibility = "hidden";
+    single.style.whiteSpace = "nowrap";
+    single.style.fontSize = window.getComputedStyle(visibleEl).fontSize;
+    single.style.lineHeight = window.getComputedStyle(visibleEl).lineHeight;
+    single.style.fontFamily = window.getComputedStyle(visibleEl).fontFamily;
+    single.innerText = "A";
+    document.body.appendChild(single);
+
+    const naturalHeight = measure.getBoundingClientRect().height;
+    const lineHeight =
+      single.getBoundingClientRect().height ||
+      parseFloat(window.getComputedStyle(visibleEl).lineHeight || "1.2");
+    const twoLines = lineHeight * 2 + 0.5;
+
+    setIsOverflowing(naturalHeight > twoLines);
+
+    document.body.removeChild(measure);
+    document.body.removeChild(single);
+  }, [post.caption, aspectRatio]);
 
   return (
     <div className="w-full text-white mb-10">
@@ -125,15 +184,34 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
 
       {/* Footer */}
       <div className="px-3 pt-3">
+        {/* Caption hiển thị như Instagram */}
         {post.caption && (
-          <p className="text-sm mb-1 leading-relaxed">
-            <span className="font-semibold mr-1">
-              {post.author?.username || "Người dùng"}:
-            </span>
-            {post.caption}
-          </p>
+          <div className="mb-1 text-sm leading-relaxed">
+            <p
+              ref={captionVisibleRef}
+              className={`whitespace-pre-line transition-all ${
+                expanded ? "" : "line-clamp-2"
+              }`}
+              role="article"
+            >
+              <span className="font-semibold">
+                {post.author?.username || "Người dùng"}:
+              </span>{" "}
+              {post.caption}
+            </p>
+
+            {isOverflowing && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="text-blue-400 text-xs hover:underline mt-1"
+              >
+                {expanded ? "Thu gọn" : "Xem thêm"}
+              </button>
+            )}
+          </div>
         )}
 
+        {/* Dịch vụ liên quan */}
         {post.service && (
           <Link
             href={`/services/${post.service.id}`}

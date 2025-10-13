@@ -90,9 +90,11 @@ export default function ProfilePage() {
     if (email !== (user?.email || "")) {
       const { error: updateEmailError } = await supabase.auth.updateUser({ email });
       if (updateEmailError) {
-        setError(updateEmailError.message.includes("already registered")
-          ? "Email này đã được đăng ký, vui lòng chọn email khác"
-          : "Không thể cập nhật email: " + updateEmailError.message);
+        setError(
+          updateEmailError.message.includes("already registered")
+            ? "Email này đã được đăng ký, vui lòng chọn email khác"
+            : "Không thể cập nhật email: " + updateEmailError.message
+        );
         setLoading(false);
         return;
       }
@@ -153,7 +155,8 @@ export default function ProfilePage() {
   return (
     <ResizableLayout>
       <div className="min-h-screen bg-black text-white">
-        <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
+        {/* ✅ Thêm padding-top cho mobile để tránh bị header che */}
+        <main className="max-w-3xl mx-auto px-4 py-6 space-y-8 pt-24 md:pt-6">
           {user ? (
             <>
               <ProfileHeader

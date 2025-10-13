@@ -115,13 +115,27 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
     <div
       id="vn-map-root"
       ref={svgContainerRef}
-      className="w-full bg-[#111] rounded-2xl shadow border border-gray-700 overflow-hidden p-2"
-      style={{ minHeight: "500px" }}
+      className="w-full bg-[#111] rounded-2xl shadow border border-gray-700 p-2 overflow-auto touch-pan-x touch-pan-y"
+      style={{
+        minHeight: "60vh",
+        maxHeight: "80vh",
+      }}
     >
       <style jsx>{`
+        #vn-map-root {
+          position: relative;
+          scrollbar-width: none; /* Ẩn scrollbar Firefox */
+          -ms-overflow-style: none; /* IE, Edge cũ */
+        }
+        #vn-map-root::-webkit-scrollbar {
+          display: none; /* Ẩn scrollbar Chrome, Safari, Edge */
+        }
         #vn-map-root svg {
+          display: block;
           width: 100%;
           height: auto;
+          max-width: 100%;
+          aspect-ratio: 3/4;
         }
         #vn-map-root path {
           stroke: #fff;
