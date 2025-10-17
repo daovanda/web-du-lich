@@ -296,12 +296,25 @@ export default function ChatWidget() {
       ) : (
         <div className="bg-gray-900 text-white rounded-2xl shadow-lg w-80 h-96 flex flex-col overflow-hidden">
           {!selectedRoom ? (
-            // Danh sách phòng chat - giống admin
+            // Danh sách phòng chat
             <div className="flex flex-col h-full bg-gray-900">
-              {/* Header */}
-              <div className="p-3 font-semibold text-sm flex items-center gap-2 bg-gray-900 border-b border-gray-800">
-                <MessageCircle className="w-4 h-4" />
-                {role === "admin" ? "Quản trị chat" : "Phòng chat"}
+              {/* Header với nút đóng */}
+              <div className="p-3 font-semibold text-sm flex items-center justify-between bg-gray-900 border-b border-gray-800">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  {role === "admin" ? "Quản trị chat" : "Phòng chat"}
+                </div>
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setSelectedRoom(null);
+                  }}
+                  className="p-1 hover:text-indigo-400 transition-colors"
+                  aria-label="Đóng"
+                  title="Đóng"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Danh sách phòng */}
@@ -346,26 +359,41 @@ export default function ChatWidget() {
           ) : (
             // Giao diện chat
             <div className="flex flex-col h-full bg-gray-900">
-              {/* Header với nút back */}
-              <div className="p-2 border-b border-gray-800 flex items-center gap-2 bg-gray-900">
-                <button
-                  onClick={() => setSelectedRoom(null)}
-                  className="p-1 hover:text-indigo-400 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <img
-                  src={
-                    selectedRoom === PUBLIC_ROOM_ID 
-                      ? PUBLIC_AVATAR_URL 
-                      : "/support-avatar.png"
-                  }
-                  alt="avatar"
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-                <div className="ml-2 font-medium text-sm truncate">
-                  {selectedRoom === PUBLIC_ROOM_ID ? "Phòng chung" : "Hỗ trợ"}
+              {/* Header với nút back + đóng */}
+              <div className="p-2 border-b border-gray-800 flex items-center justify-between bg-gray-900">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedRoom(null)}
+                    className="p-1 hover:text-indigo-400 transition-colors"
+                    aria-label="Quay lại"
+                    title="Quay lại"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <img
+                    src={
+                      selectedRoom === PUBLIC_ROOM_ID 
+                        ? PUBLIC_AVATAR_URL 
+                        : "/support-avatar.png"
+                    }
+                    alt="avatar"
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                  <div className="ml-2 font-medium text-sm truncate">
+                    {selectedRoom === PUBLIC_ROOM_ID ? "Phòng chung" : "Hỗ trợ"}
+                  </div>
                 </div>
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setSelectedRoom(null);
+                  }}
+                  className="p-1 hover:text-indigo-400 transition-colors"
+                  aria-label="Đóng"
+                  title="Đóng"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Nội dung chat */}
