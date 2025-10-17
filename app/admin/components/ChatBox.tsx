@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, FC } from "react";
 import { useSupabase } from "@/components/SupabaseProvider";
+import ChatMessages from "./ChatBox/ChatMessages";
+import ChatInput from "./ChatBox/ChatInput";
 
 type ChatBoxProps = {
   roomId: string;
   isPrivate?: boolean;
 };
 
-export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
+const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
   const supabase = useSupabase();
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
@@ -20,7 +22,7 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // 🧩 Lấy user hiện tại từ Supabase SSR client
+  // 🧩 Lấy user hiện tại
   useEffect(() => {
     (async () => {
       const {
@@ -37,6 +39,19 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // 🧩 Đánh dấu đã đọc
+  const markAsRead = async () => {
+    if (!user) return;
+    await supabase.from("chat_reads").upsert(
+      {
+        room_id: roomId,
+        user_id: user.id,
+        last_read_at: new Date().toISOString(),
+      },
+      { onConflict: "room_id,user_id" }
+    );
+  };
+
   // 🧩 Load 10 tin nhắn mới nhất
   const loadInitialMessages = async () => {
     const { data, error } = await supabase
@@ -51,12 +66,13 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     if (!error && data) {
       const reversed = data.reverse();
       setMessages(reversed);
-      if (reversed.length > 0) {
-        setLastMessageTime(reversed[0].created_at);
-      }
+      if (reversed.length > 0) setLastMessageTime(reversed[0].created_at);
       if (data.length < 10) setHasMore(false);
 
-      setTimeout(scrollToBottom, 100);
+      setTimeout(() => {
+        scrollToBottom();
+        markAsRead();
+      }, 100);
     }
   };
 
@@ -81,9 +97,7 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     if (!error && data) {
       const reversed = data.reverse();
       setMessages((prev) => [...reversed, ...prev]);
-      if (reversed.length > 0) {
-        setLastMessageTime(reversed[0].created_at);
-      }
+      if (reversed.length > 0) setLastMessageTime(reversed[0].created_at);
       if (data.length < 10) setHasMore(false);
 
       setTimeout(() => {
@@ -97,7 +111,7 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     setLoadingMore(false);
   };
 
-  // 🧩 Lắng nghe realtime tin nhắn mới
+  // 🧩 Lắng nghe realtime
   useEffect(() => {
     loadInitialMessages();
 
@@ -111,11 +125,12 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
           table: "chat_messages",
           filter: `room_id=eq.${roomId}`,
         },
-        (payload) => {
+        async (payload) => {
           setMessages((prev) => {
             if (prev.some((m) => m.id === payload.new.id)) return prev;
             return [...prev, payload.new];
           });
+          if (payload.new.sender_id !== user?.id) await markAsRead();
           setTimeout(scrollToBottom, 100);
         }
       )
@@ -124,19 +139,15 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId, supabase]);
+  }, [roomId, supabase, user]);
 
-  // 🧩 Bắt sự kiện scroll để load thêm
+  // 🧩 Scroll để load thêm
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
-
     const handleScroll = () => {
-      if (container.scrollTop === 0) {
-        loadMoreMessages();
-      }
+      if (container.scrollTop === 0) loadMoreMessages();
     };
-
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
   }, [lastMessageTime, hasMore, loadingMore]);
@@ -161,107 +172,43 @@ export default function ChatBox({ roomId, isPrivate = false }: ChatBoxProps) {
     if (!error && data) {
       setMessages((prev) => [...prev, data]);
       setInput("");
-      setTimeout(scrollToBottom, 100);
+      setTimeout(() => {
+        scrollToBottom();
+        markAsRead();
+      }, 100);
     }
   };
 
+  // 🧩 Focus/click để đánh dấu đã đọc
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleFocus = () => markAsRead();
+    container.addEventListener("click", handleFocus);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      container.removeEventListener("click", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [user]);
+
   return (
     <div className="flex flex-col h-full">
-      {/* Messages */}
-      <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-hide p-3 space-y-3 min-h-0"
-      >
-        {loadingMore && (
-          <div className="flex justify-center items-center py-2">
-            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        )}
-
-        {messages.length === 0 && (
-          <p className="text-gray-500 text-sm text-center">
-            Chưa có tin nhắn nào
-          </p>
-        )}
-
-        {messages.map((msg) => {
-          const isMine =
-            (!isPrivate && msg.sender_id === user?.id) ||
-            (isPrivate &&
-              msg.from_admin &&
-              user?.user_metadata?.role === "admin") ||
-            (isPrivate && !msg.from_admin && msg.sender_id === user?.id);
-
-          const senderName = msg.profiles?.username || "Người dùng";
-          const avatarUrl = msg.profiles?.avatar_url;
-
-          return (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
-            >
-              {!isMine && (
-                <span className="text-xs text-gray-400 mb-1 ml-1">
-                  {senderName}
-                </span>
-              )}
-              <div
-                className={`flex items-end space-x-2 ${
-                  isMine ? "justify-end space-x-reverse" : "justify-start"
-                }`}
-              >
-                {!isMine && (
-                  <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-white text-sm overflow-hidden">
-                    {avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt={senderName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      senderName.charAt(0).toUpperCase()
-                    )}
-                  </div>
-                )}
-                <div
-                  className={`px-4 py-2 rounded-2xl text-sm max-w-[70%] break-words ${
-                    isMine
-                      ? "bg-indigo-600 text-white rounded-br-none"
-                      : "bg-gray-800 text-gray-100 rounded-bl-none"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="p-3 border-t border-gray-700 flex space-x-2">
-        <textarea
-          rows={1}
-          className="flex-1 bg-gray-800 text-white text-sm rounded-lg px-3 py-2 
-                    focus:outline-none resize-none overflow-y-auto scrollbar-hide max-h-32"
-          placeholder="Nhập tin nhắn..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
-            }
-          }}
-        />
-        <button
-          onClick={sendMessage}
-          className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg text-sm font-medium"
-        >
-          Gửi
-        </button>
-      </div>
+      <ChatMessages
+        messages={messages}
+        user={user}
+        isPrivate={isPrivate}
+        messagesContainerRef={messagesContainerRef}
+        messagesEndRef={messagesEndRef}
+        loadingMore={loadingMore}
+      />
+      <ChatInput
+        input={input}
+        setInput={setInput}
+        sendMessage={sendMessage}
+      />
     </div>
   );
-}
+};
+
+export default ChatBox;

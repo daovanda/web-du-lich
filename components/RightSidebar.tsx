@@ -36,14 +36,18 @@ export default function RightSidebar({ width }: { width: number }) {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const currentUser = session?.user || null;
       setUser(currentUser);
       fetchProfile(currentUser);
     };
     checkUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUser = session?.user || null;
       setUser(currentUser);
       fetchProfile(currentUser);
@@ -57,7 +61,8 @@ export default function RightSidebar({ width }: { width: number }) {
       <div className="p-2">
         {user ? (
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden">
+            {/* Ảnh đại diện */}
+            <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
               {profile?.avatar_url ? (
                 <img
                   src={profile.avatar_url}
@@ -66,16 +71,17 @@ export default function RightSidebar({ width }: { width: number }) {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-semibold">
-                  {profile?.full_name?.[0]?.toUpperCase() ||
-                    profile?.username?.[0]?.toUpperCase() ||
+                  {profile?.username?.[0]?.toUpperCase() ||
                     user.email?.[0]?.toUpperCase() ||
                     "U"}
                 </div>
               )}
             </div>
-            <div>
-              <p className="font-semibold">
-                {profile?.full_name || profile?.username || user.email || "Người dùng"}
+
+            {/* Tên hiển thị */}
+            <div className="min-w-0 max-w-[160px]">
+              <p className="font-semibold break-words whitespace-normal">
+                {profile?.username || user.email || "Người dùng"}
               </p>
               <Link
                 href="/profile"
@@ -96,7 +102,9 @@ export default function RightSidebar({ width }: { width: number }) {
           </div>
         )}
       </div>
+
       <Suggestions />
+
       <div className="p-4 text-xs text-gray-500 space-y-1">
         <p>© 2025 chagmihaydi</p>
         <p>Thông tin • Liên hệ • Chính sách</p>

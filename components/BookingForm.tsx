@@ -9,9 +9,11 @@ import "react-datepicker/dist/react-datepicker.css";
 type BookingFormProps = {
   serviceId: string;
   price?: string | null;
+  // Thêm callback để wrapper có thể gửi tin nhắn
+  onSubmitSuccess?: (formData: any) => Promise<void> | void;
 };
 
-// Hàm format ngày yyyy-mm-dd (local timezone, tránh lệch UTC)
+// Hàm format ngày yyyy-mm-dd (local timezone)
 const formatDate = (date: Date | null) => {
   if (!date) return null;
   const year = date.getFullYear();
@@ -23,7 +25,7 @@ const formatDate = (date: Date | null) => {
 // Regex VN: số bắt đầu bằng 0 và có 10–11 chữ số
 const isValidPhone = (value: string) => /^0\d{9,10}$/.test(value);
 
-export default function BookingForm({ serviceId, price }: BookingFormProps) {
+export default function BookingForm({ serviceId, price, onSubmitSuccess }: BookingFormProps) {
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
   const [fullName, setFullName] = useState("");
@@ -48,18 +50,12 @@ export default function BookingForm({ serviceId, price }: BookingFormProps) {
     setError(null);
 
     try {
-      // Check user login
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         router.push("/login");
         return;
       }
 
-      // Insert booking + lấy lại id
       const { data: inserted, error: insertError } = await supabase
         .from("bookings")
         .insert({
@@ -77,7 +73,21 @@ export default function BookingForm({ serviceId, price }: BookingFormProps) {
 
       if (insertError) throw insertError;
 
-      // Redirect sang trang thanh toán
+      // Gọi callback từ wrapper nếu có
+      if (onSubmitSuccess) {
+        await onSubmitSuccess({
+          bookingId: inserted.id,
+          userId: user.id,
+          serviceId,
+          fullName,
+          phone,
+          note,
+          price,
+          dateFrom: formatDate(from),
+          dateTo: formatDate(to),
+        });
+      }
+
       router.push(`/payment?bookingId=${inserted.id}`);
     } catch (err: any) {
       console.error("Booking error:", err);
@@ -90,9 +100,7 @@ export default function BookingForm({ serviceId, price }: BookingFormProps) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
       <div className="mb-3 text-right text-sm text-gray-300">Giá/đêm từ</div>
-      <div className="mb-4 text-right text-2xl font-bold text-blue-400">
-        {price || "Liên hệ"}
-      </div>
+      <div className="mb-4 text-right text-2xl font-bold text-blue-400">{price || "Liên hệ"}</div>
 
       <form onSubmit={onSubmit} className="space-y-3">
         {/* Ngày đến */}
@@ -120,9 +128,7 @@ export default function BookingForm({ serviceId, price }: BookingFormProps) {
             className="block w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white"
           />
           {from && to && to < from && (
-            <p className="mt-1 text-sm text-red-400">
-              Ngày đi không được sớm hơn ngày đến.
-            </p>
+            <p className="mt-1 text-sm text-red-400">Ngày đi không được sớm hơn ngày đến.</p>
           )}
         </div>
 
@@ -180,7 +186,6 @@ export default function BookingForm({ serviceId, price }: BookingFormProps) {
         </button>
       </form>
 
-      {/* Thông báo lỗi */}
       {error && <p className="mt-3 text-red-400">{error}</p>}
 
       <div className="mt-4 space-y-1 text-sm text-gray-300">
