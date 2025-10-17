@@ -31,6 +31,8 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
       } = await supabase.auth.getUser();
       if (!error && user) {
         setUser(user);
+      } else {
+        setUser(null);
       }
     })();
   }, [supabase]);
@@ -192,6 +194,15 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
     };
   }, [user]);
 
+  // 🧩 Đăng nhập nhanh: chuyển về trang login (bạn có thể đổi sang OAuth nếu muốn)
+  const handleLogin = async () => {
+    // Nếu bạn có trang đăng nhập riêng:
+    window.location.href = "/login";
+
+    // Hoặc dùng OAuth trực tiếp (bật một cái nếu bạn muốn):
+    // await supabase.auth.signInWithOAuth({ provider: "google" });
+  };
+
   return (
     <div className="flex flex-col h-full">
       <ChatMessages
@@ -202,11 +213,27 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
         messagesEndRef={messagesEndRef}
         loadingMore={loadingMore}
       />
-      <ChatInput
-        input={input}
-        setInput={setInput}
-        sendMessage={sendMessage}
-      />
+
+      {isPrivate && !user ? (
+        // Thanh nhắc đăng nhập thay cho ô nhập khi phòng hỗ trợ và chưa đăng nhập
+        <div className="border-t border-gray-800 p-3 text-sm flex items-center justify-between bg-gray-900">
+          <span className="text-gray-400">
+            Đăng nhập để nhắn hỗ trợ trực tiếp
+          </span>
+          <button
+            onClick={handleLogin}
+            className="px-3 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
+          >
+            Đăng nhập
+          </button>
+        </div>
+      ) : (
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          sendMessage={sendMessage}
+        />
+      )}
     </div>
   );
 };

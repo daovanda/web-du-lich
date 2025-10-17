@@ -18,6 +18,29 @@ export default function ChatAdminPanel() {
   const PUBLIC_ROOM_ID = "00000000-0000-0000-0000-000000000001";
   const PUBLIC_AVATAR_URL = "/group-chat.png";
 
+  // Hiển thị thời gian tương đối dạng Messenger
+  const formatRelativeTime = (iso?: string) => {
+    if (!iso) return "";
+    const now = new Date();
+    const t = new Date(iso);
+    const diffMs = now.getTime() - t.getTime();
+    const sec = Math.max(1, Math.floor(diffMs / 1000));
+    const min = Math.floor(sec / 60);
+    const hr = Math.floor(min / 60);
+    const day = Math.floor(hr / 24);
+
+    if (sec < 60) return "Vừa xong";
+    if (min < 60) return `${min} phút`;
+    if (hr < 24) return `${hr} giờ`;
+    if (day === 1) return "Hôm qua";
+    if (day < 7) return `${day} ngày`;
+
+    // >= 7 ngày: hiển thị dd/mm
+    const d = t.getDate().toString().padStart(2, "0");
+    const m = (t.getMonth() + 1).toString().padStart(2, "0");
+    return `${d}/${m}`;
+  };
+
   // 🧩 Lấy user hiện tại
   useEffect(() => {
     (async () => {
@@ -122,7 +145,7 @@ export default function ChatAdminPanel() {
         };
 
         // ✅ Gộp + sắp xếp, nhưng public luôn ở đầu
-        const privateRooms = roomsWithDetails.filter(Boolean);
+        const privateRooms = roomsWithDetails.filter(Boolean) as any[];
         privateRooms.sort((a, b) => {
           const timeA = a?.last_message_time
             ? new Date(a.last_message_time).getTime()
@@ -228,15 +251,8 @@ export default function ChatAdminPanel() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.25 }}
-            // ✅ bỏ border & màu nền riêng — đồng nhất khung ngoài
             className="flex flex-col h-full bg-gray-900"
           >
-            {/* Header */}
-            <div className="p-3 font-semibold text-sm flex items-center gap-2 bg-gray-900">
-              <MessageCircle className="w-4 h-4" />
-              Danh sách phòng chat
-            </div>
-
             {/* 🔍 Thanh tìm kiếm */}
             <div className="p-2 border-b border-gray-800 flex items-center gap-2 bg-gray-900">
               <Search className="w-4 h-4 text-gray-400" />
@@ -249,6 +265,7 @@ export default function ChatAdminPanel() {
               />
             </div>
 
+            {/* Danh sách phòng */}
             <div className="flex-1 overflow-y-auto bg-gray-900">
               {filteredRooms.map((r) => (
                 <button
@@ -266,15 +283,20 @@ export default function ChatAdminPanel() {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{r.display_name}</p>
-                    <p className="text-xs text-gray-400 truncate">
+                    <p className="text-xs text-gray-400 truncate whitespace-nowrap break-normal">
                       {r.last_message}
                     </p>
                   </div>
-                  {r.unread > 0 && (
-                    <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full ml-2">
-                      {r.unread}
+                  <div className="ml-2 flex flex-col items-end shrink-0">
+                    <span className="text-[10px] text-gray-500">
+                      {formatRelativeTime(r.last_message_time)}
                     </span>
-                  )}
+                    {r.unread > 0 && (
+                      <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full mt-1">
+                        {r.unread}
+                      </span>
+                    )}
+                  </div>
                 </button>
               ))}
             </div>
@@ -288,13 +310,14 @@ export default function ChatAdminPanel() {
             transition={{ duration: 0.25 }}
             className="flex flex-col h-full bg-gray-900"
           >
-            <div className="p-2 border-b border-gray-700 flex items-center gap-2 bg-gray-900">
+            {/* Header với nút back - gọn, không thừa không gian */}
+            <div className="border-b border-gray-800 flex items-center gap-2 bg-gray-900">
               <button
                 onClick={() => {
                   setActiveRoom(null);
                   setActiveUser(null);
                 }}
-                className="p-1 hover:text-indigo-400 transition-colors"
+                className="p-2 hover:text-indigo-400 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
@@ -308,7 +331,8 @@ export default function ChatAdminPanel() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0">
+            {/* Nội dung chat */}
+            <div className="flex-1 bg-gray-900 overflow-y-auto">
               <ChatBox
                 key={activeRoom}
                 roomId={activeRoom}

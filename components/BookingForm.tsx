@@ -22,7 +22,7 @@ const formatDate = (date: Date | null) => {
   return `${year}-${month}-${day}`;
 };
 
-// Regex VN: số bắt đầu bằng 0 và có 10–11 chữ số
+// Regex VN: số bắt ầu bằng 0 và có 10–11 chữ số
 const isValidPhone = (value: string) => /^0\d{9,10}$/.test(value);
 
 export default function BookingForm({ serviceId, price, onSubmitSuccess }: BookingFormProps) {

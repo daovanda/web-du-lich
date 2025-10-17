@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MessageCircle, X } from "lucide-react";
+import { MessageCircle, X, ArrowLeft } from "lucide-react";
 import ChatBox from "./ChatBox";
 import ChatAdminPanel from "./ChatAdminPanel";
 import { useSupabase } from "@/components/SupabaseProvider";
@@ -9,17 +9,55 @@ import { useSupabase } from "@/components/SupabaseProvider";
 export default function ChatWidget() {
   const supabase = useSupabase();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"public" | "private">("public");
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [privateRoomId, setPrivateRoomId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
-  const [role, setRole] = useState<string>("user"); // 👈 thêm role
+  const [role, setRole] = useState<string>("user");
 
   const [unreadPublic, setUnreadPublic] = useState(0);
   const [unreadPrivate, setUnreadPrivate] = useState(0);
 
-  const PUBLIC_ROOM_ID = "00000000-0000-0000-0000-000000000001";
+  // Preview tin nhắn gần nhất
+  const [lastPublicMsg, setLastPublicMsg] = useState<string>("");
+  const [lastPrivateMsg, setLastPrivateMsg] = useState<string>("");
 
-  // 🧩 Lấy user hiện tại + role
+  // Thời điểm tin nhắn gần nhất
+  const [lastPublicTime, setLastPublicTime] = useState<string | null>(null);
+  const [lastPrivateTime, setLastPrivateTime] = useState<string | null>(null);
+
+  const PUBLIC_ROOM_ID = "00000000-0000-0000-0000-000000000001";
+  const PUBLIC_AVATAR_URL = "/group-chat.png";
+
+  // Helper: Thời gian tương đối dạng Messenger
+  const formatRelativeTime = (iso?: string | null) => {
+    if (!iso) return "";
+    const now = new Date();
+    const t = new Date(iso);
+    const diffMs = now.getTime() - t.getTime();
+    const sec = Math.max(1, Math.floor(diffMs / 1000));
+    const min = Math.floor(sec / 60);
+    const hr = Math.floor(min / 60);
+    const day = Math.floor(hr / 24);
+
+    if (sec < 60) return "Vừa xong";
+    if (min < 60) return `${min} phút`;
+    if (hr < 24) return `${hr} giờ`;
+    if (day === 1) return "Hôm qua";
+    if (day < 7) return `${day} ngày`;
+
+    const d = t.getDate().toString().padStart(2, "0");
+    const m = (t.getMonth() + 1).toString().padStart(2, "0");
+    return `${d}/${m}`;
+  };
+
+  // Tick mỗi 60s để cập nhật label thời gian tương đối
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((t) => t + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Lấy user hiện tại + role
   useEffect(() => {
     (async () => {
       const {
@@ -32,7 +70,6 @@ export default function ChatWidget() {
       }
       setUser(user);
 
-      // Lấy role từ bảng profiles (ưu tiên)
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -43,7 +80,7 @@ export default function ChatWidget() {
     })();
   }, [supabase]);
 
-  // 🧩 Tự động lấy hoặc tạo phòng riêng (private room)
+  // Tự động lấy hoặc tạo phòng riêng
   useEffect(() => {
     const fetchOrCreatePrivateRoom = async () => {
       if (!user) return;
@@ -72,7 +109,40 @@ export default function ChatWidget() {
     fetchOrCreatePrivateRoom();
   }, [user, supabase]);
 
-  // 🧩 Hàm lấy số tin chưa đọc
+  // Lấy last message + time cho Public
+  useEffect(() => {
+    const fetchLastPublic = async () => {
+      const { data } = await supabase
+        .from("chat_messages")
+        .select("content, created_at")
+        .eq("room_id", PUBLIC_ROOM_ID)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setLastPublicMsg(data?.content || "");
+      setLastPublicTime(data?.created_at || null);
+    };
+    fetchLastPublic();
+  }, [supabase]);
+
+  // Lấy last message + time cho Private
+  useEffect(() => {
+    if (!privateRoomId) return;
+    const fetchLastPrivate = async () => {
+      const { data } = await supabase
+        .from("chat_messages")
+        .select("content, created_at")
+        .eq("room_id", privateRoomId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setLastPrivateMsg(data?.content || "");
+      setLastPrivateTime(data?.created_at || null);
+    };
+    fetchLastPrivate();
+  }, [privateRoomId, supabase]);
+
+  // Hàm lấy số tin chưa đọc
   const fetchUnreadCounts = async () => {
     if (!user) return;
 
@@ -98,9 +168,9 @@ export default function ChatWidget() {
     if (user && privateRoomId) fetchUnreadCounts();
   }, [user, privateRoomId]);
 
-  // 🧩 Đánh dấu đã đọc khi mở
+  // Đánh dấu đã đọc khi mở
   useEffect(() => {
-    if (!user || !open) return;
+    if (!user || !open || !selectedRoom) return;
 
     const markAsRead = async (roomId: string) => {
       await supabase.from("chat_reads").upsert(
@@ -113,24 +183,24 @@ export default function ChatWidget() {
       );
     };
 
-    if (tab === "public") {
-      markAsRead(PUBLIC_ROOM_ID);
+    markAsRead(selectedRoom);
+    
+    if (selectedRoom === PUBLIC_ROOM_ID) {
       setUnreadPublic(0);
-    } else if (privateRoomId) {
-      markAsRead(privateRoomId);
+    } else if (selectedRoom === privateRoomId) {
       setUnreadPrivate(0);
     }
-  }, [open, tab, user, privateRoomId, supabase]);
+  }, [open, selectedRoom, user, privateRoomId, supabase]);
 
-  // 🧩 Realtime
+  // Realtime
   useEffect(() => {
     if (!user) return;
 
-    const handleNewMessage = async (roomId: string, senderId: string) => {
+    const handleNewMessage = async (roomId: string, senderId: string, content: string, createdAt: string) => {
       if (senderId === user.id) return;
 
       if (roomId === PUBLIC_ROOM_ID) {
-        if (!open || tab !== "public") {
+        if (!open || selectedRoom !== PUBLIC_ROOM_ID) {
           setUnreadPublic((p) => p + 1);
         } else {
           await supabase.from("chat_reads").upsert(
@@ -142,8 +212,10 @@ export default function ChatWidget() {
             { onConflict: "room_id,user_id" }
           );
         }
+        setLastPublicMsg(content || "");
+        setLastPublicTime(createdAt || null);
       } else if (roomId === privateRoomId) {
-        if (!open || tab !== "private") {
+        if (!open || selectedRoom !== privateRoomId) {
           setUnreadPrivate((p) => p + 1);
         } else {
           await supabase.from("chat_reads").upsert(
@@ -155,6 +227,8 @@ export default function ChatWidget() {
             { onConflict: "room_id,user_id" }
           );
         }
+        setLastPrivateMsg(content || "");
+        setLastPrivateTime(createdAt || null);
       }
     };
 
@@ -163,19 +237,50 @@ export default function ChatWidget() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
-        (payload) => handleNewMessage(payload.new.room_id, payload.new.sender_id)
+        (payload) =>
+          handleNewMessage(
+            payload.new.room_id,
+            payload.new.sender_id,
+            payload.new.content,
+            payload.new.created_at
+          )
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, privateRoomId, open, tab, supabase]);
+  }, [user, privateRoomId, open, selectedRoom, supabase]);
 
-  // 🧩 Giao diện chính
+  // Luôn hiển thị phòng Hỗ trợ:
+  // - Nếu đã có privateRoomId: dùng id thật, hiển thị preview + time thật.
+  // - Nếu chưa có (chưa đăng nhập): tạo entry với id giả "__support__" để vẫn cho người dùng bấm vào.
+  const SUPPORT_PLACEHOLDER_ID = "__support__";
+
+  // Tạo danh sách phòng chat cho user (có last_message + last_time)
+  const userRooms = [
+    {
+      room_id: PUBLIC_ROOM_ID,
+      display_name: "Phòng chung",
+      avatar_url: PUBLIC_AVATAR_URL,
+      unread: unreadPublic,
+      type: "public",
+      last_message: lastPublicMsg,
+      last_time: lastPublicTime
+    },
+    {
+      room_id: privateRoomId || SUPPORT_PLACEHOLDER_ID,
+      display_name: "Hỗ trợ",
+      avatar_url: "/support-avatar.png",
+      unread: privateRoomId ? unreadPrivate : 0,
+      type: "private",
+      last_message: privateRoomId ? lastPrivateMsg : "",
+      last_time: privateRoomId ? lastPrivateTime : null
+    }
+  ];
+
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Nút mở/đóng */}
       {!open ? (
         <button
           onClick={() => setOpen(true)}
@@ -190,57 +295,88 @@ export default function ChatWidget() {
         </button>
       ) : (
         <div className="bg-gray-900 text-white rounded-2xl shadow-lg w-80 h-96 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-3 border-b border-gray-700">
-            <div className="flex space-x-3">
-              {role !== "admin" && (
-                <>
-                  <button
-                    onClick={() => setTab("public")}
-                    className={`text-sm font-medium relative ${
-                      tab === "public" ? "text-indigo-400" : "text-gray-400"
-                    }`}
-                  >
-                    Chung
-                    {unreadPublic > 0 && (
-                      <span className="absolute -top-2 -right-4 bg-red-500 text-xs rounded-full px-2">
-                        {unreadPublic}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setTab("private")}
-                    className={`text-sm font-medium relative ${
-                      tab === "private" ? "text-indigo-400" : "text-gray-400"
-                    }`}
-                  >
-                    Hỗ trợ
-                    {unreadPrivate > 0 && (
-                      <span className="absolute -top-2 -right-5 bg-red-500 text-xs rounded-full px-2">
-                        {unreadPrivate}
-                      </span>
-                    )}
-                  </button>
-                </>
-              )}
-            </div>
-            <button onClick={() => setOpen(false)}>
-              <X className="w-5 h-5 text-gray-400 hover:text-white" />
-            </button>
-          </div>
+          {!selectedRoom ? (
+            // Danh sách phòng chat - giống admin
+            <div className="flex flex-col h-full bg-gray-900">
+              {/* Header */}
+              <div className="p-3 font-semibold text-sm flex items-center gap-2 bg-gray-900 border-b border-gray-800">
+                <MessageCircle className="w-4 h-4" />
+                {role === "admin" ? "Quản trị chat" : "Phòng chat"}
+              </div>
 
-          {/* Nội dung chat */}
-          <div className="flex-1 min-h-0">
-            {role === "admin" ? (
-              <ChatAdminPanel />
-            ) : tab === "public" ? (
-              <ChatBox roomId={PUBLIC_ROOM_ID} isPrivate={false} />
-            ) : (
-              privateRoomId && (
-                <ChatBox roomId={privateRoomId} isPrivate={true} />
-              )
-            )}
-          </div>
+              {/* Danh sách phòng */}
+              <div className="flex-1 overflow-y-auto bg-gray-900">
+                {role === "admin" ? (
+                  <ChatAdminPanel />
+                ) : (
+                  userRooms.map((room) => (
+                    <button
+                      key={room.room_id}
+                      onClick={() => setSelectedRoom(room.room_id)}
+                      className="w-full flex items-center px-3 py-2 text-sm text-left hover:bg-gray-800 transition-colors"
+                    >
+                      <img
+                        src={room.avatar_url || "/default-avatar.png"}
+                        alt="avatar"
+                        className="w-8 h-8 rounded-full object-cover mr-3"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{room.display_name}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {room.last_message?.trim()
+                            ? room.last_message
+                            : (room.type === "public" ? "Thảo luận chung" : "Hỗ trợ trực tiếp")}
+                        </p>
+                      </div>
+                      <div className="ml-2 flex flex-col items-end shrink-0">
+                        <span className="text-[10px] text-gray-500">
+                          {formatRelativeTime(room.last_time)}
+                        </span>
+                        {room.unread > 0 && (
+                          <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full mt-1">
+                            {room.unread}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            // Giao diện chat
+            <div className="flex flex-col h-full bg-gray-900">
+              {/* Header với nút back */}
+              <div className="p-2 border-b border-gray-800 flex items-center gap-2 bg-gray-900">
+                <button
+                  onClick={() => setSelectedRoom(null)}
+                  className="p-1 hover:text-indigo-400 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <img
+                  src={
+                    selectedRoom === PUBLIC_ROOM_ID 
+                      ? PUBLIC_AVATAR_URL 
+                      : "/support-avatar.png"
+                  }
+                  alt="avatar"
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+                <div className="ml-2 font-medium text-sm truncate">
+                  {selectedRoom === PUBLIC_ROOM_ID ? "Phòng chung" : "Hỗ trợ"}
+                </div>
+              </div>
+
+              {/* Nội dung chat */}
+              <div className="flex-1 min-h-0">
+                <ChatBox 
+                  roomId={selectedRoom} 
+                  isPrivate={selectedRoom !== PUBLIC_ROOM_ID} 
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
