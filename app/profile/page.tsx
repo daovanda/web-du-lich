@@ -15,7 +15,6 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [serviceHistory, setServiceHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -51,13 +50,7 @@ export default function ProfilePage() {
           );
         }
 
-        const { data: history } = await supabase
-          .from("bookings")
-          .select("id, created_at, status, services(title, type, image_url)")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (history) setServiceHistory(history);
+        // Bỏ phần fetch serviceHistory - để ServiceHistory tự fetch
       }
     };
     fetchUser();
@@ -182,8 +175,8 @@ export default function ProfilePage() {
                 handleUpdateProfile={handleUpdateProfile}
               />
 
+              {/* ServiceHistory sẽ tự fetch dữ liệu từ API */}
               <ServiceHistory
-                serviceHistory={serviceHistory}
                 getStatusColor={getStatusColor}
               />
 

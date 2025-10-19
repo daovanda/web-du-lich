@@ -17,6 +17,13 @@ type ApproveForm = {
   price: string;
   images: string[];
   amenities: string;
+  owner_name: string;
+  phone: string;
+  email: string;
+  facebook: string;
+  zalo: string;
+  tiktok: string;
+  instagram: string;
 };
 
 type Props = {
@@ -43,11 +50,19 @@ export default function ApproveModal({
     price: "",
     images: [],
     amenities: "",
+    owner_name: "",
+    phone: "",
+    email: "",
+    facebook: "",
+    zalo: "",
+    tiktok: "",
+    instagram: "",
   });
 
-  const [files, setFiles] = useState<File[]>([]); // ảnh sẽ được upload khi approve
-  const [newFiles, setNewFiles] = useState<File[]>([]); // ảnh thêm mới để preview
+  const [files, setFiles] = useState<File[]>([]);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   function amenitiesToString(amenities: any): string {
     if (!amenities) return "";
@@ -74,20 +89,55 @@ export default function ApproveModal({
           ? [pending.images]
           : [],
         amenities: amenitiesToString((pending as any).amenities),
+        owner_name: pending.owner_name || "",
+        phone: pending.phone || "",
+        email: pending.email || "",
+        facebook: pending.facebook || "",
+        zalo: pending.zalo || "",
+        tiktok: pending.tiktok || "",
+        instagram: pending.instagram || "",
       });
       setFiles([]);
       setNewFiles([]);
+      setErrors({});
     }
   }, [pending]);
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!form.title.trim()) newErrors.title = "Tiêu đề là bắt buộc";
+    if (!form.description.trim()) newErrors.description = "Mô tả là bắt buộc";
+    if (!form.location.trim()) newErrors.location = "Địa điểm là bắt buộc";
+    if (!form.price.trim()) newErrors.price = "Giá là bắt buộc";
+    if (!form.owner_name.trim()) newErrors.owner_name = "Tên chủ sở hữu là bắt buộc";
+    if (!form.phone.trim()) newErrors.phone = "Số điện thoại là bắt buộc";
+    if (!form.email.trim()) newErrors.email = "Email là bắt buộc";
+    
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = "Email không hợp lệ";
+    }
+    
+    if (form.phone && !/^(\+84|0)[0-9]{9}$/.test(form.phone)) {
+      newErrors.phone = "Số điện thoại không hợp lệ";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   if (!open || !pending) return null;
 
-  /* 📁 Save changes */
   const handleSaveChanges = async () => {
     if (!pending?.id) return;
+    
+    if (!validateForm()) {
+      alert("Vui lòng kiểm tra lại các trường bắt buộc");
+      return;
+    }
+    
     setSaving(true);
     try {
-      // 📤 Upload ảnh mới nếu có
       let newImageUrls: string[] = [];
       if (newFiles.length > 0) {
         newImageUrls = await uploadImagesToBucket(newFiles, "pending_services_images");
@@ -103,214 +153,385 @@ export default function ApproveModal({
         price: form.price,
         images: allImages,
         amenities: form.amenities,
+        owner_name: form.owner_name,
+        phone: form.phone,
+        email: form.email,
+        facebook: form.facebook,
+        zalo: form.zalo,
+        tiktok: form.tiktok,
+        instagram: form.instagram,
       } as any);
 
-      alert("✅ Changes saved.");
+      alert("✅ Đã lưu thay đổi thành công!");
       refresh();
-      setNewFiles([]); // reset ảnh mới sau khi lưu
+      setNewFiles([]);
     } catch (err: any) {
       console.error(err);
-      alert("❌ Save failed: " + (err?.message ?? err));
+      alert("❌ Lỗi khi lưu: " + (err?.message ?? err));
     } finally {
       setSaving(false);
     }
   };
 
-  /* ✅ Approve */
   const handleApprove = async () => {
+    if (!validateForm()) {
+      alert("Vui lòng kiểm tra lại các trường bắt buộc trước khi duyệt");
+      return;
+    }
+    
     try {
       await approvePendingAsService(pending, form, files);
-      alert("✅ Approved and moved to services.");
+      alert("✅ Đã duyệt và chuyển sang dịch vụ!");
       refresh();
       onClose();
     } catch (err: any) {
       console.error(err);
-      alert("❌ Approve failed: " + (err?.message ?? err));
+      alert("❌ Lỗi khi duyệt: " + (err?.message ?? err));
     }
   };
 
-  /* 🗑️ Remove existing image */
   const handleRemoveImage = (imgUrl: string) => {
     setForm((prev) => ({
       ...prev,
       images: prev.images.filter((i) => i !== imgUrl),
     }));
-    alert("⚠️ Image removed from preview. Click 'Save Changes' to confirm.");
+  };
+
+  const removeNewImage = (index: number) => {
+    setNewFiles(newFiles.filter((_, i) => i !== index));
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="bg-neutral-900 text-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8 relative border border-neutral-800 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8">
+      <div className="bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 text-white rounded-3xl w-full max-w-4xl max-h-[95vh] overflow-y-auto border border-neutral-700 shadow-2xl">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <h3 className="text-2xl font-semibold">Approve Service</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">
-            ✕
-          </button>
+        <div className="sticky top-0 bg-neutral-900/95 backdrop-blur-sm border-b border-neutral-700 p-6 rounded-t-3xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+                🔍 Duyệt Dịch Vụ
+              </h3>
+              <p className="text-gray-400 text-sm mt-1">
+                ID: {pending.id} | Trạng thái: {pending.status}
+              </p>
+            </div>
+            <button 
+              onClick={onClose} 
+              className="text-gray-400 hover:text-white text-2xl transition-colors"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        {/* Form */}
-        <div className="space-y-4 text-sm">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Title</label>
-            <input
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded"
-            />
-          </div>
+        <div className="p-6 space-y-6">
+          {/* Service Information */}
+          <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
+            <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <span className="mr-2">📋</span>
+              Thông Tin Dịch Vụ
+            </h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Tên dịch vụ *
+                </label>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className={`w-full p-3 bg-neutral-700 rounded-xl text-white border transition-colors ${
+                    errors.title ? 'border-red-500' : 'border-neutral-600 focus:border-green-500'
+                  } outline-none`}
+                />
+                {errors.title && <p className="text-red-400 text-xs mt-1">{errors.title}</p>}
+              </div>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Type</label>
-            <select
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-              className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded"
-            >
-              {SERVICE_TYPES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Loại dịch vụ *
+                </label>
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  className="w-full p-3 bg-neutral-700 rounded-xl text-white border border-neutral-600 focus:border-green-500 outline-none"
+                >
+                  {SERVICE_TYPES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Description</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded h-28"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Nguồn gửi
+                </label>
+                <input
+                  value={(pending as any).source || "form"}
+                  disabled
+                  className="w-full p-3 bg-neutral-600 rounded-xl text-gray-300 border border-neutral-600"
+                />
+              </div>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Location</label>
-            <input
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded"
-            />
-          </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Mô tả *
+                </label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className={`w-full p-3 bg-neutral-700 rounded-xl text-white border transition-colors h-32 resize-none ${
+                    errors.description ? 'border-red-500' : 'border-neutral-600 focus:border-green-500'
+                  } outline-none`}
+                />
+                {errors.description && <p className="text-red-400 text-xs mt-1">{errors.description}</p>}
+              </div>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Price</label>
-            <input
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Địa điểm *
+                </label>
+                <input
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  className={`w-full p-3 bg-neutral-700 rounded-xl text-white border transition-colors ${
+                    errors.location ? 'border-red-500' : 'border-neutral-600 focus:border-green-500'
+                  } outline-none`}
+                />
+                {errors.location && <p className="text-red-400 text-xs mt-1">{errors.location}</p>}
+              </div>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Amenities (comma separated)</label>
-            <input
-              value={form.amenities}
-              onChange={(e) => setForm({ ...form, amenities: e.target.value })}
-              placeholder="wifi, pool, gym"
-              className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Giá *
+                </label>
+                <input
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  className={`w-full p-3 bg-neutral-700 rounded-xl text-white border transition-colors ${
+                    errors.price ? 'border-red-500' : 'border-neutral-600 focus:border-green-500'
+                  } outline-none`}
+                />
+                {errors.price && <p className="text-red-400 text-xs mt-1">{errors.price}</p>}
+              </div>
 
-          {/* 📸 Images */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Images</label>
-
-            {/* Add Image Button */}
-            <button
-              type="button"
-              onClick={() => document.getElementById("new-images")?.click()}
-              className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded text-sm mb-3"
-            >
-              + Add Images
-            </button>
-            <input
-              id="new-images"
-              type="file"
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files && setNewFiles(Array.from(e.target.files))}
-            />
-
-            <div className="flex gap-2 flex-wrap mt-2">
-              {/* Existing Images */}
-              {form.images.map((u, i) => (
-                <div key={i} className="relative group">
-                  <img
-                    src={u}
-                    alt={`img-${i}`}
-                    className="h-24 w-24 object-cover rounded-lg border border-neutral-700"
-                  />
-                  <button
-                    onClick={() => handleRemoveImage(u)}
-                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100 transition"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-
-              {/* New Images Preview */}
-              {newFiles.map((f, i) => (
-                <div key={`new-${i}`} className="relative">
-                  <img
-                    src={URL.createObjectURL(f)}
-                    alt={`new-${i}`}
-                    className="h-24 w-24 object-cover rounded-lg border border-neutral-700 opacity-80"
-                  />
-                </div>
-              ))}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Tiện nghi
+                </label>
+                <input
+                  value={form.amenities}
+                  onChange={(e) => setForm({ ...form, amenities: e.target.value })}
+                  placeholder="wifi, pool, gym, parking (cách nhau bằng dấu phẩy)"
+                  className="w-full p-3 bg-neutral-700 rounded-xl text-white border border-neutral-600 focus:border-green-500 outline-none"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Owner Info */}
-        <div className="mt-6 border-t border-neutral-800 pt-4 text-sm space-y-1">
-          <p className="text-xs text-gray-400 uppercase">Owner Information</p>
-          <p><span className="text-gray-400">Name:</span> {pending.owner_name || "—"}</p>
-          <p><span className="text-gray-400">Phone:</span> {pending.phone || "—"}</p>
-          <p><span className="text-gray-400">Email:</span> {pending.email || "—"}</p>
-          <p><span className="text-gray-400">Facebook:</span> {pending.facebook || "—"}</p>
-          <p><span className="text-gray-400">Zalo:</span> {pending.zalo || "—"}</p>
-          <p><span className="text-gray-400">TikTok:</span> {pending.tiktok || "—"}</p>
-          <p><span className="text-gray-400">Instagram:</span> {pending.instagram || "—"}</p>
-          <p><span className="text-gray-400">Status:</span> {pending.status || "—"}</p>
-        </div>
+          {/* Images Section */}
+          <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
+            <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <span className="mr-2">📷</span>
+              Hình Ảnh Dịch Vụ
+            </h4>
+            
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={() => document.getElementById("new-images")?.click()}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-xl hover:opacity-90 transition"
+              >
+                📷 Thêm hình ảnh
+              </button>
+              
+              <input
+                id="new-images"
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => e.target.files && setNewFiles(Array.from(e.target.files))}
+              />
 
-        {/* Actions */}
-        <div className="mt-8 flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={handleSaveChanges}
-            disabled={saving}
-            className="flex-1 px-4 py-3 rounded bg-neutral-800 hover:bg-neutral-700 transition"
-          >
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Existing Images */}
+                {form.images.map((url, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={url}
+                      alt={`existing-${i}`}
+                      className="h-24 w-full object-cover rounded-xl border border-neutral-600"
+                    />
+                    <button
+                      onClick={() => handleRemoveImage(url)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
 
-          <button
-            onClick={handleApprove}
-            className="flex-1 px-4 py-3 rounded bg-gradient-to-r from-indigo-500 to-purple-500 hover:opacity-90 transition text-white font-semibold"
-          >
-            Approve
-          </button>
+                {/* New Images Preview */}
+                {newFiles.map((file, i) => (
+                  <div key={`new-${i}`} className="relative group">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={`new-${i}`}
+                      className="h-24 w-full object-cover rounded-xl border border-neutral-600 opacity-80"
+                    />
+                    <button
+                      onClick={() => removeNewImage(i)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
-          <button
-            onClick={() => {
-              const reason = prompt("Reason for rejection:") || "";
-              if (reason) onReject(reason);
-            }}
-            className="flex-1 px-4 py-3 rounded bg-red-600 hover:bg-red-500 transition text-white font-semibold"
-          >
-            Reject
-          </button>
+          {/* Owner Information */}
+          <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
+            <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <span className="mr-2">👤</span>
+              Thông Tin Chủ Sở Hữu
+            </h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Tên chủ sở hữu *
+                </label>
+                <input
+                  value={form.owner_name}
+                  onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
+                  className={`w-full p-3 bg-neutral-700 rounded-xl text-white border transition-colors ${
+                    errors.owner_name ? 'border-red-500' : 'border-neutral-600 focus:border-green-500'
+                  } outline-none`}
+                />
+                {errors.owner_name && <p className="text-red-400 text-xs mt-1">{errors.owner_name}</p>}
+              </div>
 
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-3 rounded bg-neutral-700 hover:bg-neutral-600 transition text-white"
-          >
-            Close
-          </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Số điện thoại *
+                </label>
+                <input
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className={`w-full p-3 bg-neutral-700 rounded-xl text-white border transition-colors ${
+                    errors.phone ? 'border-red-500' : 'border-neutral-600 focus:border-green-500'
+                  } outline-none`}
+                />
+                {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className={`w-full p-3 bg-neutral-700 rounded-xl text-white border transition-colors ${
+                    errors.email ? 'border-red-500' : 'border-neutral-600 focus:border-green-500'
+                  } outline-none`}
+                />
+                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Facebook
+                </label>
+                <input
+                  value={form.facebook}
+                  onChange={(e) => setForm({ ...form, facebook: e.target.value })}
+                  className="w-full p-3 bg-neutral-700 rounded-xl text-white border border-neutral-600 focus:border-green-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Zalo
+                </label>
+                <input
+                  value={form.zalo}
+                  onChange={(e) => setForm({ ...form, zalo: e.target.value })}
+                  className="w-full p-3 bg-neutral-700 rounded-xl text-white border border-neutral-600 focus:border-green-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  TikTok
+                </label>
+                <input
+                  value={form.tiktok}
+                  onChange={(e) => setForm({ ...form, tiktok: e.target.value })}
+                  className="w-full p-3 bg-neutral-700 rounded-xl text-white border border-neutral-600 focus:border-green-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Instagram
+                </label>
+                <input
+                  value={form.instagram}
+                  onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+                  className="w-full p-3 bg-neutral-700 rounded-xl text-white border border-neutral-600 focus:border-green-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-6">
+            <button
+              onClick={handleSaveChanges}
+              disabled={saving}
+              className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 transition disabled:opacity-50 text-white font-semibold"
+            >
+              {saving ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Đang lưu...
+                </span>
+              ) : (
+                "💾 Lưu Thay Đổi"
+              )}
+            </button>
+
+            <button
+              onClick={handleApprove}
+              className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 transition text-white font-semibold"
+            >
+              ✅ Duyệt Dịch Vụ
+            </button>
+
+            <button
+              onClick={() => {
+                const reason = prompt("Lý do từ chối:") || "";
+                if (reason) onReject(reason);
+              }}
+              className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 hover:opacity-90 transition text-white font-semibold"
+            >
+              ❌ Từ Chối
+            </button>
+
+            <button
+              onClick={onClose}
+              className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-gray-500 to-gray-600 hover:opacity-90 transition text-white font-semibold"
+            >
+              🔒 Đóng
+            </button>
+          </div>
         </div>
       </div>
     </div>
