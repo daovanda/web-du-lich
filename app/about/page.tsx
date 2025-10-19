@@ -1,12 +1,36 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import ResizableLayout from "@/components/ResizableLayout";
 
 export default function AboutPage() {
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  useEffect(() => {
+    // Trigger initial load animation
+    setTimeout(() => {
+      setIsInitialLoad(false);
+    }, 100);
+  }, []);
+
   return (
     <ResizableLayout>
       <div className="min-h-screen bg-black text-white">
-        <main className="max-w-4xl mx-auto px-6 py-12 space-y-16">
+        <main 
+          className={`max-w-4xl mx-auto px-6 py-12 space-y-16 transition-all duration-1000 ease-out ${
+            isInitialLoad 
+              ? 'opacity-0 translate-y-8' 
+              : 'opacity-100 translate-y-0'
+          }`}
+        >
           {/* Hero */}
-          <section className="text-center space-y-4 border-b border-neutral-800 pb-12">
+          <section 
+            className={`text-center space-y-4 border-b border-neutral-800 pb-12 transition-all duration-700 ease-out delay-300 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
             <h1 className="text-4xl font-extrabold tracking-tight">
               Về chúng tôi
             </h1>
@@ -18,44 +42,63 @@ export default function AboutPage() {
           </section>
 
           {/* Giá trị cốt lõi */}
-          <section className="space-y-8">
+          <section 
+            className={`space-y-8 transition-all duration-700 ease-out delay-500 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
             <h2 className="text-2xl font-bold border-b border-neutral-800 pb-2">
               Giá trị cốt lõi
             </h2>
             <div className="grid sm:grid-cols-2 gap-6">
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-2 hover:shadow-lg transition">
-                <h3 className="font-semibold text-lg">Tối giản</h3>
-                <p className="text-sm text-gray-400">
-                  Mọi thiết kế và trải nghiệm đều gọn gàng, tinh tế, loại bỏ chi
-                  tiết thừa.
-                </p>
-              </div>
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-2 hover:shadow-lg transition">
-                <h3 className="font-semibold text-lg">Kết nối</h3>
-                <p className="text-sm text-gray-400">
-                  Chúng tôi kết nối bạn với dịch vụ, sự kiện và cộng đồng du lịch
-                  trẻ trung.
-                </p>
-              </div>
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-2 hover:shadow-lg transition">
-                <h3 className="font-semibold text-lg">Khám phá</h3>
-                <p className="text-sm text-gray-400">
-                  Khuyến khích bạn mở rộng hành trình, đánh dấu và lưu giữ trải
-                  nghiệm của riêng mình.
-                </p>
-              </div>
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-2 hover:shadow-lg transition">
-                <h3 className="font-semibold text-lg">Chia sẻ</h3>
-                <p className="text-sm text-gray-400">
-                  Mọi hành trình đều trở nên ý nghĩa hơn khi được chia sẻ cùng
-                  bạn bè và cộng đồng.
-                </p>
-              </div>
+              {[
+                {
+                  title: "Tối giản",
+                  description: "Mọi thiết kế và trải nghiệm đều gọn gàng, tinh tế, loại bỏ chi tiết thừa."
+                },
+                {
+                  title: "Kết nối",
+                  description: "Chúng tôi kết nối bạn với dịch vụ, sự kiện và cộng đồng du lịch trẻ trung."
+                },
+                {
+                  title: "Khám phá",
+                  description: "Khuyến khích bạn mở rộng hành trình, đánh dấu và lưu giữ trải nghiệm của riêng mình."
+                },
+                {
+                  title: "Chia sẻ",
+                  description: "Mọi hành trình đều trở nên ý nghĩa hơn khi được chia sẻ cùng bạn bè và cộng đồng."
+                }
+              ].map((value, index) => (
+                <div
+                  key={value.title}
+                  className={`bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-2 hover:shadow-lg transition-all duration-300 ease-out ${
+                    isInitialLoad 
+                      ? 'opacity-0 translate-y-6' 
+                      : 'opacity-100 translate-y-0'
+                  }`}
+                  style={{
+                    transitionDelay: `${700 + index * 100}ms`
+                  }}
+                >
+                  <h3 className="font-semibold text-lg">{value.title}</h3>
+                  <p className="text-sm text-gray-400">
+                    {value.description}
+                  </p>
+                </div>
+              ))}
             </div>
           </section>
 
           {/* Phong cách hướng đến */}
-          <section className="space-y-4">
+          <section 
+            className={`space-y-4 transition-all duration-700 ease-out delay-1100 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
             <h2 className="text-2xl font-bold border-b border-neutral-800 pb-2">
               Phong cách chúng tôi hướng đến
             </h2>
@@ -69,7 +112,13 @@ export default function AboutPage() {
           </section>
 
           {/* Thông điệp cuối */}
-          <section className="text-center space-y-4 border-t border-neutral-800 pt-12">
+          <section 
+            className={`text-center space-y-4 border-t border-neutral-800 pt-12 transition-all duration-700 ease-out delay-1300 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
             <p className="text-lg font-medium">
               Chúng tôi tin rằng mỗi chuyến đi đều là một câu chuyện.
             </p>

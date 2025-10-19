@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   /* ---------------------- Fetch user data ---------------------- */
   useEffect(() => {
@@ -52,6 +53,11 @@ export default function ProfilePage() {
 
         // Bỏ phần fetch serviceHistory - để ServiceHistory tự fetch
       }
+      
+      // Trigger initial load animation after data is loaded
+      setTimeout(() => {
+        setIsInitialLoad(false);
+      }, 200);
     };
     fetchUser();
   }, []);
@@ -149,51 +155,95 @@ export default function ProfilePage() {
     <ResizableLayout>
       <div className="min-h-screen bg-black text-white">
         {/* ✅ Thêm padding-top cho mobile để tránh bị header che */}
-        <main className="max-w-3xl mx-auto px-4 py-6 space-y-8 pt-24 md:pt-6">
+        <main 
+          className={`max-w-3xl mx-auto px-4 py-6 space-y-8 pt-24 md:pt-6 transition-all duration-1000 ease-out ${
+            isInitialLoad 
+              ? 'opacity-0 translate-y-8' 
+              : 'opacity-100 translate-y-0'
+          }`}
+        >
           {user ? (
             <>
-              <ProfileHeader
-                avatarFile={avatarFile}
-                avatarUrl={avatarUrl}
-                username={username}
-                email={email}
-                setAvatarFile={setAvatarFile}
-              />
+              <div 
+                className={`transition-all duration-700 ease-out delay-300 ${
+                  isInitialLoad 
+                    ? 'opacity-0 translate-y-6' 
+                    : 'opacity-100 translate-y-0'
+                }`}
+              >
+                <ProfileHeader
+                  avatarFile={avatarFile}
+                  avatarUrl={avatarUrl}
+                  username={username}
+                  email={email}
+                  setAvatarFile={setAvatarFile}
+                />
+              </div>
 
-              <ProfileForm
-                fullName={fullName}
-                username={username}
-                phone={phone}
-                email={email}
-                loading={loading}
-                error={error}
-                success={success}
-                setFullName={setFullName}
-                setUsername={setUsername}
-                setPhone={setPhone}
-                setEmail={setEmail}
-                handleUpdateProfile={handleUpdateProfile}
-              />
+              <div 
+                className={`transition-all duration-700 ease-out delay-500 ${
+                  isInitialLoad 
+                    ? 'opacity-0 translate-y-6' 
+                    : 'opacity-100 translate-y-0'
+                }`}
+              >
+                <ProfileForm
+                  fullName={fullName}
+                  username={username}
+                  phone={phone}
+                  email={email}
+                  loading={loading}
+                  error={error}
+                  success={success}
+                  setFullName={setFullName}
+                  setUsername={setUsername}
+                  setPhone={setPhone}
+                  setEmail={setEmail}
+                  handleUpdateProfile={handleUpdateProfile}
+                />
+              </div>
 
               {/* ServiceHistory sẽ tự fetch dữ liệu từ API */}
-              <ServiceHistory
-                getStatusColor={getStatusColor}
-              />
+              <div 
+                className={`transition-all duration-700 ease-out delay-700 ${
+                  isInitialLoad 
+                    ? 'opacity-0 translate-y-6' 
+                    : 'opacity-100 translate-y-0'
+                }`}
+              >
+                <ServiceHistory
+                  getStatusColor={getStatusColor}
+                />
+              </div>
 
-              <div className="pt-6">
+              <div 
+                className={`pt-6 transition-all duration-700 ease-out delay-900 ${
+                  isInitialLoad 
+                    ? 'opacity-0 translate-y-4' 
+                    : 'opacity-100 translate-y-0'
+                }`}
+              >
                 <button
                   onClick={async () => {
                     await supabase.auth.signOut();
                     window.location.href = "/";
                   }}
-                  className="w-full border border-red-500 text-red-500 py-2 rounded-lg text-sm font-semibold hover:bg-red-500 hover:text-white transition"
+                  className="w-full border border-red-500 text-red-500 py-2 rounded-lg text-sm font-semibold hover:bg-red-500 hover:text-white transition-all duration-300 ease-out"
                 >
                   Đăng xuất
                 </button>
               </div>
             </>
           ) : (
-            <p className="text-center text-gray-500">Đang tải dữ liệu...</p>
+            <p 
+              className={`text-center text-gray-500 transition-all duration-700 ease-out ${
+                isInitialLoad 
+                  ? 'opacity-0 translate-y-4' 
+                  : 'opacity-100 translate-y-0'
+              }`}
+            >
+              Đang tải dữ liệu...
+            </p>
           )}
         </main>
       </div>

@@ -28,11 +28,13 @@ function PaymentContent() {
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
     if (!bookingId) {
       setError("Thiếu mã đơn đặt chỗ.");
       setLoading(false);
+      setIsInitialLoad(false);
       return;
     }
 
@@ -51,6 +53,7 @@ function PaymentContent() {
         setError("Không tìm thấy thông tin thanh toán.");
       } finally {
         setLoading(false);
+        setTimeout(() => setIsInitialLoad(false), 150);
       }
     })();
   }, [bookingId]);
@@ -81,7 +84,10 @@ function PaymentContent() {
     return (
       <ResizableLayout>
         <div className="min-h-screen flex items-center justify-center bg-black text-white">
-          Đang tải thông tin thanh toán...
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-5 rounded-full border-b-2 border-white/60 animate-spin" />
+            <span className="text-white/80">Đang tải thông tin thanh toán...</span>
+          </div>
         </div>
       </ResizableLayout>
     );
@@ -100,11 +106,27 @@ function PaymentContent() {
   return (
     <ResizableLayout>
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-lg p-6 text-white space-y-6">
-          <h1 className="text-center text-xl font-bold">Thanh toán</h1>
+        <div
+          className={`w-full max-w-md rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-lg p-6 text-white space-y-6 transition-all duration-700 ease-out ${
+            isInitialLoad ? "opacity-0 translate-y-6" : "opacity-100 translate-y-0"
+          }`}
+        >
+          <h1
+            className={`text-center text-xl font-bold transition-all duration-700 ease-out ${
+              isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+            }`}
+            style={{ transitionDelay: "150ms" }}
+          >
+            Thanh toán
+          </h1>
 
           {/* Thông tin booking */}
-          <div className="space-y-1 text-sm text-gray-300">
+          <div
+            className={`space-y-1 text-sm text-gray-300 transition-all duration-700 ease-out ${
+              isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+            }`}
+            style={{ transitionDelay: "250ms" }}
+          >
             <p>
               <span className="font-semibold">Dịch vụ:</span>{" "}
               {booking.services?.title}
@@ -140,10 +162,13 @@ function PaymentContent() {
 
           {/* Phương thức thanh toán */}
           {!success && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold text-gray-200">
-                Chọn phương thức
-              </h2>
+            <div
+              className={`space-y-3 transition-all duration-700 ease-out ${
+                isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+              }`}
+              style={{ transitionDelay: "350ms" }}
+            >
+              <h2 className="text-lg font-semibold text-gray-200">Chọn phương thức</h2>
               <button
                 disabled={paying}
                 onClick={() => handlePayment("momo")}
@@ -170,16 +195,42 @@ function PaymentContent() {
 
           {/* Trạng thái */}
           {paying && (
-            <p className="text-center text-gray-400">Đang xử lý thanh toán...</p>
+            <p
+              className={`text-center text-gray-400 transition-all duration-500 ease-out ${
+                isInitialLoad ? "opacity-0" : "opacity-100"
+              }`}
+              style={{ transitionDelay: "450ms" }}
+            >
+              Đang xử lý thanh toán...
+            </p>
           )}
           {success && (
-            <p className="text-center text-green-400">
+            <p
+              className={`text-center text-green-400 transition-all duration-500 ease-out ${
+                isInitialLoad ? "opacity-0" : "opacity-100"
+              }`}
+              style={{ transitionDelay: "450ms" }}
+            >
               Thanh toán thành công! Vui lòng kiểm tra đơn trong trang cá nhân.
             </p>
           )}
-          {error && <p className="text-center text-red-400">{error}</p>}
+          {error && (
+            <p
+              className={`text-center text-red-400 transition-all duration-500 ease-out ${
+                isInitialLoad ? "opacity-0" : "opacity-100"
+              }`}
+              style={{ transitionDelay: "450ms" }}
+            >
+              {error}
+            </p>
+          )}
 
-          <p className="text-center text-xs text-gray-400">
+          <p
+            className={`text-center text-xs text-gray-400 transition-all duration-700 ease-out ${
+              isInitialLoad ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
+            }`}
+            style={{ transitionDelay: "500ms" }}
+          >
             Bằng cách thanh toán, bạn đồng ý với{" "}
             <span className="underline">Điều khoản dịch vụ</span>.
           </p>

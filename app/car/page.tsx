@@ -11,6 +11,7 @@ export default function CarServicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -31,18 +32,27 @@ export default function CarServicesPage() {
         console.error("Error fetching car services:", err);
       } finally {
         setLoading(false);
+        if (isInitialLoad) {
+          setIsInitialLoad(false);
+        }
       }
     };
 
     fetchServices();
-  }, [searchQuery]);
+  }, [searchQuery, isInitialLoad]);
 
   return (
     <ResizableLayout>
       {/* Thêm margin-top để tránh bị header đè trên mobile */}
-      <div className="text-white mt-16 md:mt-0">
+      <div className="text-white mt-16 md:mt-0 overflow-hidden">
         {/* Tagline / giá trị cốt lõi */}
-        <div className="max-w-3xl mx-auto px-6 text-center py-8">
+        <div 
+          className={`max-w-3xl mx-auto px-6 text-center py-8 transition-all duration-1000 ease-out ${
+            isInitialLoad 
+              ? 'opacity-0 translate-y-8' 
+              : 'opacity-100 translate-y-0'
+          }`}
+        >
           <h1 className="text-3xl font-extrabold mb-3">
             Chạm – Kết nối – Trải nghiệm
           </h1>
@@ -53,31 +63,72 @@ export default function CarServicesPage() {
           </p>
         </div>
 
-        <div className="max-w-2xl mx-auto p-6">
+        <div 
+          className={`max-w-2xl mx-auto p-6 transition-all duration-1000 ease-out delay-300 ${
+            isInitialLoad 
+              ? 'opacity-0 translate-y-8' 
+              : 'opacity-100 translate-y-0'
+          }`}
+        >
           {/* Ô tìm kiếm */}
-          <div className="my-4">
+          <div 
+            className={`my-4 transition-all duration-700 ease-out delay-500 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-4' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
             <input
               type="text"
               placeholder="Tìm kiếm xe..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-2 rounded-lg bg-gray-900 text-white border border-gray-700 focus:outline-none focus:border-gray-500"
+              className="w-full p-2 rounded-lg bg-gray-900 text-white border border-gray-700 focus:outline-none focus:border-gray-500 transition-all duration-300 ease-out hover:border-gray-600"
             />
           </div>
 
-          <h2 className="text-xl font-bold mb-4">Dịch vụ thuê xe ô tô</h2>
+          <h2 
+            className={`text-xl font-bold mb-4 transition-all duration-700 ease-out delay-700 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-4' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            Dịch vụ thuê xe ô tô
+          </h2>
 
           {/* Nội dung */}
           {error && (
-            <div className="text-red-400 text-center mb-4">{error}</div>
+            <div 
+              className={`text-red-400 text-center mb-4 transition-all duration-500 ease-out ${
+                error 
+                  ? 'opacity-100 translate-y-0' 
+                  : 'opacity-0 translate-y-2'
+              }`}
+            >
+              {error}
+            </div>
           )}
 
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div 
+              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
+                loading 
+                  ? 'opacity-100 scale-100' 
+                  : 'opacity-0 scale-95'
+              }`}
+            >
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className="bg-gray-900 rounded-lg p-4 animate-pulse h-56"
+                  className={`bg-gray-900 rounded-lg p-4 h-56 transition-all duration-300 ease-out ${
+                    loading 
+                      ? 'animate-pulse' 
+                      : 'opacity-0'
+                  }`}
+                  style={{
+                    animationDelay: `${i * 100}ms`
+                  }}
                 >
                   <div className="w-full h-32 bg-gray-800 rounded mb-3"></div>
                   <div className="h-4 bg-gray-800 rounded mb-2"></div>
@@ -86,18 +137,41 @@ export default function CarServicesPage() {
               ))}
             </div>
           ) : services.length === 0 ? (
-            <p className="text-gray-400 text-center">
+            <p 
+              className={`text-gray-400 text-center transition-all duration-700 ease-out delay-900 ${
+                isInitialLoad 
+                  ? 'opacity-0 translate-y-4' 
+                  : 'opacity-100 translate-y-0'
+              }`}
+            >
               Không tìm thấy dịch vụ nào.
             </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {services.map((service) => (
-                <ServiceCard key={service.id} service={service} />
+            <div 
+              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
+                !loading 
+                  ? 'opacity-100 scale-100' 
+                  : 'opacity-0 scale-95'
+              }`}
+            >
+              {services.map((service, index) => (
+                <div
+                  key={service.id}
+                  className={`transition-all duration-600 ease-out ${
+                    isInitialLoad 
+                      ? 'opacity-0 translate-y-6' 
+                      : 'opacity-100 translate-y-0'
+                  }`}
+                  style={{
+                    transitionDelay: `${800 + index * 100}ms`
+                  }}
+                >
+                  <ServiceCard service={service} />
+                </div>
               ))}
             </div>
           )}
         </div>
-      </div>
-    </ResizableLayout>
+      </div>    </ResizableLayout>
   );
 }

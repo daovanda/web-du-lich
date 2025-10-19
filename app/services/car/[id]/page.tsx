@@ -62,6 +62,7 @@ export default function CarDetailPage() {
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
     if (!id) return;
@@ -110,33 +111,141 @@ export default function CarDetailPage() {
         setError("Không tìm thấy dịch vụ.");
       } finally {
         setLoading(false);
+        // Trigger initial load animation after data is loaded
+        setTimeout(() => {
+          setIsInitialLoad(false);
+        }, 200);
       }
     };
     fetchData();
   }, [id]);
 
-  if (loading) return <p className="p-6 text-gray-400">Đang tải...</p>;
+  if (loading) return (
+    <div className="p-6 text-gray-400 text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-4"></div>
+      <p>Đang tải...</p>
+    </div>
+  );
+  
   if (error || !service)
-    return <p className="p-6 text-red-400">{error || "Không tìm thấy dịch vụ"}</p>;
+    return (
+      <div 
+        className={`p-6 text-red-400 text-center transition-all duration-700 ease-out ${
+          isInitialLoad 
+            ? 'opacity-0 translate-y-4' 
+            : 'opacity-100 translate-y-0'
+        }`}
+      >
+        {error || "Không tìm thấy dịch vụ"}
+      </div>
+    );
 
   return (
     <ResizableLayout>
       <div className="min-h-screen bg-black text-white mt-16 md:mt-0">
-        <main className="max-w-4xl mx-auto px-4 py-6 space-y-8">
-          <ServiceBreadcrumb service={service} />
-          <ServiceHeader service={service} />
-          <ServiceGallery images={service.images} title={service.title} />
-          <ServiceAmenities amenities={service.amenities} />
-          <ServiceDescription description={service.description} />
-          {service.address && <ServiceMap address={service.address} />}
-          <ServiceNearby nearby={nearby} location={service.location} />
-          <ServiceReviews reviews={reviews} />
+        <main 
+          className={`max-w-4xl mx-auto px-4 py-6 space-y-8 transition-all duration-1000 ease-out ${
+            isInitialLoad 
+              ? 'opacity-0 translate-y-8' 
+              : 'opacity-100 translate-y-0'
+          }`}
+        >
+          <div 
+            className={`transition-all duration-700 ease-out delay-300 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <ServiceBreadcrumb service={service} />
+          </div>
+          
+          <div 
+            className={`transition-all duration-700 ease-out delay-500 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <ServiceHeader service={service} />
+          </div>
+          
+          <div 
+            className={`transition-all duration-700 ease-out delay-700 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <ServiceGallery images={service.images} title={service.title} />
+          </div>
+          
+          <div 
+            className={`transition-all duration-700 ease-out delay-900 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <ServiceAmenities amenities={service.amenities} />
+          </div>
+          
+          <div 
+            className={`transition-all duration-700 ease-out delay-1100 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <ServiceDescription description={service.description} />
+          </div>
+          
+          {service.address && (
+            <div 
+              className={`transition-all duration-700 ease-out delay-1300 ${
+                isInitialLoad 
+                  ? 'opacity-0 translate-y-6' 
+                  : 'opacity-100 translate-y-0'
+              }`}
+            >
+              <ServiceMap address={service.address} />
+            </div>
+          )}
+          
+          <div 
+            className={`transition-all duration-700 ease-out delay-1500 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <ServiceNearby nearby={nearby} location={service.location} />
+          </div>
+          
+          <div 
+            className={`transition-all duration-700 ease-out delay-1700 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <ServiceReviews reviews={reviews} />
+          </div>
+          
           {/* Tích hợp BookingFormWrapper */}
-          <BookingFormWrapper
-            serviceId={service.id}
-            price={service.price}
-            serviceTitle={service.title}
-          />
+          <div 
+            className={`transition-all duration-700 ease-out delay-1900 ${
+              isInitialLoad 
+                ? 'opacity-0 translate-y-6' 
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            <BookingFormWrapper
+              serviceId={service.id}
+              price={service.price}
+              serviceTitle={service.title}
+            />
+          </div>
         </main>
       </div>
     </ResizableLayout>
