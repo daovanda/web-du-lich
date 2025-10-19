@@ -81,10 +81,15 @@ export default function AdminServicesPage() {
   }
 
   /* ---------------------- Pending actions ---------------------- */
-  const handleAddPending = async (form: any, files: File[]) => {
-    await addPendingService(form, files);
-    alert("✅ Đã thêm dịch vụ chờ duyệt!");
-    refreshPending();
+  const handleAddPending = async (form: any, avatarFile: File | null, additionalFiles: File[]) => {
+    try {
+      // Received avatarFile and additionalFiles from PendingForm
+      await addPendingService(form, avatarFile, additionalFiles);
+      alert("✅ Đã thêm dịch vụ chờ duyệt!");
+      refreshPending();
+    } catch (err: any) {
+      alert(err.message || "❌ Lỗi khi thêm dịch vụ chờ duyệt!");
+    }
   };
 
   const handleTogglePending = async (id: string, newStatus: string) => {
@@ -104,13 +109,18 @@ export default function AdminServicesPage() {
   };
 
   /* ---------------------- Approve actions ---------------------- */
-  const handleApprove = async (form: any, files: File[]) => {
-    if (!selectedPending) return;
-    await approvePendingAsService(selectedPending, form, files);
-    alert("✅ Dịch vụ đã được phê duyệt!");
-    setApproveModalOpen(false);
-    setSelectedPending(null);
-    refreshAll();
+  const handleApprove = async (form: any, avatarFile: File | null, additionalFiles: File[]) => {
+    try {
+      if (!selectedPending) return;
+
+      await approvePendingAsService(selectedPending, form, avatarFile, additionalFiles);
+      alert("✅ Dịch vụ đã được phê duyệt!");
+      setApproveModalOpen(false);
+      setSelectedPending(null);
+      refreshAll();
+    } catch (err: any) {
+      alert(err.message || "❌ Lỗi khi phê duyệt dịch vụ!");
+    }
   };
 
   const handleReject = async (reason: string) => {
@@ -130,7 +140,9 @@ export default function AdminServicesPage() {
   /* ---------------------- JSX ---------------------- */
   return (
     <div className="bg-black text-gray-100 min-h-screen p-6 space-y-12 font-sans">
-      <h1 className="text-3xl font-bold mb-2 text-center tracking-tight">Quản lý dịch vụ</h1>
+      <h1 className="text-3xl font-bold mb-2 text-center tracking-tight">
+        Quản lý dịch vụ
+      </h1>
 
       {/* 📊 Stats */}
       <StatsOverview {...stats} />
@@ -172,7 +184,10 @@ export default function AdminServicesPage() {
       </div>
 
       {/* 📥 FORM - chỉ còn pending form */}
-      <div ref={pendingFormRef} className="space-y-12 pt-12 border-t border-neutral-800">
+      <div
+        ref={pendingFormRef}
+        className="space-y-12 pt-12 border-t border-neutral-800"
+      >
         <PendingForm onSubmit={handleAddPending} loading={false} />
       </div>
 
