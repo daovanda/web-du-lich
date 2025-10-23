@@ -77,5 +77,5 @@ export function useUsers() {
     if (!error) fetchUsers();
   }
 
-  return { users, stats, summary, chartData, lineData, loading, updateRole };
+  return { users, stats, summary, chartData, lineData, loading, updateRole, updateStatus };
 }
