@@ -119,19 +119,45 @@ export async function fetchStats() {
 
 /* ----------------------------- PENDING ACTIONS ----------------------------- */
 
-export async function updatePendingStatus(id: string, status: string) {
+export async function updatePendingStatus(id: string, newStatus?: string) {
   try {
-    const { error } = await supabase
+    const { data: currentData, error: fetchError } = await supabase
       .from("pending_services")
-      .update({ status })
+      .select("status, rejected_reason")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) throw new Error(`Không thể lấy trạng thái hiện tại: ${fetchError.message}`);
+    if (!currentData) throw new Error("Không tìm thấy dịch vụ cần cập nhật.");
+
+    // Nếu không truyền newStatus → tự xoay vòng
+    let nextStatus = newStatus;
+    if (!newStatus) {
+      const order = ["new", "pending", "approved", "rejected"];
+      const currentIndex = order.indexOf(currentData.status);
+      nextStatus = order[(currentIndex + 1) % order.length];
+    }
+
+    const updates: any = { status: nextStatus };
+
+    // Nếu đang từ rejected mà chuyển đi → reset lý do
+    if (currentData.status === "rejected" && nextStatus !== "rejected") {
+      updates.rejected_reason = "";
+    }
+
+    const { error: updateError } = await supabase
+      .from("pending_services")
+      .update(updates)
       .eq("id", id);
 
-    if (error) throw new Error(`Lỗi khi cập nhật trạng thái: ${error.message}`);
+    if (updateError) throw new Error(`Lỗi khi cập nhật trạng thái: ${updateError.message}`);
   } catch (error) {
     console.error("updatePendingStatus error:", error);
     throw error;
   }
 }
+
+
 
 export async function addPendingService(
   pendingForm: any, 
@@ -213,6 +239,94 @@ export async function addPendingService(
   }
 }
 
+
+/* --------------------------------  PendingModal Avtions  ---------------------------------*/
+
+/**
+ * Validate danh sách file ảnh
+ */
+export const validateFiles = (files: File[], maxFiles = 10, maxSizeMB = 5) => {
+  const maxSize = maxSizeMB * 1024 * 1024;
+  if (files.length > maxFiles) return `Tối đa ${maxFiles} hình ảnh`;
+  for (const f of files) {
+    if (f.size > maxSize) return `File "${f.name}" quá lớn (tối đa ${maxSizeMB}MB)`;
+    if (!f.type.startsWith("image/")) return `File "${f.name}" không phải hình ảnh hợp lệ`;
+  }
+  return null;
+};
+
+/**
+ * Xử lý chọn ảnh đại diện
+ */
+export const handleAvatarChangeAPI = (
+  e: React.ChangeEvent<HTMLInputElement>,
+  setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+  setAvatarFile: React.Dispatch<React.SetStateAction<File | null>>
+) => {
+  if (!e.target.files || e.target.files.length === 0) return;
+  const f = e.target.files[0];
+  const err = validateFiles([f]);
+  if (err) return setErrors(prev => ({ ...prev, files: err }));
+  setAvatarFile(f);
+  setErrors(prev => ({ ...prev, files: "" }));
+};
+
+/**
+ * Xử lý chọn ảnh phụ
+ */
+export const handleAdditionalFilesChangeAPI = (
+  e: React.ChangeEvent<HTMLInputElement>,
+  setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+  setAdditionalFiles: React.Dispatch<React.SetStateAction<File[]>>
+) => {
+  if (!e.target.files) return;
+  const arr = Array.from(e.target.files);
+  const err = validateFiles(arr);
+  if (err) return setErrors(prev => ({ ...prev, files: err }));
+  setAdditionalFiles(arr);
+  setErrors(prev => ({ ...prev, files: "" }));
+};
+
+/**
+ * Xóa ảnh đại diện
+ */
+export const removeAvatarAPI = (
+  setAvatarFile: React.Dispatch<React.SetStateAction<File | null>>,
+  setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+  avatarInputRef: React.RefObject<HTMLInputElement>
+) => {
+  setAvatarFile(null);
+  setErrors(prev => ({ ...prev, files: "" }));
+  if (avatarInputRef.current) avatarInputRef.current.value = "";
+};
+
+/**
+ * Xóa ảnh phụ (bổ sung)
+ */
+export const removeAdditionalImageAPI = (
+  index: number,
+  setAdditionalFiles: React.Dispatch<React.SetStateAction<File[]>>,
+  setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+  additionalInputRef: React.RefObject<HTMLInputElement>,
+  additionalFiles: File[]
+) => {
+  setAdditionalFiles(prev => prev.filter((_, i) => i !== index));
+  setErrors(prev => ({ ...prev, files: "" }));
+  if (additionalInputRef.current && additionalFiles.length - 1 === 0)
+    additionalInputRef.current.value = "";
+};
+
+/**
+ * Xóa ảnh đã có (từ DB)
+ */
+export const handleRemoveExistingImageAPI = (
+  url: string,
+  setForm: React.Dispatch<React.SetStateAction<any>>
+) => {
+  setForm((prev: any) => ({ ...prev, images: prev.images.filter((u: string) => u !== url) }));
+};
+
+
 /* ----------------------------- OFFICIAL ACTIONS ----------------------------- */
 
 export async function addOfficialService(
@@ -276,6 +390,23 @@ export async function addOfficialService(
   }
 }
 
+
+export async function toggleServiceStatus(svc: Service, targetStatus: string) {
+  try {
+    const { error } = await supabase
+      .from("services")
+      .update({ status: targetStatus })
+      .eq("id", svc.id);
+
+    if (error) {
+      console.error('Toggle service status error:', error);
+      throw new Error(`Lỗi khi cập nhật trạng thái dịch vụ: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('toggleServiceStatus error:', error);
+    throw error;
+  }
+}
 /* ----------------------------- APPROVE / REJECT ----------------------------- */
 
 export async function approvePendingAsService(
@@ -379,19 +510,22 @@ export async function approvePendingAsService(
 
 export async function rejectPendingService(selectedPending: PendingService, reason: string) {
   try {
+    // 1️⃣ Lấy thông tin user hiện tại
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError) throw new Error(`Lỗi xác thực: ${authError.message}`);
     
     const userId = userData?.user?.id ?? null;
 
+    // 2️⃣ Kiểm tra lý do từ chối
     if (!reason.trim()) {
       throw new Error("Lý do từ chối không được để trống");
     }
 
+    // 3️⃣ Cập nhật lại record trong pending_services
     const { error } = await supabase
       .from("pending_services")
       .update({
-        status: "new",
+        status: "rejected", // ✅ đổi trạng thái đúng
         rejected_reason: reason.trim(),
         reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
@@ -399,31 +533,15 @@ export async function rejectPendingService(selectedPending: PendingService, reas
       .eq("id", selectedPending.id);
 
     if (error) {
-      console.error('Reject pending error:', error);
+      console.error("Reject pending error:", error);
       throw new Error(`Lỗi khi từ chối dịch vụ: ${error.message}`);
     }
   } catch (error) {
-    console.error('rejectPendingService error:', error);
+    console.error("rejectPendingService error:", error);
     throw error;
   }
 }
 
-export async function toggleServiceStatus(svc: Service, targetStatus: string) {
-  try {
-    const { error } = await supabase
-      .from("services")
-      .update({ status: targetStatus })
-      .eq("id", svc.id);
-
-    if (error) {
-      console.error('Toggle service status error:', error);
-      throw new Error(`Lỗi khi cập nhật trạng thái dịch vụ: ${error.message}`);
-    }
-  } catch (error) {
-    console.error('toggleServiceStatus error:', error);
-    throw error;
-  }
-}
 
 /* ----------------------------- UPDATE PENDING SERVICE ----------------------------- */
 export async function updatePendingService(id: string, updatedData: Partial<PendingService>) {
@@ -524,35 +642,4 @@ export async function fetchDetailedStats() {
     console.error('fetchDetailedStats error:', error);
     throw error;
   }
-}
-
-/* ----------------------------- HELPER FUNCTIONS ----------------------------- */
-
-// Helper function để validate phone number
-export function validatePhoneNumber(phone: string): boolean {
-  const cleanPhone = phone.replace(/\s/g, '');
-  const phoneRegex = /^(\+84|84|0)[0-9]{9,10}$/;
-  return phoneRegex.test(cleanPhone);
-}
-
-// Helper function để format phone number
-export function formatPhoneNumber(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.startsWith('84')) {
-    return '+' + cleaned;
-  } else if (cleaned.startsWith('0')) {
-    return '+84' + cleaned.slice(1);
-  }
-  return phone;
-}
-
-// Helper function để validate email
-export function validateEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-// Helper function để sanitize string input
-export function sanitizeString(input: string): string {
-  return input.trim().replace(/\s+/g, ' ');
 }

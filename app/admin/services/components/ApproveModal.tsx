@@ -1,12 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PendingService } from "../types";
 import { SERVICE_TYPES } from "../types";
-import {
-  updatePendingService,
-  approvePendingAsService,
-} from "../api";
+import { updatePendingService } from "../api";
 import { uploadImagesToBucket } from "../helpers";
 
 type ApproveForm = {
@@ -30,19 +27,12 @@ type Props = {
   open: boolean;
   pending: PendingService | null;
   onClose: () => void;
-  onApprove: (form: any, avatarFile: File | null, additionalFiles: File[]) => Promise<void>;
-  onReject: (reason: string) => void;
+  onApprove: (form: ApproveForm, avatarFile: File | null, additionalFiles: File[]) => Promise<void>;
+  onReject: (reason: string) => Promise<void> | void;
   refresh: () => void;
 };
 
-export default function ApproveModal({
-  open,
-  pending,
-  onClose,
-  onApprove,
-  onReject,
-  refresh,
-}: Props) {
+export default function ApproveModal({ open, pending, onClose, onApprove, onReject, refresh }: Props) {
   const [form, setForm] = useState<ApproveForm>({
     title: "",
     description: "",
@@ -68,41 +58,32 @@ export default function ApproveModal({
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Helper functions
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const additionalInputRef = useRef<HTMLInputElement | null>(null);
+
+  /* ---------- Helpers ---------- */
   const validatePhone = (phone: string) => {
-    const cleanPhone = phone.replace(/\s/g, '');
+    const clean = phone.replace(/\s/g, "");
     const phoneRegex = /^(\+84|84|0)[0-9]{9,10}$/;
-    return phoneRegex.test(cleanPhone);
+    return phoneRegex.test(clean);
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("84")) return "+" + cleaned;
+    if (cleaned.startsWith("0")) return "+84" + cleaned.slice(1);
+    return phone;
   };
 
   const validateFiles = (files: File[]) => {
     const maxFiles = 10;
-    const maxSize = 5 * 1024 * 1024; // 5MB per file
-    
-    if (files.length > maxFiles) {
-      return `Tối đa ${maxFiles} hình ảnh`;
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (files.length > maxFiles) return `Tối đa ${maxFiles} hình ảnh`;
+    for (const f of files) {
+      if (f.size > maxSize) return `File "${f.name}" quá lớn (tối đa 5MB)`;
+      if (!f.type.startsWith("image/")) return `File "${f.name}" không phải hình ảnh hợp lệ`;
     }
-    
-    for (const file of files) {
-      if (file.size > maxSize) {
-        return `File "${file.name}" quá lớn (tối đa 5MB)`;
-      }
-      if (!file.type.startsWith('image/')) {
-        return `File "${file.name}" không phải hình ảnh hợp lệ`;
-      }
-    }
-    
     return null;
-  };
-
-  const formatPhoneNumber = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('84')) {
-      return '+' + cleaned;
-    } else if (cleaned.startsWith('0')) {
-      return '+84' + cleaned.slice(1);
-    }
-    return phone;
   };
 
   function amenitiesToString(amenities: any): string {
@@ -116,126 +97,137 @@ export default function ApproveModal({
     return "";
   }
 
+  /* ---------- Sync pending -> form when open ---------- */
   useEffect(() => {
-    if (pending) {
-      setForm({
-        title: pending.title || "",
-        description: pending.description || "",
-        type: pending.type || "stay",
-        location: pending.location || "",
-        price: pending.price || "",
-        images: Array.isArray(pending.images) ? pending.images : [],
-        amenities: amenitiesToString((pending as any).amenities),
-        owner_name: pending.owner_name || "",
-        phone: pending.phone || "",
-        email: pending.email || "",
-        facebook: pending.facebook || "",
-        zalo: pending.zalo || "",
-        tiktok: pending.tiktok || "",
-        instagram: pending.instagram || "",
-      });
-      setAvatarFile(null);
-      setAdditionalFiles([]);
-      setErrors({});
-    }
+    if (!pending) return;
+    setForm({
+      title: pending.title || "",
+      description: pending.description || "",
+      type: pending.type || "stay",
+      location: pending.location || "",
+      price: pending.price || "",
+      images: Array.isArray(pending.images) ? pending.images : [],
+      amenities: amenitiesToString((pending as any).amenities),
+      owner_name: pending.owner_name || "",
+      phone: pending.phone || "",
+      email: pending.email || "",
+      facebook: pending.facebook || "",
+      zalo: pending.zalo || "",
+      tiktok: pending.tiktok || "",
+      instagram: pending.instagram || "",
+    });
+    setAvatarFile(null);
+    setAdditionalFiles([]);
+    setErrors({});
   }, [pending]);
 
+  /* ---------- Validation ---------- */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    // Title
     if (!form.title.trim()) newErrors.title = "Tiêu đề dịch vụ là bắt buộc";
-    if (form.title.trim().length < 3) newErrors.title = "Tiêu đề phải có ít nhất 3 ký tự";
-    if (form.title.trim().length > 200) newErrors.title = "Tiêu đề không được quá 200 ký tự";
-    
+    else if (form.title.trim().length < 3) newErrors.title = "Tiêu đề phải có ít nhất 3 ký tự";
+    else if (form.title.trim().length > 200) newErrors.title = "Tiêu đề không được quá 200 ký tự";
+
+    // Description
     if (!form.description.trim()) newErrors.description = "Mô tả dịch vụ là bắt buộc";
-    if (form.description.trim().length < 10) newErrors.description = "Mô tả phải có ít nhất 10 ký tự";
-    if (form.description.trim().length > 1000) newErrors.description = "Mô tả không được quá 1000 ký tự";
-    
+    else if (form.description.trim().length < 10) newErrors.description = "Mô tả phải có ít nhất 10 ký tự";
+    else if (form.description.trim().length > 1000) newErrors.description = "Mô tả không được quá 1000 ký tự";
+
+    // Location & Price
     if (!form.location.trim()) newErrors.location = "Địa điểm là bắt buộc";
     if (!form.price.trim()) newErrors.price = "Giá dịch vụ là bắt buộc";
-    
-    if (!form.owner_name.trim()) newErrors.owner_name = "Tên chủ sở hữu là bắt buộc";
-    if (form.owner_name.trim().length < 2) newErrors.owner_name = "Tên chủ sở hữu phải có ít nhất 2 ký tự";
-    
-    if (!form.phone.trim()) newErrors.phone = "Số điện thoại là bắt buộc";
-    if (form.phone && !validatePhone(form.phone)) {
-      newErrors.phone = "Số điện thoại không hợp lệ (ví dụ: +84123456789, 0123456789)";
-    }
-    
-    if (!form.email.trim()) newErrors.email = "Email là bắt buộc";
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = "Email không hợp lệ";
-    }
 
-    // File validation
+    // Owner
+    if (!form.owner_name.trim()) newErrors.owner_name = "Tên chủ sở hữu là bắt buộc";
+    else if (form.owner_name.trim().length < 2) newErrors.owner_name = "Tên chủ sở hữu phải có ít nhất 2 ký tự";
+
+    // Phone
+    if (!form.phone.trim()) newErrors.phone = "Số điện thoại là bắt buộc";
+    else if (!validatePhone(form.phone.trim())) newErrors.phone = "Số điện thoại không hợp lệ (ví dụ: +84123456789, 0123456789)";
+
+    // Email
+    if (!form.email.trim()) newErrors.email = "Email là bắt buộc";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) newErrors.email = "Email không hợp lệ";
+
+    // Files
     const allFiles = [...(avatarFile ? [avatarFile] : []), ...additionalFiles];
     const fileError = validateFiles(allFiles);
-    if (fileError) {
-      newErrors.files = fileError;
-    }
+    if (fileError) newErrors.files = fileError;
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  /* ---------- File input handlers ---------- */
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    
-    const file = e.target.files[0];
-    const fileError = validateFiles([file]);
-    
-    if (fileError) {
-      setErrors({ ...errors, files: fileError });
+    const f = e.target.files[0];
+    const err = validateFiles([f]);
+    if (err) {
+      setErrors((prev) => ({ ...prev, files: err }));
       return;
     }
-    
-    setAvatarFile(file);
-    setErrors({ ...errors, files: "" });
+    setAvatarFile(f);
+    setErrors((prev) => ({ ...prev, files: "" }));
   };
 
   const handleAdditionalFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-    
-    const newFiles = Array.from(e.target.files);
-    const fileError = validateFiles(newFiles);
-    
-    if (fileError) {
-      setErrors({ ...errors, files: fileError });
+    const arr = Array.from(e.target.files);
+    const err = validateFiles(arr);
+    if (err) {
+      setErrors((prev) => ({ ...prev, files: err }));
       return;
     }
-    
-    setAdditionalFiles(newFiles);
-    setErrors({ ...errors, files: "" });
+    setAdditionalFiles(arr);
+    setErrors((prev) => ({ ...prev, files: "" }));
   };
 
+  const removeAvatar = () => {
+    setAvatarFile(null);
+    setErrors((prev) => ({ ...prev, files: "" }));
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+  };
+
+  const removeAdditionalImage = (index: number) => {
+    setAdditionalFiles((prev) => prev.filter((_, i) => i !== index));
+    setErrors((prev) => ({ ...prev, files: "" }));
+    if (additionalInputRef.current && additionalFiles.length - 1 === 0) additionalInputRef.current.value = "";
+  };
+
+  const handleRemoveExistingImage = (url: string) => {
+    setForm((prev) => ({ ...prev, images: prev.images.filter((u) => u !== url) }));
+  };
+
+  /* ---------- Save changes (update pending) ---------- */
   const handleSaveChanges = async () => {
     if (!pending?.id) return;
-    
     if (!validateForm()) {
       alert("Vui lòng kiểm tra lại các trường bắt buộc");
       return;
     }
-    
+
     setSaving(true);
+    setUploadingFiles(true);
+
     try {
-      let newImageUrls: string[] = [];
+      // Upload avatar + additional in one go (if any)
+      const uploaded: string[] = [];
 
-      // Upload avatar
       if (avatarFile) {
-        setUploadingFiles(true);
-        const avatarUrls = await uploadImagesToBucket([avatarFile], "pending_services_images");
-        newImageUrls = [...newImageUrls, ...avatarUrls];
+        const aUrls = await uploadImagesToBucket([avatarFile], "pending_services_images");
+        uploaded.push(...aUrls);
       }
 
-      // Upload additional files
       if (additionalFiles.length > 0) {
-        setUploadingFiles(true);
-        const additionalUrls = await uploadImagesToBucket(additionalFiles, "pending_services_images");
-        newImageUrls = [...newImageUrls, ...additionalUrls];
+        const more = await uploadImagesToBucket(additionalFiles, "pending_services_images");
+        uploaded.push(...more);
       }
 
-      const allImages = [...form.images, ...newImageUrls];
-      const imageUrl = avatarFile ? newImageUrls[0] : pending.image_url; // Ảnh đại diện
+      const allImages = [...form.images, ...uploaded];
+      const avatarUrl = avatarFile ? uploaded[0] : (pending as any).image_url || "";
 
       await updatePendingService(pending.id, {
         title: form.title.trim(),
@@ -243,11 +235,11 @@ export default function ApproveModal({
         type: form.type,
         location: form.location.trim(),
         price: form.price.trim(),
-        image_url: imageUrl, // Ảnh đại diện
-        images: allImages, // Tất cả ảnh
+        image_url: avatarUrl,
+        images: allImages,
         amenities: form.amenities.trim(),
         owner_name: form.owner_name.trim(),
-        phone: form.phone.trim(),
+        phone: formatPhoneNumber(form.phone.trim()),
         email: form.email.trim(),
         facebook: form.facebook.trim(),
         zalo: form.zalo.trim(),
@@ -269,15 +261,21 @@ export default function ApproveModal({
     }
   };
 
+  /* ---------- Approve ---------- */
   const handleApprove = async () => {
     if (!validateForm()) {
       alert("Vui lòng kiểm tra lại các trường bắt buộc trước khi duyệt");
       return;
     }
-    
+
     setApproving(true);
     try {
-      await onApprove(form, avatarFile, additionalFiles);
+      // Ensure phone formatted before calling onApprove
+      const formToSend: ApproveForm = {
+        ...form,
+        phone: formatPhoneNumber(form.phone.trim()),
+      };
+      await onApprove(formToSend, avatarFile, additionalFiles);
       alert("✅ Đã duyệt và chuyển sang dịch vụ!");
       refresh();
       onClose();
@@ -289,13 +287,13 @@ export default function ApproveModal({
     }
   };
 
+  /* ---------- Reject ---------- */
   const handleReject = async () => {
     const reason = prompt("Lý do từ chối:");
     if (!reason || !reason.trim()) {
       alert("Vui lòng nhập lý do từ chối");
       return;
     }
-    
     setRejecting(true);
     try {
       await onReject(reason.trim());
@@ -310,45 +308,23 @@ export default function ApproveModal({
     }
   };
 
-  const handleRemoveImage = (imgUrl: string) => {
-    setForm((prev) => ({
-      ...prev,
-      images: prev.images.filter((i) => i !== imgUrl),
-    }));
-  };
-
-  const removeAvatar = () => {
-    setAvatarFile(null);
-    if (errors.files) {
-      setErrors({ ...errors, files: "" });
-    }
-  };
-
-  const removeAdditionalImage = (index: number) => {
-    setAdditionalFiles(additionalFiles.filter((_, i) => i !== index));
-    if (errors.files) {
-      setErrors({ ...errors, files: "" });
-    }
-  };
-
   if (!open || !pending) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8">
       <div className="bg-black border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[95vh] overflow-y-auto">
-        {/* Header */}
         <div className="sticky top-0 bg-black border-b border-gray-800 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-white">Duyệt Dịch Vụ</h3>
               <p className="text-gray-400 text-sm">
-                ID: {pending.id.slice(0, 8)}... | {pending.status} | 
-                {new Date(pending.created_at || '').toLocaleDateString('vi-VN')}
+                ID: {pending.id.slice(0, 8)}... | {pending.status} |{" "}
+                {pending.created_at ? new Date(pending.created_at).toLocaleDateString("vi-VN") : ""}
               </p>
             </div>
-            <button 
-              onClick={onClose} 
-              disabled={saving || approving || rejecting}
+            <button
+              onClick={onClose}
+              disabled={saving || approving || rejecting || uploadingFiles}
               className="text-gray-400 hover:text-white text-xl transition-colors disabled:opacity-50"
             >
               ✕
@@ -360,7 +336,7 @@ export default function ApproveModal({
           {/* Service Info */}
           <div className="space-y-3">
             <h4 className="text-md font-semibold text-white border-b border-gray-800 pb-2">Thông Tin Dịch Vụ</h4>
-            
+
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-300 mb-1">Tên dịch vụ *</label>
@@ -369,7 +345,7 @@ export default function ApproveModal({
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   maxLength={200}
                   className={`w-full p-2 bg-gray-900 border rounded-lg text-white text-sm ${
-                    errors.title ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    errors.title ? "border-red-500" : "border-gray-700 focus:border-blue-500"
                   } outline-none`}
                 />
                 <div className="flex justify-between mt-1">
@@ -386,7 +362,9 @@ export default function ApproveModal({
                   className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none"
                 >
                   {SERVICE_TYPES.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -407,7 +385,7 @@ export default function ApproveModal({
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   maxLength={1000}
                   className={`w-full p-2 bg-gray-900 border rounded-lg text-white text-sm h-20 resize-none ${
-                    errors.description ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    errors.description ? "border-red-500" : "border-gray-700 focus:border-blue-500"
                   } outline-none`}
                 />
                 <div className="flex justify-between mt-1">
@@ -422,7 +400,7 @@ export default function ApproveModal({
                   value={form.location}
                   onChange={(e) => setForm({ ...form, location: e.target.value })}
                   className={`w-full p-2 bg-gray-900 border rounded-lg text-white text-sm ${
-                    errors.location ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    errors.location ? "border-red-500" : "border-gray-700 focus:border-blue-500"
                   } outline-none`}
                 />
                 {errors.location && <p className="text-red-400 text-xs mt-1">{errors.location}</p>}
@@ -434,7 +412,7 @@ export default function ApproveModal({
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
                   className={`w-full p-2 bg-gray-900 border rounded-lg text-white text-sm ${
-                    errors.price ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    errors.price ? "border-red-500" : "border-gray-700 focus:border-blue-500"
                   } outline-none`}
                 />
                 {errors.price && <p className="text-red-400 text-xs mt-1">{errors.price}</p>}
@@ -455,17 +433,13 @@ export default function ApproveModal({
           {/* Images */}
           <div className="space-y-3">
             <h4 className="text-md font-semibold text-white border-b border-gray-800 pb-2">Hình Ảnh</h4>
-            
-            {/* Current Images */}
-            {pending.image_url && (
+
+            {/* Current avatar from pending */}
+            {((pending as any).image_url || "").length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Ảnh đại diện hiện tại</label>
                 <div className="flex items-center gap-3 p-3 bg-gray-900 border border-gray-700 rounded-lg">
-                  <img
-                    src={pending.image_url}
-                    alt="Current avatar"
-                    className="w-16 h-16 object-cover rounded-lg"
-                  />
+                  <img src={(pending as any).image_url} alt="Current avatar" className="w-16 h-16 object-cover rounded-lg" />
                   <div className="flex-1">
                     <p className="text-white text-sm font-medium">Ảnh đại diện</p>
                     <p className="text-gray-400 text-xs">Từ dữ liệu gốc</p>
@@ -479,13 +453,13 @@ export default function ApproveModal({
               <label className="block text-sm font-medium text-gray-300 mb-2">Ảnh đại diện mới</label>
               <button
                 type="button"
-                onClick={() => document.getElementById("avatar-file")?.click()}
+                onClick={() => avatarInputRef.current?.click()}
                 disabled={uploadingFiles}
                 className="w-full py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {uploadingFiles ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Đang tải lên...
                   </>
                 ) : (
@@ -495,8 +469,9 @@ export default function ApproveModal({
                   </>
                 )}
               </button>
-              
+
               <input
+                ref={avatarInputRef}
                 id="avatar-file"
                 type="file"
                 accept="image/*"
@@ -507,38 +482,30 @@ export default function ApproveModal({
 
               {avatarFile && (
                 <div className="flex items-center gap-3 p-3 bg-gray-900 border border-gray-700 rounded-lg mt-2">
-                  <img
-                    src={URL.createObjectURL(avatarFile)}
-                    alt="Avatar preview"
-                    className="w-12 h-12 object-cover rounded-lg"
-                  />
+                  <img src={URL.createObjectURL(avatarFile)} alt="Avatar preview" className="w-12 h-12 object-cover rounded-lg" />
                   <div className="flex-1">
                     <p className="text-white text-sm font-medium">{avatarFile.name}</p>
                     <p className="text-gray-400 text-xs">{(avatarFile.size / 1024 / 1024).toFixed(1)}MB</p>
                   </div>
-                  <button
-                    onClick={removeAvatar}
-                    disabled={uploadingFiles}
-                    className="text-red-400 hover:text-red-300 transition disabled:opacity-50"
-                  >
+                  <button onClick={removeAvatar} disabled={uploadingFiles} className="text-red-400 hover:text-red-300 transition disabled:opacity-50">
                     ✕
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Additional Images */}
+            {/* Additional Files */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Thêm ảnh bổ sung ({additionalFiles.length}/9)</label>
               <button
                 type="button"
-                onClick={() => document.getElementById("additional-files")?.click()}
+                onClick={() => additionalInputRef.current?.click()}
                 disabled={uploadingFiles}
                 className="w-full py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {uploadingFiles ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Đang tải lên...
                   </>
                 ) : (
@@ -548,8 +515,9 @@ export default function ApproveModal({
                   </>
                 )}
               </button>
-              
+
               <input
+                ref={additionalInputRef}
                 id="additional-files"
                 type="file"
                 multiple
@@ -560,20 +528,14 @@ export default function ApproveModal({
               />
 
               {errors.files && (
-                <p className="text-red-400 text-sm bg-red-900/20 p-2 rounded-lg border border-red-500 mt-2">
-                  {errors.files}
-                </p>
+                <p className="text-red-400 text-sm bg-red-900/20 p-2 rounded-lg border border-red-500 mt-2">{errors.files}</p>
               )}
 
               {additionalFiles.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 mt-2">
                   {additionalFiles.map((file, i) => (
                     <div key={i} className="relative group">
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={`new-${i}`}
-                        className="w-full h-16 object-cover rounded-lg"
-                      />
+                      <img src={URL.createObjectURL(file)} alt={`new-${i}`} className="w-full h-16 object-cover rounded-lg" />
                       <button
                         onClick={() => removeAdditionalImage(i)}
                         disabled={uploadingFiles}
@@ -594,23 +556,15 @@ export default function ApproveModal({
                 <div className="grid grid-cols-4 gap-2">
                   {form.images.map((url, i) => (
                     <div key={i} className="relative group">
-                      <img
-                        src={url}
-                        alt={`existing-${i}`}
-                        className="w-full h-16 object-cover rounded-lg"
-                      />
+                      <img src={url} alt={`existing-${i}`} className="w-full h-16 object-cover rounded-lg" />
                       <button
-                        onClick={() => handleRemoveImage(url)}
+                        onClick={() => handleRemoveExistingImage(url)}
                         disabled={saving || approving || rejecting}
                         className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
                       >
                         ×
                       </button>
-                      {i === 0 && (
-                        <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 py-0.5 rounded">
-                          Đại diện
-                        </div>
-                      )}
+                      {i === 0 && <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 py-0.5 rounded">Đại diện</div>}
                     </div>
                   ))}
                 </div>
@@ -618,10 +572,10 @@ export default function ApproveModal({
             )}
           </div>
 
-          {/* Owner Info */}
+          {/* Contact Info */}
           <div className="space-y-3">
             <h4 className="text-md font-semibold text-white border-b border-gray-800 pb-2">Thông Tin Liên Hệ</h4>
-            
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Tên chủ sở hữu *</label>
@@ -629,7 +583,7 @@ export default function ApproveModal({
                   value={form.owner_name}
                   onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
                   className={`w-full p-2 bg-gray-900 border rounded-lg text-white text-sm ${
-                    errors.owner_name ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    errors.owner_name ? "border-red-500" : "border-gray-700 focus:border-blue-500"
                   } outline-none`}
                 />
                 {errors.owner_name && <p className="text-red-400 text-xs mt-1">{errors.owner_name}</p>}
@@ -639,12 +593,9 @@ export default function ApproveModal({
                 <label className="block text-sm font-medium text-gray-300 mb-1">Số điện thoại *</label>
                 <input
                   value={form.phone}
-                  onChange={(e) => {
-                    const formatted = formatPhoneNumber(e.target.value);
-                    setForm({ ...form, phone: formatted });
-                  }}
+                  onChange={(e) => setForm({ ...form, phone: formatPhoneNumber(e.target.value) })}
                   className={`w-full p-2 bg-gray-900 border rounded-lg text-white text-sm ${
-                    errors.phone ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    errors.phone ? "border-red-500" : "border-gray-700 focus:border-blue-500"
                   } outline-none`}
                 />
                 {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
@@ -657,7 +608,7 @@ export default function ApproveModal({
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className={`w-full p-2 bg-gray-900 border rounded-lg text-white text-sm ${
-                    errors.email ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    errors.email ? "border-red-500" : "border-gray-700 focus:border-blue-500"
                   } outline-none`}
                 />
                 {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
@@ -665,52 +616,32 @@ export default function ApproveModal({
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Facebook</label>
-                <input
-                  value={form.facebook}
-                  onChange={(e) => setForm({ ...form, facebook: e.target.value })}
-                  className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none"
-                />
+                <input value={form.facebook} onChange={(e) => setForm({ ...form, facebook: e.target.value })} className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Zalo</label>
-                <input
-                  value={form.zalo}
-                  onChange={(e) => setForm({ ...form, zalo: e.target.value })}
-                  className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none"
-                />
+                <input value={form.zalo} onChange={(e) => setForm({ ...form, zalo: e.target.value })} className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">TikTok</label>
-                <input
-                  value={form.tiktok}
-                  onChange={(e) => setForm({ ...form, tiktok: e.target.value })}
-                  className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none"
-                />
+                <input value={form.tiktok} onChange={(e) => setForm({ ...form, tiktok: e.target.value })} className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Instagram</label>
-                <input
-                  value={form.instagram}
-                  onChange={(e) => setForm({ ...form, instagram: e.target.value })}
-                  className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none"
-                />
+                <input value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} className="w-full p-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-blue-500 outline-none" />
               </div>
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
-            <button
-              onClick={handleSaveChanges}
-              disabled={saving || approving || rejecting}
-              className="flex-1 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button onClick={handleSaveChanges} disabled={saving || approving || rejecting || uploadingFiles} className="flex-1 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
               {saving ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Đang lưu...
                 </span>
               ) : (
@@ -718,14 +649,10 @@ export default function ApproveModal({
               )}
             </button>
 
-            <button
-              onClick={handleApprove}
-              disabled={saving || approving || rejecting}
-              className="flex-1 px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button onClick={handleApprove} disabled={saving || approving || rejecting || uploadingFiles} className="flex-1 px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
               {approving ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Đang duyệt...
                 </span>
               ) : (
@@ -733,14 +660,10 @@ export default function ApproveModal({
               )}
             </button>
 
-            <button
-              onClick={handleReject}
-              disabled={saving || approving || rejecting}
-              className="flex-1 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button onClick={handleReject} disabled={saving || approving || rejecting || uploadingFiles} className="flex-1 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
               {rejecting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Đang từ chối...
                 </span>
               ) : (
@@ -748,11 +671,7 @@ export default function ApproveModal({
               )}
             </button>
 
-            <button
-              onClick={onClose}
-              disabled={saving || approving || rejecting}
-              className="flex-1 px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button onClick={onClose} disabled={saving || approving || rejecting || uploadingFiles} className="flex-1 px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
               🔒 Đóng
             </button>
           </div>

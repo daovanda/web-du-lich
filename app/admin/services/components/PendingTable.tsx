@@ -28,7 +28,7 @@ export default function PendingTable({
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-    
+
     if (diffInHours < 1) return "Vừa xong";
     if (diffInHours < 24) return `${Math.floor(diffInHours)}h`;
     return `${Math.floor(diffInHours / 24)}d`;
@@ -40,6 +40,8 @@ export default function PendingTable({
         return "text-green-500";
       case "pending":
         return "text-yellow-500";
+      case "rejected":
+        return "text-red-500";
       case "new":
       default:
         return "text-blue-500";
@@ -47,24 +49,26 @@ export default function PendingTable({
   };
 
   const handleAction = async (action: () => Promise<void> | void, key: string) => {
-    setActionLoading(prev => ({ ...prev, [key]: true }));
+    setActionLoading((prev) => ({ ...prev, [key]: true }));
     try {
       await action();
     } catch (error) {
       console.error(`Action ${key} failed:`, error);
     } finally {
-      setActionLoading(prev => ({ ...prev, [key]: false }));
+      setActionLoading((prev) => ({ ...prev, [key]: false }));
     }
   };
 
   // Filter services
-  const filteredServices = pendingServices.filter(service => {
-    const matchesSearch = !searchTerm || 
+  const filteredServices = pendingServices.filter((service) => {
+    const matchesSearch =
+      !searchTerm ||
       service.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       service.location?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || service.status === statusFilter;
-    
+
+    const matchesStatus =
+      statusFilter === "all" || service.status === statusFilter;
+
     return matchesSearch && matchesStatus;
   });
 
@@ -76,7 +80,10 @@ export default function PendingTable({
         </div>
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-black border border-gray-800 rounded-lg p-4 animate-pulse">
+            <div
+              key={i}
+              className="bg-black border border-gray-800 rounded-lg p-4 animate-pulse"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gray-800 rounded-full"></div>
                 <div className="flex-1">
@@ -115,8 +122,8 @@ export default function PendingTable({
       </div>
 
       {/* Filter */}
-      <div className="flex gap-2">
-        {["all", "new", "pending", "confirmed"].map((status) => (
+      <div className="flex gap-2 flex-wrap">
+        {["all", "new", "pending", "confirmed", "rejected"].map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
@@ -126,7 +133,9 @@ export default function PendingTable({
                 : "bg-gray-800 text-gray-300 hover:bg-gray-700"
             }`}
           >
-            {status === "all" ? "All" : status.charAt(0).toUpperCase() + status.slice(1)}
+            {status === "all"
+              ? "All"
+              : status.charAt(0).toUpperCase() + status.slice(1)}
           </button>
         ))}
       </div>
@@ -164,7 +173,9 @@ export default function PendingTable({
                     {/* Service Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-white truncate">{p.title}</p>
+                        <p className="font-semibold text-white truncate">
+                          {p.title}
+                        </p>
                         <span className={`text-xs ${getStatusColor(p.status)}`}>
                           ●
                         </span>
@@ -184,7 +195,9 @@ export default function PendingTable({
                   >
                     {/* Approve Button */}
                     <button
-                      onClick={() => handleAction(() => onApprove(p), `${p.id}-approve`)}
+                      onClick={() =>
+                        handleAction(() => onApprove(p), `${p.id}-approve`)
+                      }
                       disabled={isActionLoading}
                       className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -197,10 +210,16 @@ export default function PendingTable({
 
                     {/* Toggle Button */}
                     <button
-                      onClick={() => handleAction(
-                        () => onToggle(p.id, p.status === "new" ? "pending" : "new"),
-                        `${p.id}-toggle`
-                      )}
+                      onClick={() =>
+                        handleAction(
+                          () =>
+                            onToggle(
+                              p.id,
+                              p.status === "new" ? "pending" : "new"
+                            ),
+                          `${p.id}-toggle`
+                        )
+                      }
                       disabled={isActionLoading}
                       className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -222,16 +241,14 @@ export default function PendingTable({
             📦
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">
-            {searchTerm || statusFilter !== "all" 
-              ? "No services found" 
-              : "No pending services"
-            }
+            {searchTerm || statusFilter !== "all"
+              ? "No services found"
+              : "No pending services"}
           </h3>
           <p className="text-gray-400 text-sm">
             {searchTerm || statusFilter !== "all"
               ? "Try adjusting your search or filter"
-              : "New service requests will appear here"
-            }
+              : "New service requests will appear here"}
           </p>
         </div>
       )}
@@ -239,18 +256,22 @@ export default function PendingTable({
       {/* Quick Stats - Simple Row */}
       {pendingServices.length > 0 && (
         <div className="flex items-center justify-between py-4 border-t border-gray-800">
-          <div className="flex items-center gap-6 text-sm text-gray-400">
+          <div className="flex items-center gap-6 text-sm text-gray-400 flex-wrap">
             <span className="flex items-center gap-1">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              New: {pendingServices.filter(s => s.status === "new").length}
+              New: {pendingServices.filter((s) => s.status === "new").length}
             </span>
             <span className="flex items-center gap-1">
               <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              Pending: {pendingServices.filter(s => s.status === "pending").length}
+              Pending: {pendingServices.filter((s) => s.status === "pending").length}
             </span>
             <span className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              Confirmed: {pendingServices.filter(s => s.status === "confirmed").length}
+              Confirmed: {pendingServices.filter((s) => s.status === "confirmed").length}
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              Rejected: {pendingServices.filter((s) => s.status === "rejected").length}
             </span>
           </div>
           <div className="text-sm text-gray-400">

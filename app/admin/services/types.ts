@@ -88,5 +88,6 @@ export const SERVICE_STATUSES = [
 export const PENDING_STATUSES = [
   { value: "new", label: "Mới" },
   { value: "pending", label: "Đang xem xét" },
+  { value: "rejected", label: "Bị từ chối" },
   { value: "confirmed", label: "Đã xác nhận" },
 ];
