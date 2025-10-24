@@ -95,48 +95,50 @@ export default function SpecialEvents() {
       <div className="absolute inset-0 bg-gradient-to-b from-black via-black/40 to-transparent" />
 
       {/* Overlay info */}
-      <div className="absolute bottom-0 left-0 p-6 md:p-10 text-white max-w-2xl z-10">
-        <h2 className="text-2xl md:text-4xl font-bold mb-3 drop-shadow-lg">
-          {current.title}
-        </h2>
+      <div className="absolute bottom-0 left-0 w-full px-4 sm:px-6 md:px-10 pb-6 sm:pb-8 md:pb-10 text-white z-10">
+        <div className="max-w-[90%] sm:max-w-xl md:max-w-2xl">
+          <h2 className="text-xl sm:text-2xl md:text-4xl font-bold mb-2 sm:mb-3 drop-shadow-lg break-words">
+            {current.title}
+          </h2>
 
-        {current.location && (
-          <p className="text-gray-300 mb-2 text-sm md:text-base">
-            📍 {current.location}
+          {current.location && (
+            <p className="text-gray-300 mb-1 sm:mb-2 text-xs sm:text-sm md:text-base">
+              📍 {current.location}
+            </p>
+          )}
+
+          <p className="text-gray-200 text-[0.75rem] sm:text-sm md:text-base leading-relaxed line-clamp-3 mb-4 sm:mb-5 break-words">
+            {current.description}
           </p>
-        )}
 
-        <p className="text-gray-200 text-xs md:text-sm line-clamp-3 mb-5">
-          {current.description}
-        </p>
+          {/* Rating */}
+          {(current.average_rating ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[0.7rem] sm:text-xs md:text-sm mb-3 sm:mb-4">
+              <span className="bg-yellow-400 text-black font-semibold px-2 sm:px-3 py-1 rounded-full">
+                ⭐ {current.average_rating?.toFixed(1)} (
+                {current.reviews_count || 0} đánh giá)
+              </span>
+            </div>
+          )}
 
-        {/* Rating */}
-        {(current.average_rating ?? 0) > 0 && (
-          <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm mb-4">
-            <span className="bg-yellow-400 text-black font-semibold px-3 py-1 rounded-full">
-              ⭐ {current.average_rating?.toFixed(1)} (
-              {current.reviews_count || 0} đánh giá)
-            </span>
-          </div>
-        )}
+          {/* Price */}
+          {current.price && (
+            <p className="text-base sm:text-lg md:text-xl font-semibold text-pink-400 mb-4 sm:mb-5">
+              {current.price}
+            </p>
+          )}
 
-        {/* Price */}
-        {current.price && (
-          <p className="text-lg md:text-xl font-semibold text-pink-400 mb-5">
-            {current.price}
-          </p>
-        )}
-
-        {/* Buttons */}
-        <div className="flex items-center gap-3">
-          <Link href={`/services/${current.type}/${current.id}`}>
-            <button className="bg-yellow-400 text-black font-semibold px-5 py-2 rounded-full hover:bg-yellow-300 transition-all shadow-md text-sm md:text-base">
-              Xem Chi Tiết
+          {/* Buttons */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <Link href={`/services/${current.type}/${current.id}`}>
+              <button className="bg-yellow-400 text-black font-semibold px-3 sm:px-5 py-1.5 sm:py-2 rounded-full hover:bg-yellow-300 transition-all shadow-md text-xs sm:text-sm md:text-base whitespace-nowrap">
+                Xem Chi Tiết
+              </button>
+            </Link>
+            <button className="bg-white/10 border border-white/30 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full hover:bg-white/20 transition-all text-xs sm:text-sm md:text-base whitespace-nowrap">
+              ❤️ Yêu Thích
             </button>
-          </Link>
-          <button className="bg-white/10 border border-white/30 px-4 py-2 rounded-full hover:bg-white/20 transition-all text-sm md:text-base">
-            ❤️ Yêu Thích
-          </button>
+          </div>
         </div>
       </div>
 
@@ -147,10 +149,10 @@ export default function SpecialEvents() {
             prev === 0 ? services.length - 1 : prev - 1
           )
         }
-        className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 w-9 h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all"
+        className="absolute left-2 sm:left-3 md:left-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all"
       >
         <svg
-          className="w-5 h-5"
+          className="w-4 h-4 sm:w-5 sm:h-5"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -166,10 +168,10 @@ export default function SpecialEvents() {
 
       <button
         onClick={() => setCurrentIndex((prev) => (prev + 1) % services.length)}
-        className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 w-9 h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all"
+        className="absolute right-2 sm:right-3 md:right-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all"
       >
         <svg
-          className="w-5 h-5"
+          className="w-4 h-4 sm:w-5 sm:h-5"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -184,11 +186,11 @@ export default function SpecialEvents() {
       </button>
 
       {/* Dots */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+      <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2">
         {services.map((_, i) => (
           <div
             key={i}
-            className={`w-2 h-2 rounded-full transition-all ${
+            className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all ${
               i === currentIndex ? "bg-white scale-125" : "bg-white/40"
             }`}
           />

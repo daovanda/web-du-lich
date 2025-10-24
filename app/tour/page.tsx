@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ServiceCard from "@/components/ServiceCard";
 import ResizableLayout from "@/components/ResizableLayout";
+import SpecialEvents from "@/components/SpecialEvents";
 
 export default function TourPage() {
   const [tours, setTours] = useState<any[]>([]);
@@ -53,13 +54,17 @@ export default function TourPage() {
 
   return (
     <ResizableLayout>
+      {/* 🔥 Special Events Section */
+        <div className="max-w-6xl mx-auto mt-8 px-4">
+          <SpecialEvents />
+          </div>}
       {/* ✅ Giống file map/page.tsx — đảm bảo không bị header đè */}
       <div className="text-white mt-16 md:mt-0">
         {/* Hero section */}
         <div className="max-w-3xl mx-auto px-6 text-center py-8">
-          <h1 className="text-3xl font-extrabold mb-3">
+{/*          <h1 className="text-3xl font-extrabold mb-3">
             Khám phá Việt Nam qua từng hành trình
-          </h1>
+          </h1>*/}
           <p className="text-gray-400 text-sm sm:text-base">
             Trải nghiệm tour du lịch độc đáo – nơi mỗi chuyến đi đều là một câu chuyện đáng nhớ.
           </p>
