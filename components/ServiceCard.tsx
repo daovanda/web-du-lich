@@ -25,7 +25,7 @@ export default function ServiceCard({ service }: Props) {
         {/* Ảnh dịch vụ */}
         <div className="relative w-full h-52 overflow-hidden">
           <img
-            src={service.image_url}
+            src={service.image_url || "/default-image.jpg"}
             alt={service.title}
             className="w-full h-full object-cover transform hover:scale-105 transition duration-300"
           />

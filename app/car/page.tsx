@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ServiceCard from "@/components/ServiceCard";
-import SpecialEventsMarquee from "@/components/SpecialEvents";
 import ResizableLayout from "@/components/ResizableLayout";
+import SpecialEvents from "@/components/SpecialEvents";
 
 export default function CarServicesPage() {
   const [services, setServices] = useState<any[]>([]);
@@ -43,6 +43,10 @@ export default function CarServicesPage() {
 
   return (
     <ResizableLayout>
+      {/* 🔥 Special Events Section */}
+        <div className="max-w-6xl mx-auto mt-8 px-4">
+          <SpecialEvents />
+        </div>
       {/* Thêm margin-top để tránh bị header đè trên mobile */}
       <div className="text-white mt-16 md:mt-0 overflow-hidden">
         {/* Tagline / giá trị cốt lõi */}
@@ -53,12 +57,12 @@ export default function CarServicesPage() {
               : 'opacity-100 translate-y-0'
           }`}
         >
-          <h1 className="text-3xl font-extrabold mb-3">
+{/*          <h1 className="text-3xl font-extrabold mb-3">
             Chạm – Kết nối – Trải nghiệm
-          </h1>
+          </h1> */}
           <p className="text-gray-400 text-sm sm:text-base">
             Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và
-            đậm chất Instagram, nơi bạn có thể ghi dấu từng trải nghiệm trên bản
+            gần gũi, nơi bạn có thể ghi dấu từng trải nghiệm trên bản
             đồ Việt Nam.
           </p>
         </div>
@@ -172,6 +176,7 @@ export default function CarServicesPage() {
             </div>
           )}
         </div>
-      </div>    </ResizableLayout>
+      </div>    
+    </ResizableLayout>
   );
 }
