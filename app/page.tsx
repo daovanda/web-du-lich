@@ -52,6 +52,21 @@ export default function Page() {
         const from = reset ? 0 : offsetRef.current;
         const to = from + limit - 1;
 
+        // Lấy tổng số bài đăng trước để kiểm tra hasMore
+        const countQuery = supabase
+          .from("posts")
+          .select("*", { count: "exact", head: true });
+        if (searchQuery.trim()) {
+          countQuery.ilike("caption", `%${searchQuery}%`);
+        }
+        const { count, error: countError } = await countQuery;
+
+        if (countError) {
+          console.error("Error fetching count:", countError);
+          setLoading(false);
+          return;
+        }
+
         const query = supabase
           .from("posts")
           .select(
@@ -81,6 +96,7 @@ export default function Page() {
 
         const fetched = data || [];
 
+        // ✅ Nếu reset (ví dụ tìm kiếm) => reset lại danh sách và offset
         if (reset) {
           setPosts(fetched);
           offsetRef.current = fetched.length;
@@ -93,12 +109,9 @@ export default function Page() {
           });
         }
 
-        // ✅ Nếu số lượng trả về < limit => hết dữ liệu
-        if (fetched.length < limit) {
-          setHasMore(false);
-        } else {
-          setHasMore(true);
-        }
+        // Kiểm tra xem còn dữ liệu hay không dựa trên tổng số bài
+        setHasMore(offsetRef.current < (count ?? 0));
+
       } catch (err) {
         console.error("Fetch posts error:", err);
       } finally {
@@ -147,7 +160,7 @@ export default function Page() {
             fetchPosts();
           }
         },
-        { threshold: 0.5 }
+        { threshold: 0, rootMargin: "0px 0px 100px 0px" }
       );
 
       observerRef.current.observe(node);
@@ -176,15 +189,16 @@ export default function Page() {
   return (
     <>
       <ResizableLayout searchQuery={searchQuery} onSearchChange={setSearchQuery}>
+
         {/* 🔥 Special Events Section */}
-        <div className="max-w-6xl mx-auto mt-8 px-4">
+        <div className="max-w-6xl mx-auto mt-4 px-4">
           <SpecialEvents />
         </div>
 
-        <div className="text-white mt-16 md:mt-0">
-          {/* Tagline */}
+        <div className="text-white mt-0">
+          {/* Tagline --<div className="text-white mt-6 md:mt-0 overflow-hidden"> --*/}
           <div
-            className={`max-w-3xl mx-auto px-6 text-center py-8 transition-all duration-1000 ease-out ${
+            className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
               isInitialLoad
                 ? "opacity-0 translate-y-8"
                 : "opacity-100 translate-y-0"
@@ -202,7 +216,7 @@ export default function Page() {
 
           {/* Bài đăng */}
           <div
-            className={`max-w-2xl mx-auto p-6 transition-all duration-1000 ease-out delay-300 ${
+            className={`max-w-2xl mx-auto p-4 transition-all duration-1000 ease-out delay-300 ${
               isInitialLoad
                 ? "opacity-0 translate-y-8"
                 : "opacity-100 translate-y-0"
@@ -210,7 +224,7 @@ export default function Page() {
           >
             {/* Thanh tìm kiếm */}
             <div
-              className={`my-4 transition-all duration-700 ease-out delay-500 ${
+              className={`my-2 transition-all duration-700 ease-out delay-500 ${
                 isInitialLoad
                   ? "opacity-0 translate-y-4"
                   : "opacity-100 translate-y-0"
@@ -232,9 +246,8 @@ export default function Page() {
                   : "opacity-100 translate-y-0"
               }`}
             >
-              Bài đăng mới nhất
+            {/*  Bài đăng mới nhất */}
             </h2>
-
             {/* 🧱 Hiển thị Skeleton nếu đang tải và chưa có dữ liệu */}
             {loading && posts.length === 0 ? (
               <div className="flex flex-col gap-6">
@@ -288,11 +301,11 @@ export default function Page() {
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
                   <p className="text-gray-400">Đang tải thêm...</p>
                 </div>
-              ) : !hasMore && posts.length > 0 ? (
-                <p className="text-gray-500 text-sm">Đã hiển thị tất cả bài đăng.</p>
-              ) : (
-                <p className="text-gray-500 text-sm">Đang chờ...</p>
-              )}
+              ) : !hasMore && posts.length > 0 && (
+                  <p className="text-gray-500 text-sm py-3">
+                    🎉 Bạn đã xem hết tất cả bài đăng.
+                  </p>
+                )}
             </div>
           </div>
         </div>
@@ -303,4 +316,3 @@ export default function Page() {
     </>
   );
 }
-

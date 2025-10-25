@@ -44,14 +44,14 @@ export default function CarServicesPage() {
   return (
     <ResizableLayout>
       {/* 🔥 Special Events Section */}
-        <div className="max-w-6xl mx-auto mt-8 px-4">
+        <div className="max-w-6xl mx-auto mt-4 px-4">
           <SpecialEvents />
         </div>
-      {/* Thêm margin-top để tránh bị header đè trên mobile */}
-      <div className="text-white mt-16 md:mt-0 overflow-hidden">
+      {/* Thêm margin-top để tránh bị header đè trên mobile --- <div className="text-white mt-6 md:mt-0 overflow-hidden"> -- */}
+      <div className="text-white mt-0">
         {/* Tagline / giá trị cốt lõi */}
         <div 
-          className={`max-w-3xl mx-auto px-6 text-center py-8 transition-all duration-1000 ease-out ${
+          className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
             isInitialLoad 
               ? 'opacity-0 translate-y-8' 
               : 'opacity-100 translate-y-0'
@@ -68,7 +68,7 @@ export default function CarServicesPage() {
         </div>
 
         <div 
-          className={`max-w-2xl mx-auto p-6 transition-all duration-1000 ease-out delay-300 ${
+          className={`max-w-2xl mx-auto p-4 transition-all duration-1000 ease-out delay-300 ${
             isInitialLoad 
               ? 'opacity-0 translate-y-8' 
               : 'opacity-100 translate-y-0'
@@ -76,7 +76,7 @@ export default function CarServicesPage() {
         >
           {/* Ô tìm kiếm */}
           <div 
-            className={`my-4 transition-all duration-700 ease-out delay-500 ${
+            className={`my-2 transition-all duration-700 ease-out delay-500 ${
               isInitialLoad 
                 ? 'opacity-0 translate-y-4' 
                 : 'opacity-100 translate-y-0'

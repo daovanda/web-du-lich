@@ -90,9 +90,9 @@ export default function SpecialEvents() {
         priority
       />
 
-      {/* 🔽 Gradient overlays (top & bottom) */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-black/40 to-transparent" />
+      {/* 🔽 Gradient overlays (top & bottom) - FIXED with pointer-events-none */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-black/40 to-transparent pointer-events-none" />
 
       {/* Overlay info */}
       <div className="absolute bottom-0 left-0 w-full px-4 sm:px-6 md:px-10 pb-6 sm:pb-8 md:pb-10 text-white z-10">
@@ -136,7 +136,7 @@ export default function SpecialEvents() {
               </button>
             </Link>
             <button className="bg-white/10 border border-white/30 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full hover:bg-white/20 transition-all text-xs sm:text-sm md:text-base whitespace-nowrap">
-              ❤️ Yêu Thích
+              ❤️
             </button>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function SpecialEvents() {
             prev === 0 ? services.length - 1 : prev - 1
           )
         }
-        className="absolute left-2 sm:left-3 md:left-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all"
+        className="absolute left-2 sm:left-3 md:left-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all z-20"
       >
         <svg
           className="w-4 h-4 sm:w-5 sm:h-5"
@@ -168,7 +168,7 @@ export default function SpecialEvents() {
 
       <button
         onClick={() => setCurrentIndex((prev) => (prev + 1) % services.length)}
-        className="absolute right-2 sm:right-3 md:right-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all"
+        className="absolute right-2 sm:right-3 md:right-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/60 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all z-20"
       >
         <svg
           className="w-4 h-4 sm:w-5 sm:h-5"
@@ -186,14 +186,25 @@ export default function SpecialEvents() {
       </button>
 
       {/* Dots */}
-      <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2">
-        {services.map((_, i) => (
-          <div
+      {/* Thumbnails (Dots Preview) */}
+      <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-3 sm:gap-4 z-20">
+        {services.map((item, i) => (
+          <button
             key={i}
-            className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all ${
-              i === currentIndex ? "bg-white scale-125" : "bg-white/40"
+            onClick={() => setCurrentIndex(i)}
+            className={`relative w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden border-2 transition-all ${
+              i === currentIndex
+                ? "border-yellow-400 shadow-lg scale-110"
+                : "border-gray-500 opacity-70 hover:opacity-100"
             }`}
-          />
+          >
+            <Image
+              src={item.image_url!}
+              alt={item.title}
+              fill
+              className="object-cover"
+            />
+          </button>
         ))}
       </div>
     </div>
