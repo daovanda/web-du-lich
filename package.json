@@ -14,13 +14,16 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.75.1",
     "@vercel/analytics": "^1.5.0",
+    "browser-image-compression": "^2.0.2",
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.544.0",
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-datepicker": "^8.7.0",
     "react-dom": "^19.0.0",
+    "react-easy-crop": "^5.5.3",
     "react-fast-marquee": "^1.6.5",
+    "react-hot-toast": "^2.6.0",
     "recharts": "^3.2.1"
   },
   "devDependencies": {
