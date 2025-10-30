@@ -11,47 +11,66 @@ const isValidUUID = (str: string | null) => {
 export const createPost = async (
   user: any,
   caption: string,
-  serviceId: string | null,
+  serviceIdOrLink: string | null,
   images: ImageItem[],
   setLoading: (loading: boolean) => void,
   setCaption: (caption: string) => void,
   setImages: (images: ImageItem[]) => void,
   setCurrentIndex: (index: number) => void,
   uploadImages: (postId: string, images: ImageItem[]) => Promise<string[]>
-) => {
-  if (!user) {
-    toast.error("Bạn cần đăng nhập.");
-    return;
-  }
-  if (!caption.trim()) {
-    toast.error("Vui lòng nhập nội dung.");
-    return;
-  }
-  if (!user.id || !isValidUUID(user.id)) {
-    toast.error("ID người dùng không hợp lệ.");
-    return;
-  }
-  if (serviceId && !isValidUUID(serviceId)) {
-    toast.error("ID dịch vụ không hợp lệ.");
-    return;
-  }
+): Promise<{ success: boolean; message: string }> => {
+  if (!user) return { success: false, message: "Bạn cần đăng nhập." };
+  if (!caption.trim()) return { success: false, message: "Vui lòng nhập nội dung." };
+  if (!user.id || !isValidUUID(user.id)) return { success: false, message: "ID người dùng không hợp lệ." };
 
   setLoading(true);
+
   try {
-    console.log('Inserting post:', { caption, author_id: user.id, service_id: serviceId });
+    let service_id: string | null = null;
+    let custom_service_link: string | null = null;
+
+    if (serviceIdOrLink) {
+      // 🧩 Trường hợp là UUID
+      if (isValidUUID(serviceIdOrLink)) {
+        service_id = serviceIdOrLink;
+      }
+      // 🧩 Trường hợp là URL /services/.../{uuid}
+      else if (/^\/?services\//i.test(serviceIdOrLink)) {
+        const parts = serviceIdOrLink.split("/");
+        const possibleUUID = parts[parts.length - 1];
+        if (isValidUUID(possibleUUID)) {
+          service_id = possibleUUID;
+          custom_service_link = serviceIdOrLink;
+        } else {
+          // fallback nếu không đúng cấu trúc
+          custom_service_link = serviceIdOrLink;
+        }
+      }
+      // 🧩 Trường hợp là URL ngoài (custom link)
+      else {
+        custom_service_link = serviceIdOrLink;
+      }
+    }
+
+    // 🪄 Tạo bài đăng
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .insert({ caption, status: "pending", author_id: user.id, service_id: serviceId })
+      .insert({
+        caption,
+        status: "pending",
+        author_id: user.id,
+        service_id,
+        custom_service_link,
+      })
       .select()
       .single();
 
     if (postError || !post) {
-      throw new Error(`Lỗi khi tạo bài đăng: ${postError?.message || "Không nhận được dữ liệu bài đăng"}`);
+      throw new Error(postError?.message || "Không thể tạo bài đăng");
     }
 
-    console.log('Uploading images for post:', post.id);
+    // 🖼 Upload ảnh
     const urls = await uploadImages(post.id, images);
-
     if (urls.length > 0) {
       const { error: imageError } = await supabase.from("post_images").insert(
         urls.map((url, index) => ({
@@ -60,23 +79,26 @@ export const createPost = async (
           order_index: index,
         }))
       );
-      if (imageError) {
-        throw new Error(`Lỗi khi lưu ảnh: ${imageError.message}`);
-      }
+      if (imageError) throw new Error(imageError.message);
     }
 
-    toast.success("✅ Bài đăng đã gửi.");
+    // ✅ Reset form
     setCaption("");
     setImages([]);
     setCurrentIndex(0);
+
+    return { success: true, message: "✅ Bài đăng đã được gửi thành công." };
   } catch (error) {
     console.error("Error in createPost:", error);
-    const message = error instanceof Error ? error.message : (error ? String(error) : "Không xác định");
-    toast.error(`Có lỗi xảy ra: ${message}`);
+    const message = error instanceof Error ? error.message : "Có lỗi không xác định.";
+    return { success: false, message };
   } finally {
     setLoading(false);
   }
 };
+
+
+
 
 
 export const deletePost = async (postId: string, userId: string) => {

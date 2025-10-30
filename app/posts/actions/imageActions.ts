@@ -71,19 +71,32 @@ export const handleSelectImages = async (
   setImages: (images: ImageItem[] | ((prev: ImageItem[]) => ImageItem[])) => void
 ) => {
   if (!files) return;
-  const raw = Array.from(files)[0];
-  if (!raw) return;
-  if (raw.size > 50 * 1024 * 1024) {
-    alert("⚠️ Ảnh vượt 50MB");
-    return;
-  }
 
-  const compressed = await imageCompression(raw, { maxSizeMB: 2, maxWidthOrHeight: 2000 });
-  const newItem = await autoCrop(compressed, aspect);
-  setImages((prev) => [...prev, newItem]);
+  const fileArray = Array.from(files);
 
-  if (event?.target) event.target.value = "";
+  // ⚠️ Kiểm tra kích thước từng ảnh
+  const validFiles = fileArray.filter((f) => {
+    if (f.size > 50 * 1024 * 1024) {
+      alert(`⚠️ Ảnh ${f.name} vượt quá 50MB và sẽ bị bỏ qua`);
+      return false;
+    }
+    return true;
+  });
+
+  if (validFiles.length === 0) return;
+
+  // 🔹 Tự động crop từng ảnh (nếu có autoCrop)
+  const newImages = await Promise.all(
+    validFiles.map(async (file) => {
+      const cropped = await autoCrop(file, aspect);
+      return cropped;
+    })
+  );
+
+  // ✅ Thêm nối ảnh mới vào danh sách ảnh hiện có
+  setImages((prev) => [...prev, ...newImages]);
 };
+
 
 export const uploadImages = async (postId: string, images: ImageItem[]) => {
   const urls: string[] = [];

@@ -1,4 +1,5 @@
 // KHÔNG thêm "use client" ở đầu file
+import ClientToaster from "@/components/ClientToaster";
 export const metadata = {
   title: "Admin Dashboard",
   description: "Khu vực quản trị hệ thống",
@@ -19,6 +20,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         RightSidebar={<AdminRightSidebar width={260} />}
       >
         {children}
+        <ClientToaster />
         <ChatWidget /> {/* ✅ Tự động chọn ChatAdminPanel hoặc ChatWidget */}
       </ResizableLayout>
     </SupabaseProvider>

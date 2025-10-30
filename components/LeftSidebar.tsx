@@ -37,6 +37,7 @@ export default function LeftSidebar({
     { id: "tour", label: "Tour du lịch" },
     { id: user ? "profile" : "login", label: "Trang cá nhân" },
     { id: "map", label: "Bản đồ Việt Nam" },
+    { id: "posts", label: "Tạo Bài Đăng" },
   ];
 
   const responsiveClass = overlay ? "flex" : "hidden md:flex";

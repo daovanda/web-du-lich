@@ -4,19 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
-import { deletePost } from "@/app/post/actions/postActions"; // ✅ THÊM DÒNG NÀY
+import { deletePost } from "@/app/posts/actions/postActions";
 
 type PostImage = { image_url: string; id?: string };
-type Author = { id?: string; username?: string; avatar_url?: string }; // ✅ THÊM id
+type Author = { id?: string; username?: string; avatar_url?: string };
 type ServiceRef = { id?: string; title?: string };
 
 type Post = {
-  id?: string; // ✅ BẮT BUỘC
+  id?: string;
   caption?: string;
   created_at?: string;
   author?: Author;
   service?: ServiceRef;
   images?: PostImage[] | null;
+  custom_service_link?: string | null; // ✅ thêm dòng này
+  type?: string | null;
 };
 
 type PostCardProps = {
@@ -29,7 +31,7 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const [showMenu, setShowMenu] = useState(false); // ✅ THÊM
+  const [showMenu, setShowMenu] = useState(false);
   const captionVisibleRef = useRef<HTMLParagraphElement | null>(null);
 
   const images: PostImage[] = Array.isArray(post.images) ? post.images : [];
@@ -136,7 +138,6 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
                 <button
                   onClick={async () => {
                     if (!confirm("Bạn có chắc muốn xóa bài này?")) return;
-                    // ensure both post.id and currentUser.id are available at runtime
                     if (!post.id || !currentUser || !currentUser.id) {
                       alert("Không thể xác định người dùng hoặc bài để xóa.");
                       return;
@@ -238,14 +239,24 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
           </div>
         )}
 
-        {post.service && (
+        {/* ✅ Ưu tiên lấy custom_service_link nếu có */}
+        {post.custom_service_link ? (
           <Link
-            href={`/services/${post.service.id}`}
+            href={post.custom_service_link}
+            className="text-blue-400 text-sm hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            🔗 Xem dịch vụ liên quan
+          </Link>
+        ) : post.service ? (
+          <Link
+            href={`/services/${post.type}/${post.service.id}`}
             className="text-blue-400 text-sm hover:underline"
           >
             🔗 Xem dịch vụ liên quan: {post.service.title}
           </Link>
-        )}
+        ) : null}
       </div>
     </div>
   );

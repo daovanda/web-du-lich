@@ -16,6 +16,7 @@ export default function AdminLeftSidebar({
     { href: "/admin/users", label: "Quản lý người dùng" },
     { href: "/admin/bookings", label: "Quản lý đơn đặt" },
     { href: "/admin/settings", label: "Cài đặt hệ thống" },
+    { href: "/admin/posts", label: "Quản lý bài đăng" },
   ];
 
   return (

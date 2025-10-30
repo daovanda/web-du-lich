@@ -5,9 +5,9 @@ import { supabase } from "@/lib/supabase";
 import ResizableLayout from "@/components/ResizableLayout";
 import PostCard from "@/components/PostCard";
 import SpecialEvents from "@/components/SpecialEvents";
+import { Analytics } from "@vercel/analytics/react";
 
-import { Analytics } from "@vercel/analytics/react"; // ✅ Thêm import Analytics
-// 🧱 Component hiển thị skeleton shimmer
+// 🧱 Skeleton shimmer (giữ nguyên)
 function PostSkeleton() {
   return (
     <div className="animate-pulse bg-gray-900 rounded-xl p-4 border border-gray-800">
@@ -32,93 +32,79 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   const limit = 5;
-  const offsetRef = useRef(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastCursorRef = useRef<string | null>(null); // ✅ dùng làm cursor (created_at)
+  const isFetchingRef = useRef(false); // ✅ khóa race condition
 
-  // 🧩 Fetch posts with pagination
+  // 🧩 Cursor-based fetch
   const fetchPosts = useCallback(
     async (reset = false) => {
-      if (loading) return;
+      if (loading || isFetchingRef.current) return;
 
-      // Nếu không reset và đã hết bài => không fetch thêm
-      if (!reset && !hasMore) return;
-
+      isFetchingRef.current = true;
       setLoading(true);
 
       try {
-        const from = reset ? 0 : offsetRef.current;
-        const to = from + limit - 1;
-
-        // Lấy tổng số bài đăng trước để kiểm tra hasMore
-        const countQuery = supabase
-          .from("posts")
-          .select("*", { count: "exact", head: true });
-        if (searchQuery.trim()) {
-          countQuery.ilike("caption", `%${searchQuery}%`);
-        }
-        const { count, error: countError } = await countQuery;
-
-        if (countError) {
-          console.error("Error fetching count:", countError);
-          setLoading(false);
-          return;
-        }
-
-        const query = supabase
+        let query = supabase
           .from("posts")
           .select(
             `
             id,
             caption,
             created_at,
+            custom_service_link,
             author:profiles(id, username, avatar_url),
-            service:services(id, title),
+            service:services(id, title, type),
             images:post_images(id, image_url)
           `
           )
           .order("created_at", { ascending: false })
-          .range(from, to);
+          .limit(limit);
+
+        if (!reset && lastCursorRef.current) {
+          query = query.lt("created_at", lastCursorRef.current);
+        }
 
         if (searchQuery.trim()) {
-          query.ilike("caption", `%${searchQuery}%`);
+          query = query.ilike("caption", `%${searchQuery}%`);
         }
 
         const { data, error } = await query;
-
-        if (error) {
-          console.error("Error fetching posts:", error);
-          setLoading(false);
-          return;
-        }
+        if (error) throw error;
 
         const fetched = data || [];
 
-        // ✅ Nếu reset (ví dụ tìm kiếm) => reset lại danh sách và offset
         if (reset) {
           setPosts(fetched);
-          offsetRef.current = fetched.length;
+          lastCursorRef.current =
+            fetched.length > 0 ? fetched[fetched.length - 1].created_at : null;
+          setHasMore(fetched.length === limit);
+          setInitialLoaded(true);
         } else {
           setPosts((prev) => {
             const ids = new Set(prev.map((p) => p.id));
             const unique = fetched.filter((p) => !ids.has(p.id));
-            offsetRef.current += unique.length;
             return [...prev, ...unique];
           });
+
+          if (fetched.length > 0) {
+            lastCursorRef.current = fetched[fetched.length - 1].created_at;
+          }
+
+          setHasMore(fetched.length === limit);
         }
-
-        // Kiểm tra xem còn dữ liệu hay không dựa trên tổng số bài
-        setHasMore(offsetRef.current < (count ?? 0));
-
       } catch (err) {
         console.error("Fetch posts error:", err);
       } finally {
         setLoading(false);
+        isFetchingRef.current = false;
       }
     },
-    [loading, searchQuery, hasMore]
+    [loading, searchQuery]
   );
 
   // 🧠 Fetch user session
@@ -134,7 +120,7 @@ export default function Page() {
   useEffect(() => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     searchTimeoutRef.current = setTimeout(() => {
-      offsetRef.current = 0;
+      lastCursorRef.current = null;
       setHasMore(true);
       fetchPosts(true);
     }, 350);
@@ -144,38 +130,39 @@ export default function Page() {
     };
   }, [searchQuery, fetchPosts]);
 
-  // 🧱 IntersectionObserver for infinite scroll
+  // 🧱 IntersectionObserver (infinite scroll)
   const loadMoreRef = useCallback(
     (node: HTMLDivElement | null) => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-
+      if (observerRef.current) observerRef.current.disconnect();
       if (!node) return;
 
       observerRef.current = new IntersectionObserver(
         (entries) => {
           const first = entries[0];
-          if (first.isIntersecting && !loading && hasMore) {
+          if (
+            first.isIntersecting &&
+            !loading &&
+            hasMore &&
+            initialLoaded &&
+            !isFetchingRef.current
+          ) {
             fetchPosts();
           }
         },
-        { threshold: 0, rootMargin: "0px 0px 100px 0px" }
+        { threshold: 0.2, rootMargin: "0px 0px 300px 0px" }
       );
 
       observerRef.current.observe(node);
     },
-    [fetchPosts, hasMore, loading]
+    [fetchPosts, loading, hasMore, initialLoaded]
   );
 
   // 🧹 Cleanup observer
   useEffect(() => {
-    return () => {
-      if (observerRef.current) observerRef.current.disconnect();
-    };
+    return () => observerRef.current?.disconnect();
   }, []);
 
-  // ✨ Smooth animation start
+  // ✨ Animation start
   useEffect(() => {
     const t = requestAnimationFrame(() => setIsInitialLoad(false));
     return () => cancelAnimationFrame(t);
@@ -189,14 +176,12 @@ export default function Page() {
   return (
     <>
       <ResizableLayout searchQuery={searchQuery} onSearchChange={setSearchQuery}>
-
         {/* 🔥 Special Events Section */}
         <div className="max-w-6xl mx-auto mt-4 px-4">
           <SpecialEvents />
         </div>
 
         <div className="text-white mt-0">
-          {/* Tagline --<div className="text-white mt-6 md:mt-0 overflow-hidden"> --*/}
           <div
             className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
               isInitialLoad
@@ -204,15 +189,11 @@ export default function Page() {
                 : "opacity-100 translate-y-0"
             }`}
           >
- {/*           <h1 className="text-3xl font-extrabold mb-3">
-              Chạm – Kết nối – Trải nghiệm
-            </h1> */}
             <p className="text-gray-400 text-sm sm:text-base">
               Chia sẻ hành trình của bạn, khám phá những khoảnh khắc du lịch đầy
               cảm hứng cùng cộng đồng Việt Nam Travel.
             </p>
           </div>
-
 
           {/* Bài đăng */}
           <div
@@ -239,16 +220,7 @@ export default function Page() {
               />
             </div>
 
-            <h2
-              className={`text-xl font-bold mb-4 transition-all duration-700 ease-out delay-700 ${
-                isInitialLoad
-                  ? "opacity-0 translate-y-4"
-                  : "opacity-100 translate-y-0"
-              }`}
-            >
-            {/*  Bài đăng mới nhất */}
-            </h2>
-            {/* 🧱 Hiển thị Skeleton nếu đang tải và chưa có dữ liệu */}
+            {/* Posts List */}
             {loading && posts.length === 0 ? (
               <div className="flex flex-col gap-6">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -275,13 +247,7 @@ export default function Page() {
                   ))
                 ) : (
                   !loading && (
-                    <p
-                      className={`text-gray-500 text-center transition-all duration-700 ease-out delay-900 ${
-                        isInitialLoad
-                          ? "opacity-0 translate-y-4"
-                          : "opacity-100 translate-y-0"
-                      }`}
-                    >
+                    <p className="text-gray-500 text-center py-4">
                       Chưa có bài đăng nào.
                     </p>
                   )
@@ -290,28 +256,23 @@ export default function Page() {
             )}
 
             {/* Loading / Sentinel */}
-            <div
-              ref={loadMoreRef}
-              className={`text-center py-4 transition-all duration-500 ease-out ${
-                loading ? "opacity-100 scale-100" : "opacity-70 scale-95"
-              }`}
-            >
+            <div ref={loadMoreRef} className="text-center py-6">
               {loading && posts.length > 0 ? (
                 <div className="flex items-center justify-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
                   <p className="text-gray-400">Đang tải thêm...</p>
                 </div>
-              ) : !hasMore && posts.length > 0 && (
-                  <p className="text-gray-500 text-sm py-3">
-                    🎉 Bạn đã xem hết tất cả bài đăng.
-                  </p>
-                )}
+              ) : !hasMore && posts.length > 0 ? (
+                <p className="text-gray-500 text-sm py-3">
+                  🎉 Bạn đã xem hết tất cả bài đăng.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
       </ResizableLayout>
-      
-      {/* ✅ Vercel Analytics (ghi nhận truy cập & tương tác) */}
+
+      {/* ✅ Vercel Analytics */}
       <Analytics />
     </>
   );

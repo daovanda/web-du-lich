@@ -1,1 +1,0 @@
-export type ImageItem = { original: File; cropped: File; preview: string };
