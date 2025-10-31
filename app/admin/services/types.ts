@@ -63,6 +63,7 @@ export const PENDING_SERVICE_TYPES = [
   { value: "stay", label: "Lưu trú (Stay)" },
   { value: "car", label: "Thuê xe hơi (Car)" },
   { value: "motorbike", label: "Thuê xe máy (Motorbike)" },
+  { value: "tour", label: "Tour du lịch (Tour)" },
 ];
 
 // Official services hỗ trợ 4 loại dịch vụ

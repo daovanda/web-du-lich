@@ -6,6 +6,8 @@ import ResizableLayout from "@/components/ResizableLayout";
 import ProfileHeader from "./components/ProfileHeader";
 import ProfileForm from "./components/ProfileForm";
 import ServiceHistory from "./components/ServiceHistory";
+import UserPostsTable from "../posts/components/UserPostsTable";
+import { UserPost } from "../posts/types/index";
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
@@ -19,6 +21,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [selectedPost, setSelectedPost] = useState<UserPost | null>(null);
 
   /* ---------------------- Fetch user data ---------------------- */
   useEffect(() => {
@@ -50,11 +53,8 @@ export default function ProfilePage() {
             "https://via.placeholder.com/150/000000/FFFFFF?text=Avatar"
           );
         }
-
-        // Bỏ phần fetch serviceHistory - để ServiceHistory tự fetch
       }
       
-      // Trigger initial load animation after data is loaded
       setTimeout(() => {
         setIsInitialLoad(false);
       }, 200);
@@ -151,10 +151,15 @@ export default function ProfilePage() {
     }
   };
 
+  const handleOpenPost = (post: UserPost) => {
+    setSelectedPost(post);
+    // Bạn có thể mở modal hoặc navigate đến trang chi tiết bài đăng
+    console.log("Open post:", post);
+  };
+
   return (
     <ResizableLayout>
       <div className="min-h-screen bg-black text-white">
-        {/* ✅ Thêm padding-top cho mobile để tránh bị header che */}
         <main 
           className={`max-w-3xl mx-auto px-4 py-6 space-y-8 pt-24 md:pt-6 transition-all duration-1000 ease-out ${
             isInitialLoad 
@@ -164,6 +169,7 @@ export default function ProfilePage() {
         >
           {user ? (
             <>
+              {/* Phần header profile */}
               <div 
                 className={`transition-all duration-700 ease-out delay-300 ${
                   isInitialLoad 
@@ -180,6 +186,22 @@ export default function ProfilePage() {
                 />
               </div>
 
+                            {/* 🆕 Bài đăng của người dùng - nằm trên cùng */}
+              <div 
+                className={`transition-all duration-700 ease-out delay-100 ${
+                  isInitialLoad 
+                    ? 'opacity-0 translate-y-6' 
+                    : 'opacity-100 translate-y-0'
+                }`}
+              >
+                <UserPostsTable 
+                  currentUserId={user.id} 
+                  onOpenPost={handleOpenPost}
+                />
+              </div>
+
+
+              {/* Form cập nhật thông tin */}
               <div 
                 className={`transition-all duration-700 ease-out delay-500 ${
                   isInitialLoad 
@@ -203,7 +225,7 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* ServiceHistory sẽ tự fetch dữ liệu từ API */}
+              {/* Lịch sử dịch vụ */}
               <div 
                 className={`transition-all duration-700 ease-out delay-700 ${
                   isInitialLoad 
@@ -216,6 +238,7 @@ export default function ProfilePage() {
                 />
               </div>
 
+              {/* Nút đăng xuất */}
               <div 
                 className={`pt-6 transition-all duration-700 ease-out delay-900 ${
                   isInitialLoad 

@@ -17,27 +17,34 @@ export default function TourPage() {
       try {
         setLoading(true);
 
-        const { data, error } = await supabase
+        // ✅ FIX: Sửa tên cột trong query
+        let query = supabase
           .from("tour_with_reviews")
           .select(`
             service_id,
             title,
             description,
-            location,
+            service_location,
             price,
             images,
             average_rating,
             reviews_count,
-            destination,
+            tour_destination,
             duration_days,
             start_date,
             end_date,
             available_slots,
             guide_name
-          `)
-          .or(
-            `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,destination.ilike.%${searchQuery}%,location.ilike.%${searchQuery}%`
+          `);
+
+        // ✅ Chỉ thêm filter khi có searchQuery
+        if (searchQuery.trim()) {
+          query = query.or(
+            `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,tour_destination.ilike.%${searchQuery}%,service_location.ilike.%${searchQuery}%`
           );
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         setTours(data || []);
@@ -54,17 +61,15 @@ export default function TourPage() {
 
   return (
     <ResizableLayout>
-      {/* 🔥 Special Events Section */
-        <div className="max-w-6xl mx-auto mt-8 px-4">
-          <SpecialEvents />
-          </div>}
+      {/* 🔥 Special Events Section */}
+      <div className="max-w-6xl mx-auto mt-8 px-4">
+        <SpecialEvents />
+      </div>
+
       {/* ✅ Giống file map/page.tsx — đảm bảo không bị header đè */}
       <div className="text-white mt-16 md:mt-0">
         {/* Hero section */}
         <div className="max-w-3xl mx-auto px-6 text-center py-8">
-{/*          <h1 className="text-3xl font-extrabold mb-3">
-            Khám phá Việt Nam qua từng hành trình
-          </h1>*/}
           <p className="text-gray-400 text-sm sm:text-base">
             Trải nghiệm tour du lịch độc đáo – nơi mỗi chuyến đi đều là một câu chuyện đáng nhớ.
           </p>
@@ -113,7 +118,7 @@ export default function TourPage() {
                     description: tour.description,
                     image_url: tour.images?.[0],
                     price: tour.price,
-                    location: tour.destination || tour.location,
+                    location: tour.tour_destination || tour.service_location, // ✅ FIX
                     type: "tour",
                     average_rating: tour.average_rating,
                     reviews_count: tour.reviews_count,

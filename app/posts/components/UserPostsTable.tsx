@@ -16,7 +16,7 @@ type UserPostsTableProps = {
 export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsTableProps) {
   const [posts, setPosts] = useState<UserPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [menuOpen, setMenuOpen] = useState<string | null>(null); // 🔹 Lưu ID bài đăng đang mở menu
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
   // 🧩 Định dạng thời gian
   const formatDate = (dateString: string | null | undefined) => {
@@ -96,7 +96,7 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
     if (!confirm("🗑 Bạn có chắc muốn xóa bài đăng này không?")) return;
     try {
       await deletePost(postId, currentUserId);
-      setPosts((prev) => prev.filter((p) => p.id !== postId)); // Cập nhật UI ngay
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
       toast.success("✅ Bài đăng đã được xóa thành công!");
     } catch (error) {
       console.error(error);
@@ -109,9 +109,11 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
   // 🔹 UI Loading
   if (loading) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-white">Bài đăng của bạn</h2>
-        <div className="space-y-3">
+      <div className="bg-neutral-900 rounded-xl shadow overflow-hidden">
+        <div className="p-6 border-b border-neutral-800">
+          <h2 className="text-lg font-semibold text-white">Bài đăng của bạn</h2>
+        </div>
+        <div className="p-6 space-y-3">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="bg-black border border-gray-800 rounded-lg p-4 animate-pulse">
               <div className="flex items-center gap-3">
@@ -130,105 +132,111 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
 
   // 🎯 UI chính
   return (
-    <div className="space-y-4 relative">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">
-          Bài đăng của bạn ({userPosts.length})
-        </h2>
+    <div className="bg-neutral-900 rounded-xl shadow overflow-hidden">
+      {/* Header */}
+      <div className="p-6 border-b border-neutral-800">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">
+            Bài đăng của bạn {userPosts.length > 0 && `(${userPosts.length})`}
+          </h2>
+        </div>
       </div>
 
-      {userPosts.length > 0 ? (
-        <div className="space-y-3">
-          {userPosts.map((p) => (
-            <div
-              key={p.id}
-              className="bg-black border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors relative"
-            >
-              {/* Nút menu ⋮ */}
-              <button
-                onClick={() => setMenuOpen(menuOpen === p.id ? null : p.id)}
-                className="absolute top-2 right-2 text-gray-400 hover:text-white p-1"
-              >
-                <MoreVertical size={18} />
-              </button>
-
-              {/* Dropdown menu */}
-              {menuOpen === p.id && (
-                <div className="absolute top-8 right-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-10">
-                  <button
-                    onClick={() => handleDelete(p.id)}
-                    className="px-4 py-2 text-red-400 hover:bg-gray-800 rounded-md w-full text-left text-sm"
-                  >
-                    🗑 Xóa bài đăng
-                  </button>
-                </div>
-              )}
-
-              {/* Nội dung bài */}
+      {/* Content */}
+      <div className="p-6">
+        {userPosts.length > 0 ? (
+          <div className="space-y-3">
+            {userPosts.map((p) => (
               <div
-                onClick={() => onOpenPost?.(p)}
-                className="flex items-center justify-between cursor-pointer"
+                key={p.id}
+                className="bg-black border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors relative"
               >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-800 flex-shrink-0">
-                    {p.image_urls?.[0] ? (
-                      <Image
-                        src={p.image_urls[0]}
-                        alt="post"
-                        width={64}
-                        height={64}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-500">
-                        🖼
-                      </div>
-                    )}
-                  </div>
+                {/* Nút menu ⋮ */}
+                <button
+                  onClick={() => setMenuOpen(menuOpen === p.id ? null : p.id)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-white p-1"
+                >
+                  <MoreVertical size={18} />
+                </button>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-white truncate">
-                        {p.service_title || "Không có tiêu đề"}
-                      </p>
-                      <span className={`text-xs ${getStatusColor(p.status ?? "pending")}`}>●</span>
+                {/* Dropdown menu */}
+                {menuOpen === p.id && (
+                  <div className="absolute top-8 right-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-10">
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      className="px-4 py-2 text-red-400 hover:bg-gray-800 rounded-md w-full text-left text-sm"
+                    >
+                      🗑 Xóa bài đăng
+                    </button>
+                  </div>
+                )}
+
+                {/* Nội dung bài */}
+                <div
+                  onClick={() => onOpenPost?.(p)}
+                  className="flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-800 flex-shrink-0">
+                      {p.image_urls?.[0] ? (
+                        <Image
+                          src={p.image_urls[0]}
+                          alt="post"
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-500">
+                          🖼
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-400 line-clamp-1">
-                      {p.caption || "Không có mô tả"}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {formatDate(p.created_at)} •{" "}
-                      <span
-                        className={`${
-                          p.status === "approved"
-                            ? "text-green-400"
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-base font-semibold text-white truncate">
+                          {p.service_title || "Không có tiêu đề"}
+                        </p>
+                        <span className={`text-xs ${getStatusColor(p.status ?? "pending")}`}>●</span>
+                      </div>
+                      <p className="text-sm text-gray-400 line-clamp-1">
+                        {p.caption || "Không có mô tả"}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate mt-1">
+                        {formatDate(p.created_at)} •{" "}
+                        <span
+                          className={`${
+                            p.status === "approved"
+                              ? "text-green-400"
+                              : p.status === "pending"
+                              ? "text-yellow-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {p.status === "approved"
+                            ? "Đã duyệt"
                             : p.status === "pending"
-                            ? "text-yellow-400"
-                            : "text-red-400"
-                        }`}
-                      >
-                        {p.status === "approved"
-                          ? "Đã duyệt"
-                          : p.status === "pending"
-                          ? "Chờ duyệt"
-                          : "Từ chối"}
-                      </span>
-                    </p>
+                            ? "Chờ duyệt"
+                            : "Từ chối"}
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-            📰
+            ))}
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Chưa có bài đăng</h3>
-          <p className="text-gray-400 text-sm">Hãy chia sẻ bài viết đầu tiên của bạn nhé!</p>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              📰
+            </div>
+            <h3 className="text-base font-semibold text-white mb-2">Chưa có bài đăng</h3>
+            <p className="text-gray-400 text-sm">Hãy chia sẻ bài viết đầu tiên của bạn nhé!</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

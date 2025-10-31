@@ -15,6 +15,7 @@ export default function RightSidebar({ width }: { width: number }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const fetchProfile = async (currentUser: any) => {
@@ -42,12 +43,14 @@ export default function RightSidebar({ width }: { width: number }) {
 
   useEffect(() => {
     const checkUser = async () => {
+      setIsLoadingAuth(true);
       const {
         data: { session },
       } = await supabase.auth.getSession();
       const currentUser = session?.user || null;
       setUser(currentUser);
       await fetchProfile(currentUser);
+      setIsLoadingAuth(false);
     };
     checkUser();
 
@@ -64,21 +67,30 @@ export default function RightSidebar({ width }: { width: number }) {
 
   // Trigger fade-in animation for suggestions after profile loads
   useEffect(() => {
-    if (!isLoadingProfile) {
+    if (!isLoadingAuth && !isLoadingProfile) {
       const timer = setTimeout(() => {
         setShowSuggestions(true);
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [isLoadingProfile]);
+  }, [isLoadingAuth, isLoadingProfile]);
 
   return (
     <aside className="right-sidebar hidden lg:flex flex-col space-y-6 border-l border-gray-800 p-4 bg-black h-screen sticky top-0 overflow-y-auto">
       <div className="p-2">
-        {user ? (
+        {isLoadingAuth ? (
+          // Loading skeleton while checking auth
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-gray-700 animate-pulse flex-shrink-0" />
+            <div className="min-w-0 max-w-[160px] space-y-2">
+              <div className="h-4 bg-gray-700 rounded animate-pulse w-24" />
+              <div className="h-3 bg-gray-700 rounded animate-pulse w-16" />
+            </div>
+          </div>
+        ) : user ? (
           <div className="flex items-center space-x-3">
             {isLoadingProfile ? (
-              // Loading skeleton
+              // Loading skeleton for profile
               <>
                 <div className="w-10 h-10 rounded-full bg-gray-700 animate-pulse flex-shrink-0" />
                 <div className="min-w-0 max-w-[160px] space-y-2">
