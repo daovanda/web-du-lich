@@ -43,20 +43,18 @@ export default function MotorbikeServices() {
 
   return (
     <ResizableLayout>
-      {/* 🔥 Special Events Section */
+        {/* 🔥 Special Events Section */}
         <div className="max-w-6xl mx-auto mt-4 px-4">
-          <SpecialEvents />
-          </div>}
+          <SpecialEvents isInitialLoad={isInitialLoad} />
+        </div>
 
-      {/* ✅ Thêm margin-top để tránh bị header cố định đè lên nội dung khi ở mobile */}
-      <div className="text-white mt-0">
-        {/* Tagline / giá trị cốt lõi */}
-        <div 
-          className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
-            isInitialLoad 
-              ? 'opacity-0 translate-y-8' 
-              : 'opacity-100 translate-y-0'
-          }`}
+        <div className="text-white mt-0">
+          <div
+            className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
+              isInitialLoad
+                ? "opacity-0 translate-y-8"
+                : "opacity-100 translate-y-0"
+            }`}
         >
  {/*}         <h1 className="text-3xl font-extrabold mb-3">
             Chạm – Kết nối – Trải nghiệm

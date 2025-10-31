@@ -14,12 +14,17 @@ type Profile = {
 export default function RightSidebar({ width }: { width: number }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const fetchProfile = async (currentUser: any) => {
     if (!currentUser) {
       setProfile(null);
+      setIsLoadingProfile(false);
       return;
     }
+    
+    setIsLoadingProfile(true);
     const { data, error } = await supabase
       .from("profiles")
       .select("full_name, username, avatar_url")
@@ -32,6 +37,7 @@ export default function RightSidebar({ width }: { width: number }) {
     } else {
       setProfile(data);
     }
+    setIsLoadingProfile(false);
   };
 
   useEffect(() => {
@@ -41,55 +47,78 @@ export default function RightSidebar({ width }: { width: number }) {
       } = await supabase.auth.getSession();
       const currentUser = session?.user || null;
       setUser(currentUser);
-      fetchProfile(currentUser);
+      await fetchProfile(currentUser);
     };
     checkUser();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user || null;
       setUser(currentUser);
-      fetchProfile(currentUser);
+      await fetchProfile(currentUser);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Trigger fade-in animation for suggestions after profile loads
+  useEffect(() => {
+    if (!isLoadingProfile) {
+      const timer = setTimeout(() => {
+        setShowSuggestions(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoadingProfile]);
 
   return (
     <aside className="right-sidebar hidden lg:flex flex-col space-y-6 border-l border-gray-800 p-4 bg-black h-screen sticky top-0 overflow-y-auto">
       <div className="p-2">
         {user ? (
           <div className="flex items-center space-x-3">
-            {/* Ảnh đại diện */}
-            <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt="Avatar"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-semibold">
-                  {profile?.username?.[0]?.toUpperCase() ||
-                    user.email?.[0]?.toUpperCase() ||
-                    "U"}
+            {isLoadingProfile ? (
+              // Loading skeleton
+              <>
+                <div className="w-10 h-10 rounded-full bg-gray-700 animate-pulse flex-shrink-0" />
+                <div className="min-w-0 max-w-[160px] space-y-2">
+                  <div className="h-4 bg-gray-700 rounded animate-pulse w-24" />
+                  <div className="h-3 bg-gray-700 rounded animate-pulse w-16" />
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                {/* Ảnh đại diện */}
+                <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-semibold">
+                      {profile?.username?.[0]?.toUpperCase() ||
+                        user.email?.[0]?.toUpperCase() ||
+                        "U"}
+                    </div>
+                  )}
+                </div>
 
-            {/* Tên hiển thị */}
-            <div className="min-w-0 max-w-[160px]">
-              <p className="font-semibold break-words whitespace-normal">
-                {profile?.username || user.email || "Người dùng"}
-              </p>
-              <Link
-                href="/profile"
-                className="text-sm text-gray-400 hover:underline"
-              >
-                Xem hồ sơ
-              </Link>
-            </div>
+                {/* Tên hiển thị */}
+                <div className="min-w-0 max-w-[160px]">
+                  <p className="font-semibold break-words whitespace-normal">
+                    {profile?.username || user.email || "Người dùng"}
+                  </p>
+                  <Link
+                    href="/profile"
+                    className="text-sm text-gray-400 hover:underline"
+                  >
+                    Xem hồ sơ
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div>
@@ -103,7 +132,14 @@ export default function RightSidebar({ width }: { width: number }) {
         )}
       </div>
 
-      <Suggestions />
+      {/* Suggestions with fade-in animation */}
+      <div
+        className={`transition-opacity duration-500 ${
+          showSuggestions ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <Suggestions />
+      </div>
 
       <div className="p-4 text-xs text-gray-500 space-y-1">
         <p>© 2025 chagmihaydi</p>

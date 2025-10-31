@@ -20,7 +20,8 @@ export const createPost = async (
   uploadImages: (postId: string, images: ImageItem[]) => Promise<string[]>
 ): Promise<{ success: boolean; message: string }> => {
   if (!user) return { success: false, message: "Bạn cần đăng nhập." };
-  if (!caption.trim()) return { success: false, message: "Vui lòng nhập nội dung." };
+  if (!caption.trim() && images.length === 0)
+  return { success: false, message: "Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh." };
   if (!user.id || !isValidUUID(user.id)) return { success: false, message: "ID người dùng không hợp lệ." };
 
   setLoading(true);

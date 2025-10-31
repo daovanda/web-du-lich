@@ -7,7 +7,7 @@ import PostCard from "@/components/PostCard";
 import SpecialEvents from "@/components/SpecialEvents";
 import { Analytics } from "@vercel/analytics/react";
 
-// 🧱 Skeleton shimmer (giữ nguyên)
+// 🧱 Skeleton shimmer
 function PostSkeleton() {
   return (
     <div className="animate-pulse bg-gray-900 rounded-xl p-4 border border-gray-800">
@@ -37,13 +37,18 @@ export default function Page() {
   const limit = 5;
   const observerRef = useRef<IntersectionObserver | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastCursorRef = useRef<string | null>(null); // ✅ dùng làm cursor (created_at)
-  const isFetchingRef = useRef(false); // ✅ khóa race condition
+  const lastCursorRef = useRef<string | null>(null);
+  const isFetchingRef = useRef(false);
+  const currentSearchRef = useRef(searchQuery); // ✅ Track search query
 
-  // 🧩 Cursor-based fetch
+  // 🧩 Cursor-based fetch - BỎ loading khỏi dependency
   const fetchPosts = useCallback(
     async (reset = false) => {
-      if (loading || isFetchingRef.current) return;
+      // ✅ Kiểm tra chặt chẽ hơn
+      if (isFetchingRef.current) {
+        console.log("⚠️ Đang fetch, bỏ qua request");
+        return;
+      }
 
       isFetchingRef.current = true;
       setLoading(true);
@@ -69,8 +74,9 @@ export default function Page() {
           query = query.lt("created_at", lastCursorRef.current);
         }
 
-        if (searchQuery.trim()) {
-          query = query.ilike("caption", `%${searchQuery}%`);
+        // ✅ Dùng currentSearchRef thay vì searchQuery
+        if (currentSearchRef.current.trim()) {
+          query = query.ilike("caption", `%${currentSearchRef.current}%`);
         }
 
         const { data, error } = await query;
@@ -104,7 +110,7 @@ export default function Page() {
         isFetchingRef.current = false;
       }
     },
-    [loading, searchQuery]
+    [] // ✅ BỎ HẾT dependency để tránh recreate
   );
 
   // 🧠 Fetch user session
@@ -116,50 +122,63 @@ export default function Page() {
     checkUser();
   }, []);
 
-  // 🔎 Debounce search
+  // 🔎 Debounce search - cập nhật ref
   useEffect(() => {
+    currentSearchRef.current = searchQuery; // ✅ Sync ref
+
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    
     searchTimeoutRef.current = setTimeout(() => {
       lastCursorRef.current = null;
       setHasMore(true);
+      setInitialLoaded(false);
       fetchPosts(true);
     }, 350);
 
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [searchQuery, fetchPosts]);
+  }, [searchQuery]); // ✅ Chỉ depend vào searchQuery
 
-  // 🧱 IntersectionObserver (infinite scroll)
+  // 🧱 IntersectionObserver - disconnect khi loading
   const loadMoreRef = useCallback(
     (node: HTMLDivElement | null) => {
-      if (observerRef.current) observerRef.current.disconnect();
+      // ✅ Disconnect observer cũ trước
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+
       if (!node) return;
+
+      // ✅ Không tạo observer nếu đang loading hoặc hết data
+      if (loading || !hasMore || !initialLoaded) {
+        return;
+      }
 
       observerRef.current = new IntersectionObserver(
         (entries) => {
           const first = entries[0];
-          if (
-            first.isIntersecting &&
-            !loading &&
-            hasMore &&
-            initialLoaded &&
-            !isFetchingRef.current
-          ) {
-            fetchPosts();
+          if (first.isIntersecting && !isFetchingRef.current) {
+            console.log("🔄 Trigger load more");
+            fetchPosts(false);
           }
         },
-        { threshold: 0.2, rootMargin: "0px 0px 300px 0px" }
+        { threshold: 0.1, rootMargin: "0px 0px 100px 0px" } // ✅ Giảm rootMargin
       );
 
       observerRef.current.observe(node);
     },
-    [fetchPosts, loading, hasMore, initialLoaded]
+    [loading, hasMore, initialLoaded, fetchPosts]
   );
 
   // 🧹 Cleanup observer
   useEffect(() => {
-    return () => observerRef.current?.disconnect();
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
   }, []);
 
   // ✨ Animation start
@@ -171,14 +190,14 @@ export default function Page() {
   // 🧭 Fetch lần đầu
   useEffect(() => {
     fetchPosts(true);
-  }, []);
+  }, [fetchPosts]);
 
   return (
     <>
       <ResizableLayout searchQuery={searchQuery} onSearchChange={setSearchQuery}>
         {/* 🔥 Special Events Section */}
         <div className="max-w-6xl mx-auto mt-4 px-4">
-          <SpecialEvents />
+          <SpecialEvents isInitialLoad={isInitialLoad} />
         </div>
 
         <div className="text-white mt-0">
@@ -255,19 +274,29 @@ export default function Page() {
               </div>
             )}
 
-            {/* Loading / Sentinel */}
-            <div ref={loadMoreRef} className="text-center py-6">
-              {loading && posts.length > 0 ? (
+            {/* ✅ Sentinel - chỉ hiện khi KHÔNG loading và còn data */}
+            {hasMore && !loading && initialLoaded && posts.length > 0 && (
+              <div ref={loadMoreRef} className="h-20" />
+            )}
+
+            {/* Loading indicator - tách riêng */}
+            {loading && posts.length > 0 && (
+              <div className="text-center py-6">
                 <div className="flex items-center justify-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
                   <p className="text-gray-400">Đang tải thêm...</p>
                 </div>
-              ) : !hasMore && posts.length > 0 ? (
-                <p className="text-gray-500 text-sm py-3">
+              </div>
+            )}
+
+            {/* End message */}
+            {!hasMore && posts.length > 0 && !loading && (
+              <div className="text-center py-6">
+                <p className="text-gray-500 text-sm">
                   🎉 Bạn đã xem hết tất cả bài đăng.
                 </p>
-              ) : null}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </ResizableLayout>
