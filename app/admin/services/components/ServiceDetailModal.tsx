@@ -5,6 +5,7 @@ import { Service } from "../types";
 import { uploadImagesToBucket } from "../helpers";
 import { supabase } from "@/lib/supabase";
 import ImageEditorModal from "./ImageEditorModal";
+import TourDetailEditor from "./TourDetailEditor";
 
 type Props = {
   open: boolean;
@@ -13,9 +14,22 @@ type Props = {
   onUpdate?: (updatedService: Service) => void;
 };
 
+type TourDetail = {
+  destination: string;
+  duration_days: number;
+  start_date: string;
+  end_date: string;
+  available_slots: number;
+  guide_name: string | null;
+  itinerary: Record<string, string> | null;
+};
+
 export default function ServiceDetailModal({ open, service, onClose, onUpdate }: Props) {
   const [showImageEditor, setShowImageEditor] = useState(false);
+  const [showTourEditor, setShowTourEditor] = useState(false);
   const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [tourDetail, setTourDetail] = useState<TourDetail | null>(null);
+  const [loadingTour, setLoadingTour] = useState(false);
 
   // Sync existing images khi mở modal
   useEffect(() => {
@@ -24,9 +38,38 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
     }
   }, [service?.images]);
 
+  // Fetch tour details nếu service type là tour
+  useEffect(() => {
+    const fetchTourDetails = async () => {
+      if (service?.type === "tour" && service?.id && open) {
+        setLoadingTour(true);
+        try {
+          const { data, error } = await supabase
+            .from("tours")
+            .select("*")
+            .eq("id", service.id)
+            .maybeSingle();
+
+          if (!error && data) {
+            setTourDetail(data);
+          } else {
+            setTourDetail(null);
+          }
+        } catch (err) {
+          console.error("Error fetching tour:", err);
+          setTourDetail(null);
+        } finally {
+          setLoadingTour(false);
+        }
+      }
+    };
+
+    fetchTourDetails();
+  }, [service?.id, service?.type, open]);
+
   if (!open || !service) return null;
 
-  /* ========== HELPER FUNCTIONS (GIỮ NGUYÊN) ========== */
+  /* ========== HELPER FUNCTIONS ========== */
   const formatCurrencyVND = (value?: string | null) => {
     if (!value) return "—";
     const numMatch = value.match(/[\d,]+/);
@@ -45,6 +88,11 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
       hour: "2-digit",
       minute: "2-digit"
     });
+  };
+
+  const formatDateOnly = (dateString?: string | null) => {
+    if (!dateString) return "—";
+    return new Date(dateString).toLocaleDateString("vi-VN");
   };
 
   const getStatusColor = (status?: string | null) => {
@@ -67,7 +115,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
     return typeMap[type || ""] || type || "—";
   };
 
-  /* ========== SAVE IMAGES (CHUYỂN VÀO ImageEditorModal) ========== */
+  /* ========== SAVE IMAGES ========== */
   const handleSaveImages = async ({
     avatarFile,
     additionalFiles,
@@ -82,19 +130,16 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
     let newImageUrl = service.image_url;
     let newImages = [...newExistingImages];
 
-    // Upload ảnh đại diện
     if (avatarFile) {
       const urls = await uploadImagesToBucket([avatarFile], "services_images");
       newImageUrl = urls[0] || null;
     }
 
-    // Upload ảnh phụ
     if (additionalFiles.length > 0) {
       const urls = await uploadImagesToBucket(additionalFiles, "services_images");
       newImages = [...newImages, ...urls];
     }
 
-    // Cập nhật DB
     const { error: dbError } = await supabase
       .from("services")
       .update({
@@ -106,24 +151,37 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
 
     if (dbError) throw dbError;
 
-    // Cập nhật UI
     const updatedService = { ...service, image_url: newImageUrl, images: newImages };
     onUpdate?.(updatedService);
-
-    // Cập nhật state để hiển thị ảnh mới
     setExistingImages(newImages);
 
     alert("Đã cập nhật ảnh thành công!");
   };
 
+  /* ========== SAVE TOUR DETAILS ========== */
+  const handleTourSaved = async () => {
+    // Re-fetch tour details after save
+    if (service?.id) {
+      const { data } = await supabase
+        .from("tours")
+        .select("*")
+        .eq("id", service.id)
+        .maybeSingle();
+
+      if (data) {
+        setTourDetail(data);
+      }
+    }
+  };
+
   /* ========== RENDER ========== */
   return (
     <>
-      {/* === MODAL CHI TIẾT DỊCH VỤ (GIỮ NGUYÊN 100%) === */}
+      {/* === MODAL CHI TIẾT DỊCH VỤ === */}
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4 py-8">
         <div className="bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 text-white w-full max-w-4xl rounded-3xl shadow-2xl border border-neutral-700 max-h-[95vh] overflow-y-auto">
           {/* Header */}
-          <div className="sticky top-0 bg-neutral-900/95 backdrop-blur-sm border-b border-neutral-700 p-6 rounded-t-3xl">
+          <div className="sticky top-0 bg-neutral-900/95 backdrop-blur-sm border-b border-neutral-700 p-6 rounded-t-3xl z-10">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
@@ -145,6 +203,25 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {/* Nút Tour Editor - Chỉ hiện với type="tour" */}
+                {service.type === "tour" && (
+                  <button
+                    onClick={() => setShowTourEditor(true)}
+                    disabled={loadingTour}
+                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 rounded-lg text-sm font-medium text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingTour ? (
+                      <span className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Đang tải...
+                      </span>
+                    ) : tourDetail ? (
+                      "Sửa thông tin tour"
+                    ) : (
+                      "Thêm thông tin tour"
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() => setShowImageEditor(true)}
                   className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg text-sm font-medium text-white transition"
@@ -155,7 +232,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
                   onClick={onClose} 
                   className="text-gray-400 hover:text-white text-2xl transition-colors"
                 >
-                  X
+                  ✕
                 </button>
               </div>
             </div>
@@ -165,7 +242,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
             {/* Service Overview */}
             <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">Tổng Quan Dịch Vụ</span>
+                <span className="mr-2">📋 Tổng Quan Dịch Vụ</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-3">
@@ -228,10 +305,94 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
               </div>
             </div>
 
+            {/* Tour Details Section - Chỉ hiện nếu type="tour" */}
+            {service.type === "tour" && (
+              <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 rounded-2xl p-6 border border-green-700/50">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <span className="mr-2">🗺️ Thông Tin Tour</span>
+                </h3>
+                
+                {loadingTour ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center gap-3 text-gray-400">
+                      <div className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
+                      <span>Đang tải thông tin tour...</span>
+                    </div>
+                  </div>
+                ) : tourDetail ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div>
+                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Điểm đến</span>
+                        <p className="text-white font-medium">{tourDetail.destination}</p>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Thời lượng</span>
+                        <p className="text-white font-medium">{tourDetail.duration_days} ngày</p>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Khởi hành</span>
+                        <p className="text-white">{formatDateOnly(tourDetail.start_date)}</p>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Kết thúc</span>
+                        <p className="text-white">{formatDateOnly(tourDetail.end_date)}</p>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Chỗ trống</span>
+                        <p className="text-white font-semibold text-lg text-green-400">{tourDetail.available_slots} chỗ</p>
+                      </div>
+                      {tourDetail.guide_name && (
+                        <div>
+                          <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Hướng dẫn viên</span>
+                          <p className="text-white">{tourDetail.guide_name}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Itinerary */}
+                    {tourDetail.itinerary && Object.keys(tourDetail.itinerary).length > 0 && (
+                      <div className="mt-6 pt-6 border-t border-neutral-700">
+                        <h4 className="font-semibold mb-4 flex items-center gap-2">
+                          <span>📅</span>
+                          <span>Lịch trình chi tiết</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {Object.entries(tourDetail.itinerary).map(([day, content], index) => (
+                            <div key={day} className="flex gap-3 bg-neutral-800/50 rounded-xl p-4">
+                              <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-medium capitalize text-gray-300 mb-1">
+                                  {day.replace(/_/g, " ").replace(/day/i, "Ngày")}
+                                </p>
+                                <p className="text-gray-400 text-sm leading-relaxed">{String(content)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <p className="mb-4">Chưa có thông tin tour chi tiết</p>
+                    <button
+                      onClick={() => setShowTourEditor(true)}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white transition"
+                    >
+                      Thêm thông tin tour
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Owner Information */}
             <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">Thông Tin Chủ Sở Hữu</span>
+                <span className="mr-2">👤 Thông Tin Chủ Sở Hữu</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
@@ -273,7 +434,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
             {service.amenities && Array.isArray(service.amenities) && service.amenities.length > 0 && (
               <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <span className="mr-2">Tiện Nghi</span>
+                  <span className="mr-2">✨ Tiện Nghi</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {service.amenities.map((amenity, index) => (
@@ -292,7 +453,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
             {existingImages.length > 0 && (
               <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <span className="mr-2">Hình Ảnh Dịch Vụ</span>
+                  <span className="mr-2">🖼️ Hình Ảnh Dịch Vụ</span>
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {existingImages.map((img, i) => (
@@ -313,7 +474,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
             {service.description && (
               <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <span className="mr-2">Mô Tả Dịch Vụ</span>
+                  <span className="mr-2">📝 Mô Tả Dịch Vụ</span>
                 </h3>
                 <div className="prose prose-invert max-w-none">
                   <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
@@ -326,7 +487,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
         </div>
       </div>
 
-      {/* === DÙNG COMPONENT MỚI: ImageEditorModal === */}
+      {/* Image Editor Modal */}
       <ImageEditorModal
         open={showImageEditor}
         initialAvatarUrl={service.image_url}
@@ -336,6 +497,17 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
         maxAdditionalImages={9}
         maxFileSizeMB={5}
       />
+
+      {/* Tour Detail Editor Modal */}
+      {service.type === "tour" && (
+        <TourDetailEditor
+          open={showTourEditor}
+          serviceId={service.id}
+          existingTour={tourDetail}
+          onClose={() => setShowTourEditor(false)}
+          onSave={handleTourSaved}
+        />
+      )}
     </>
   );
 }

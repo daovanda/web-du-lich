@@ -232,7 +232,11 @@ export default function StayDetailPage() {
                 : 'opacity-100 translate-y-0'
             }`}
           >
-            <ServiceReviews reviews={reviews} />
+            <ServiceReviews 
+              reviews={reviews} 
+              serviceType={service.type}  // Lấy từ dữ liệu
+              serviceId={service.id}
+            />
           </div>
           
           <div 

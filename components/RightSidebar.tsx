@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Suggestions from "@/components/Suggestions";
@@ -14,72 +14,117 @@ type Profile = {
 export default function RightSidebar({ width }: { width: number }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // ✅ Prevent duplicate fetches
+  const isFetchingRef = useRef(false);
+  const lastUserIdRef = useRef<string | null>(null);
 
-  const fetchProfile = async (currentUser: any) => {
-    if (!currentUser) {
-      setProfile(null);
-      setIsLoadingProfile(false);
+  const fetchProfile = async (userId: string) => {
+    // ✅ Debounce: Skip if already fetching same user
+    if (isFetchingRef.current || lastUserIdRef.current === userId) {
       return;
     }
-    
-    setIsLoadingProfile(true);
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name, username, avatar_url")
-      .eq("id", currentUser.id)
-      .maybeSingle();
 
-    if (error) {
-      console.error("Lỗi khi lấy profile:", error.message);
+    isFetchingRef.current = true;
+    lastUserIdRef.current = userId;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name, username, avatar_url")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Lỗi khi lấy profile:", error.message);
+        setProfile(null);
+      } else {
+        setProfile(data);
+      }
+    } catch (err) {
+      console.error("Error fetching profile:", err);
       setProfile(null);
-    } else {
-      setProfile(data);
+    } finally {
+      isFetchingRef.current = false;
     }
-    setIsLoadingProfile(false);
   };
 
   useEffect(() => {
-    const checkUser = async () => {
-      setIsLoadingAuth(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const currentUser = session?.user || null;
-      setUser(currentUser);
-      await fetchProfile(currentUser);
-      setIsLoadingAuth(false);
-    };
-    checkUser();
+    let mounted = true; // ✅ Prevent state updates after unmount
 
+    const initializeAuth = async () => {
+      try {
+        setIsLoading(true);
+        
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        
+        if (!mounted) return; // ✅ Component unmounted, skip
+
+        const currentUser = session?.user || null;
+        setUser(currentUser);
+
+        if (currentUser) {
+          await fetchProfile(currentUser.id);
+        } else {
+          setProfile(null);
+          lastUserIdRef.current = null;
+        }
+      } catch (err) {
+        console.error("Auth initialization error:", err);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+          // Trigger suggestions animation
+          setTimeout(() => {
+            if (mounted) setShowSuggestions(true);
+          }, 100);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    // ✅ Auth listener with safeguards
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      console.log("Auth event:", event); // Debug
+
       const currentUser = session?.user || null;
-      setUser(currentUser);
-      await fetchProfile(currentUser);
+      const previousUserId = lastUserIdRef.current;
+
+      // ✅ Only update if user actually changed
+      if (currentUser?.id !== previousUserId) {
+        setUser(currentUser);
+
+        if (currentUser) {
+          await fetchProfile(currentUser.id);
+        } else {
+          setProfile(null);
+          lastUserIdRef.current = null;
+          isFetchingRef.current = false;
+        }
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Trigger fade-in animation for suggestions after profile loads
-  useEffect(() => {
-    if (!isLoadingAuth && !isLoadingProfile) {
-      const timer = setTimeout(() => {
-        setShowSuggestions(true);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoadingAuth, isLoadingProfile]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      isFetchingRef.current = false;
+    };
+  }, []); // ✅ Run only once
 
   return (
     <aside className="right-sidebar hidden lg:flex flex-col space-y-6 border-l border-gray-800 p-4 bg-black h-screen sticky top-0 overflow-y-auto">
       <div className="p-2">
-        {isLoadingAuth ? (
-          // Loading skeleton while checking auth
+        {isLoading ? (
+          // Loading skeleton
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full bg-gray-700 animate-pulse flex-shrink-0" />
             <div className="min-w-0 max-w-[160px] space-y-2">
@@ -89,48 +134,35 @@ export default function RightSidebar({ width }: { width: number }) {
           </div>
         ) : user ? (
           <div className="flex items-center space-x-3">
-            {isLoadingProfile ? (
-              // Loading skeleton for profile
-              <>
-                <div className="w-10 h-10 rounded-full bg-gray-700 animate-pulse flex-shrink-0" />
-                <div className="min-w-0 max-w-[160px] space-y-2">
-                  <div className="h-4 bg-gray-700 rounded animate-pulse w-24" />
-                  <div className="h-3 bg-gray-700 rounded animate-pulse w-16" />
+            {/* Avatar */}
+            <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-semibold">
+                  {profile?.username?.[0]?.toUpperCase() ||
+                    user.email?.[0]?.toUpperCase() ||
+                    "U"}
                 </div>
-              </>
-            ) : (
-              <>
-                {/* Ảnh đại diện */}
-                <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
-                  {profile?.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-semibold">
-                      {profile?.username?.[0]?.toUpperCase() ||
-                        user.email?.[0]?.toUpperCase() ||
-                        "U"}
-                    </div>
-                  )}
-                </div>
+              )}
+            </div>
 
-                {/* Tên hiển thị */}
-                <div className="min-w-0 max-w-[160px]">
-                  <p className="font-semibold break-words whitespace-normal">
-                    {profile?.username || user.email || "Người dùng"}
-                  </p>
-                  <Link
-                    href="/profile"
-                    className="text-sm text-gray-400 hover:underline"
-                  >
-                    Xem hồ sơ
-                  </Link>
-                </div>
-              </>
-            )}
+            {/* User info */}
+            <div className="min-w-0 max-w-[160px]">
+              <p className="font-semibold break-words whitespace-normal">
+                {profile?.username || user.email || "Người dùng"}
+              </p>
+              <Link
+                href="/profile"
+                className="text-sm text-gray-400 hover:underline"
+              >
+                Xem hồ sơ
+              </Link>
+            </div>
           </div>
         ) : (
           <div>

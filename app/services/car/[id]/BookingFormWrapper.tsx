@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BookingForm from "@/components/BookingForm";
 
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export default function BookingFormWrapper({ serviceId, price, serviceTitle }: Props) {
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [privateRoomId, setPrivateRoomId] = useState<string | null>(null);
 
@@ -59,6 +61,12 @@ export default function BookingFormWrapper({ serviceId, price, serviceTitle }: P
     refunded: "Đã hoàn tiền",
   };
 
+  const depositStatusLabel: Record<string, string> = {
+    unpaid: "Chưa đặt cọc",
+    paid: "Đã đặt cọc",
+    refunded: "Đã hoàn cọc",
+  };
+
   const formatCurrency = (n?: number | null) => {
     if (n == null || Number.isNaN(n)) return "—";
     return `${new Intl.NumberFormat("vi-VN").format(n)} đ`;
@@ -102,7 +110,7 @@ export default function BookingFormWrapper({ serviceId, price, serviceTitle }: P
         return;
       }
 
-      // Lấy dữ liệu từ BookingForm (đã được bổ sung)
+      // Lấy dữ liệu từ BookingForm
       const bookingId: string | undefined = formData?.bookingId;
       const fullName: string = formData?.fullName ?? formData?.name ?? "—";
       const phone: string = formData?.phone ?? "—";
@@ -110,12 +118,17 @@ export default function BookingFormWrapper({ serviceId, price, serviceTitle }: P
       const dateTo: string | null = formData?.dateTo ?? null;
       const note: string = formData?.note ?? "Không có";
 
-      // Các trường mới từ BookingForm
+      // Các trường thanh toán
       const payment_status_raw: string = (formData?.payment_status ?? "").toString().trim().toLowerCase();
       const payment_method_raw: string = (formData?.payment_method ?? "").toString().trim().toLowerCase();
       const total_price_num: number | null = formData?.total_price ?? null;
       const unitPrice_num: number | null = formData?.unitPrice ?? null;
-      const nights: number | null = formData?.nights ?? null;
+      const days: number | null = formData?.days ?? null;
+
+      // Các trường đặt cọc mới
+      const deposit_amount: number | null = formData?.deposit_amount ?? null;
+      const deposit_percentage: number | null = formData?.deposit_percentage ?? 30;
+      const deposit_status_raw: string = (formData?.deposit_status ?? "").toString().trim().toLowerCase();
 
       // Chuẩn hóa fallback để khớp ràng buộc DB
       const payment_status = ["unpaid", "paid", "refunded"].includes(payment_status_raw)
@@ -126,18 +139,24 @@ export default function BookingFormWrapper({ serviceId, price, serviceTitle }: P
         ? payment_method_raw
         : "cash";
 
+      const deposit_status = ["unpaid", "paid", "refunded"].includes(deposit_status_raw)
+        ? deposit_status_raw
+        : "unpaid";
+
       const messageLines: string[] = [
         "🚗 Đơn đặt xe mới",
         `- Dịch vụ: ${serviceTitle}`,
-        `- Giá/đêm: ${unitPrice_num != null ? formatCurrency(unitPrice_num) : (price ?? "Liên hệ")}`,
-        `- Số đêm: ${nights ?? "—"}`,
-        `- Tạm tính: ${formatCurrency(total_price_num)}`,
+        `- Giá/ngày: ${unitPrice_num != null ? formatCurrency(unitPrice_num) : (price ?? "Liên hệ")}`,
+        `- Số ngày: ${days ?? "—"}`,
+        `- Tổng tiền: ${formatCurrency(total_price_num)}`,
+        `- Tiền đặt cọc (${deposit_percentage}%): ${formatCurrency(deposit_amount)}`,
         `- Họ tên: ${fullName}`,
         `- Số điện thoại: ${phone}`,
         `- Ngày thuê: ${dateFrom && dateTo ? `${dateFrom} - ${dateTo}` : "Chưa chọn"}`,
         `- Ghi chú: ${note}`,
         `- Phương thức thanh toán: ${methodLabel[payment_method] ?? payment_method}`,
         `- Trạng thái thanh toán: ${statusLabel[payment_status] ?? payment_status}`,
+        `- Trạng thái đặt cọc: ${depositStatusLabel[deposit_status] ?? deposit_status}`,
         `- Trạng thái: Đang chờ xác nhận`,
       ];
 
@@ -155,6 +174,11 @@ export default function BookingFormWrapper({ serviceId, price, serviceTitle }: P
       });
 
       lastSubmitAtRef.current = now;
+
+      // Chuyển hướng sang trang payment với bookingId
+      if (bookingId) {
+        router.push(`/payment?bookingId=${bookingId}`);
+      }
     } finally {
       isProcessingRef.current = false;
     }

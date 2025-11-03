@@ -17,21 +17,21 @@ interface Service {
   reviews_count?: number;
 }
 
-// ✅ Thêm interface cho props
 interface SpecialEventsProps {
   isInitialLoad?: boolean;
 }
 
-// ✅ Nhận prop isInitialLoad
 export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  // 👆 Swipe handling states
+  // 👆 Enhanced swipe handling states
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Minimum swipe distance (in px)
@@ -55,10 +55,7 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
         return;
       }
 
-      // 🧹 Chỉ lấy những service có ảnh
       const filtered = (data || []).filter((s) => !!s.image_url);
-
-      // 🔀 Shuffle ngẫu nhiên và lấy 5 phần tử
       const shuffled = filtered.sort(() => Math.random() - 0.5);
       setServices(shuffled.slice(0, 5));
       setLoading(false);
@@ -72,44 +69,58 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
     if (services.length === 0) return;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % services.length);
-      setImageLoaded(false); // Reset khi chuyển ảnh
+      setImageLoaded(false);
     }, 8000);
     return () => clearInterval(timer);
   }, [services]);
 
-  // 👆 Touch handlers for swipe
+  // 👆 Enhanced touch handlers for smooth swipe
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
+    setSwipeOffset(0);
+    setIsTransitioning(false);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
+    if (!touchStart) return;
+    const currentTouch = e.targetTouches[0].clientX;
+    setTouchEnd(currentTouch);
+    const offset = currentTouch - touchStart;
+    // Limit swipe offset to prevent over-dragging
+    setSwipeOffset(Math.max(-150, Math.min(150, offset)));
   };
 
   const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
+    if (!touchStart || !touchEnd) {
+      setSwipeOffset(0);
+      return;
+    }
     
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
 
+    setIsTransitioning(true);
+    
     if (isLeftSwipe) {
-      // Swipe left - next slide
       setCurrentIndex((prev) => (prev + 1) % services.length);
       setImageLoaded(false);
     } else if (isRightSwipe) {
-      // Swipe right - previous slide
       setCurrentIndex((prev) => (prev === 0 ? services.length - 1 : prev - 1));
       setImageLoaded(false);
     }
 
-    // Reset
-    setTouchStart(null);
-    setTouchEnd(null);
+    // Reset with smooth transition
+    setTimeout(() => {
+      setSwipeOffset(0);
+      setTouchStart(null);
+      setTouchEnd(null);
+      setIsTransitioning(false);
+    }, 50);
   };
 
-  // 🖱️ Mouse handlers for desktop drag
+  // 🖱️ Enhanced mouse handlers for desktop drag
   const [mouseStart, setMouseStart] = useState<number | null>(null);
   const [mouseEnd, setMouseEnd] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -118,22 +129,30 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
     setIsDragging(true);
     setMouseEnd(null);
     setMouseStart(e.clientX);
+    setSwipeOffset(0);
+    setIsTransitioning(false);
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setMouseEnd(e.clientX);
+    if (!isDragging || !mouseStart) return;
+    const currentMouse = e.clientX;
+    setMouseEnd(currentMouse);
+    const offset = currentMouse - mouseStart;
+    setSwipeOffset(Math.max(-150, Math.min(150, offset)));
   };
 
   const onMouseUp = () => {
     if (!isDragging || !mouseStart || mouseEnd === null) {
       setIsDragging(false);
+      setSwipeOffset(0);
       return;
     }
 
     const distance = mouseStart - mouseEnd;
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
+
+    setIsTransitioning(true);
 
     if (isLeftSwipe) {
       setCurrentIndex((prev) => (prev + 1) % services.length);
@@ -143,20 +162,29 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
       setImageLoaded(false);
     }
 
-    setIsDragging(false);
-    setMouseStart(null);
-    setMouseEnd(null);
+    setTimeout(() => {
+      setSwipeOffset(0);
+      setIsDragging(false);
+      setMouseStart(null);
+      setMouseEnd(null);
+      setIsTransitioning(false);
+    }, 50);
   };
 
   const onMouseLeave = () => {
     if (isDragging) {
-      setIsDragging(false);
-      setMouseStart(null);
-      setMouseEnd(null);
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setSwipeOffset(0);
+        setIsDragging(false);
+        setMouseStart(null);
+        setMouseEnd(null);
+        setIsTransitioning(false);
+      }, 300);
     }
   };
 
-  // ✅ Loading state với animation
+  // ✅ Loading state
   if (loading) {
     return (
       <div
@@ -181,7 +209,7 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
     );
   }
 
-  // ✅ Empty state với animation
+  // ✅ Empty state
   if (services.length === 0) {
     return (
       <div
@@ -207,10 +235,17 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
 
   const current = services[currentIndex];
 
+  // Calculate transform based on swipe offset
+  const getTransform = () => {
+    if (isTransitioning) return 'translateX(0px) scale(1)';
+    const scale = 1 - Math.abs(swipeOffset) * 0.0002; // Subtle scale effect
+    return `translateX(${swipeOffset}px) scale(${scale})`;
+  };
+
   return (
     <div
       ref={containerRef}
-      className={`relative w-full aspect-[16/9] overflow-hidden shadow-2xl rounded-2xl transition-all duration-1000 ease-out ${
+      className={`relative w-full aspect-[16/9] overflow-hidden shadow-2xl rounded-2xl transition-all duration-1000 ease-out select-none ${
         isInitialLoad
           ? "opacity-0 scale-95 translate-y-8"
           : "opacity-100 scale-100 translate-y-0"
@@ -223,23 +258,52 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseLeave}
     >
-      {/* Background image với fade transition */}
-      <div className={`absolute inset-0 transition-opacity duration-700 ${imageLoaded ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
-        <Image
-          src={current.image_url!}
-          alt={current.title}
-          fill
-          className="object-cover brightness-90"
-          priority
-          onLoadingComplete={() => setImageLoaded(true)}
-        />
+      {/* Background image with smooth transform */}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          transform: getTransform(),
+          transition: isTransitioning ? 'transform 0.3s ease-out' : 'none',
+        }}
+      >
+        <div className={`absolute inset-0 transition-opacity duration-700 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}>
+          <Image
+            src={current.image_url!}
+            alt={current.title}
+            fill
+            className="object-cover brightness-90"
+            priority
+            onLoadingComplete={() => setImageLoaded(true)}
+          />
+        </div>
       </div>
 
-      {/* 🔽 Gradient overlays (top & bottom) */}
+      {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-transparent pointer-events-none" />
 
-      {/* ✨ Overlay info với staggered animation */}
+      {/* Swipe indicator hints */}
+      <div className={`absolute left-4 top-1/2 -translate-y-1/2 transition-opacity duration-300 pointer-events-none ${
+        swipeOffset > 20 ? 'opacity-100' : 'opacity-0'
+      }`}>
+        <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </div>
+      </div>
+      
+      <div className={`absolute right-4 top-1/2 -translate-y-1/2 transition-opacity duration-300 pointer-events-none ${
+        swipeOffset < -20 ? 'opacity-100' : 'opacity-0'
+      }`}>
+        <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Overlay info */}
       <div
         className={`absolute bottom-0 left-0 w-full px-4 sm:px-6 md:px-10 pb-6 sm:pb-8 md:pb-10 text-white z-10 transition-all duration-700 ease-out ${
           isInitialLoad
@@ -304,7 +368,7 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
             </div>
           )}
 
-          {/* Price */}
+{/* Price */}
           {current.price && (
             <p
               className={`text-base sm:text-lg md:text-xl font-semibold text-pink-400 transition-all duration-700 ease-out ${
@@ -314,7 +378,24 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
               }`}
               style={{ transitionDelay: "800ms" }}
             >
-              {current.price}
+              {(() => {
+                // Loại bỏ dấu . và chuyển thành số
+                const price = parseInt(current.price.replace(/\./g, ''));
+                const formattedPrice = new Intl.NumberFormat('vi-VN').format(price);
+                
+                switch (current.type) {
+                  case 'stay':
+                    return `${formattedPrice} VND/ngày`;
+                  case 'tour':
+                    return `${formattedPrice} VND/người`;
+                  case 'motorbike':
+                    return `${formattedPrice} VND/ngày`;
+                  case 'car':
+                    return `${formattedPrice} VND/người`;
+                  default:
+                    return `${formattedPrice} VND`;
+                }
+              })()}
             </p>
           )}
 
@@ -346,63 +427,6 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
           </div>
         </div>
       </div>
-
-      {/* Navigation buttons */}
-      <button
-        onClick={() => {
-          setCurrentIndex((prev) =>
-            prev === 0 ? services.length - 1 : prev - 1
-          );
-          setImageLoaded(false);
-        }}
-        className={`absolute left-2 sm:left-3 md:left-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/70 hover:scale-110 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all z-20 pointer-events-auto ${
-          isInitialLoad ? "opacity-0" : "opacity-100"
-        }`}
-        style={{ transitionDelay: "1000ms" }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-      >
-        <svg
-          className="w-4 h-4 sm:w-5 sm:h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
-      </button>
-
-      <button
-        onClick={() => {
-          setCurrentIndex((prev) => (prev + 1) % services.length);
-          setImageLoaded(false);
-        }}
-        className={`absolute right-2 sm:right-3 md:right-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-black/40 hover:bg-black/70 hover:scale-110 rounded-full text-white flex items-center justify-center backdrop-blur-sm transition-all z-20 pointer-events-auto ${
-          isInitialLoad ? "opacity-0" : "opacity-100"
-        }`}
-        style={{ transitionDelay: "1000ms" }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-      >
-        <svg
-          className="w-4 h-4 sm:w-5 sm:h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-      </button>
 
       {/* Thumbnails (Dots Preview) */}
       <div
