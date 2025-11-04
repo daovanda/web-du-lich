@@ -7,14 +7,12 @@ import { supabase } from "@/lib/supabase";
 type Props = {
   serviceHistory?: any[];
   getStatusColor?: (status: string) => string;
+  onPendingTransactionsChange?: (count: number) => void;
 };
 
-export default function ServiceHistory({ serviceHistory, getStatusColor }: Props) {
+export default function ServiceHistory({ serviceHistory, getStatusColor, onPendingTransactionsChange }: Props) {
   const router = useRouter();
 
-  // State toggle
-  const [isExpanded, setIsExpanded] = useState(false);
-  
   // State dữ liệu
   const [data, setData] = useState<any[] | null>(serviceHistory ?? null);
   const [loading, setLoading] = useState<boolean>(!serviceHistory);
@@ -35,8 +33,6 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
       return;
     }
     
-    if (!isExpanded) return; // Chỉ fetch khi expanded
-    
     let isMounted = true;
     (async () => {
       try {
@@ -51,11 +47,12 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
         }
 
         const { data, error } = await supabase
-          .from("bookings_view")
+          .from("bookings")
           .select(`
             id, user_id, service_id, date_from, date_to, total_price, 
-            payment_status, status, created_at, cancelled_at,
-            service_title, service_type, service_image_url
+            payment_status, deposit_status, deposit_amount, deposit_proof_url,
+            payment_proof_url, status, created_at, cancelled_at,
+            services(title, type, image_url)
           `)
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
@@ -76,7 +73,7 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
     return () => {
       isMounted = false;
     };
-  }, [serviceHistory, isExpanded]);
+  }, [serviceHistory]);
 
   // Màu trạng thái
   const getStatusColorSafe = (status: string) => {
@@ -87,6 +84,48 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
     return "text-gray-400";
   };
 
+  // Xác định trạng thái thanh toán hiện tại
+  const getPaymentStep = (item: any): string => {
+    const { deposit_status, deposit_proof_url, payment_status, payment_proof_url, status } = item;
+    
+    // Nếu booking đã bị hủy, không cần hiển thị trạng thái thanh toán
+    if (status === "cancelled") {
+      return "cancelled";
+    }
+    
+    // Hoàn thành - đã thanh toán đầy đủ và được xác nhận
+    if (payment_status === "paid" && status === "confirmed") {
+      return "completed";
+    }
+    
+    // Đã thanh toán đủ nhưng chưa được admin confirm
+    if (payment_status === "paid" && status === "pending") {
+      return "waiting_admin_confirm";
+    }
+    
+    // Chờ xác nhận thanh toán full
+    if (deposit_status === "paid" && payment_status === "unpaid" && payment_proof_url) {
+      return "waiting_payment_confirm";
+    }
+    
+    // Cần thanh toán phần còn lại
+    if (deposit_status === "paid" && payment_status === "unpaid" && !payment_proof_url) {
+      return "need_full_payment";
+    }
+    
+    // Chờ xác nhận đặt cọc
+    if (deposit_status === "unpaid" && deposit_proof_url) {
+      return "waiting_deposit_confirm";
+    }
+    
+    // Cần đặt cọc
+    if (deposit_status === "unpaid" && !deposit_proof_url) {
+      return "need_deposit";
+    }
+    
+    return "unknown";
+  };
+
   const [selectedType, setSelectedType] = useState<string>("__all__");
 
   // Lấy danh sách loại dịch vụ
@@ -94,7 +133,7 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
     const types = Array.from(
       new Set(
         (data || [])
-          .map((i) => i?.service_type || i?.services?.type || null)
+          .map((i) => i?.services?.type || null)
           .filter(Boolean)
       )
     ) as string[];
@@ -110,10 +149,27 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
       return tb - ta;
     });
     if (selectedType === "__all__") return sorted;
-    return sorted.filter(
-      (i) => i?.service_type === selectedType || i?.services?.type === selectedType
-    );
+    return sorted.filter((i) => i?.services?.type === selectedType);
   }, [data, selectedType]);
+
+  // Đếm số giao dịch đang chờ (tất cả đơn chưa confirmed và chưa cancelled)
+  const pendingTransactionsCount = useMemo(() => {
+    const count = items.filter(item => {
+      return item?.status !== "confirmed" && item?.status !== "cancelled";
+    }).length;
+    console.log("ServiceHistory - Pending count:", count);
+    console.log("Items with pending status:", items.filter(item => {
+      return item?.status !== "confirmed" && item?.status !== "cancelled";
+    }));
+    return count;
+  }, [items]);
+
+  // Notify parent component về số lượng pending transactions
+  useEffect(() => {
+    if (onPendingTransactionsChange) {
+      onPendingTransactionsChange(pendingTransactionsCount);
+    }
+  }, [pendingTransactionsCount, onPendingTransactionsChange]);
 
   // Items để hiển thị (lazy loading)
   const displayedItems = useMemo(() => {
@@ -136,7 +192,7 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
     router.push(`/payment?bookingId=${bookingId}`);
   };
 
-  // Hủy booking
+  // Hủy booking  
   const handleCancel = async (bookingId: string) => {
     if (!bookingId) return;
     
@@ -209,183 +265,236 @@ export default function ServiceHistory({ serviceHistory, getStatusColor }: Props
     });
   };
 
+  // Lấy text trạng thái thanh toán
+  const getPaymentStepText = (step: string): { text: string; color: string } => {
+    switch (step) {
+      case "need_deposit":
+        return { text: "Cần đặt cọc", color: "text-amber-400" };
+      case "waiting_deposit_confirm":
+        return { text: "Chờ xác nhận đặt cọc", color: "text-yellow-400" };
+      case "need_full_payment":
+        return { text: "Cần thanh toán phần còn lại", color: "text-orange-400" };
+      case "waiting_payment_confirm":
+        return { text: "Chờ xác nhận thanh toán", color: "text-yellow-400" };
+      case "waiting_admin_confirm":
+        return { text: "Đã thanh toán đầy đủ và chờ sử dụng dịch vụ", color: "text-blue-400" };
+      case "completed":
+        return { text: "Đã thanh toán đầy đủ và hoàn thành dịch vụ", color: "text-emerald-400" };
+      case "cancelled":
+        return { text: "Đã hủy", color: "text-rose-400" };
+      default:
+        return { text: "Chưa rõ", color: "text-gray-400" };
+    }
+  };
+
   return (
-    <div className="bg-neutral-900 rounded-xl shadow overflow-hidden">
-      {/* Header - Always visible */}
-      <div className="p-6 border-b border-neutral-800">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Lịch sử sử dụng dịch vụ</h2>
-          <button
-            onClick={() => {
-              setIsExpanded(!isExpanded);
-              if (!isExpanded) {
-                setDisplayCount(3); // Reset khi mở
-              }
-            }}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:opacity-90 transition"
-          >
-            {isExpanded ? "Thu gọn" : "Xem lịch sử"}
-          </button>
+    <div>
+      {loading ? (
+        <div className="text-sm text-gray-400 text-center py-8">
+          Đang tải lịch sử dịch vụ...
         </div>
-      </div>
+      ) : error ? (
+        <div className="text-sm text-rose-400 text-center py-8">
+          Lỗi: {error}
+        </div>
+      ) : (
+        <>
+          {/* Filter */}
+          {serviceTypes.length > 0 && (
+            <div className="mb-4 flex items-center justify-end gap-2">
+              <label className="text-sm text-gray-400">Lọc theo loại:</label>
+              <select
+                value={selectedType}
+                onChange={(e) => {
+                  setSelectedType(e.target.value);
+                  setDisplayCount(3);
+                }}
+                className="rounded-md border border-white/10 bg-neutral-800 px-3 py-1.5 text-sm text-white"
+              >
+                <option value="__all__">Tất cả</option>
+                {serviceTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-      {/* Expandable content */}
-      <div
-        className={`transition-all duration-300 ease-in-out ${
-          isExpanded
-            ? "max-h-[5000px] opacity-100"
-            : "max-h-0 opacity-0 overflow-hidden"
-        }`}
-      >
-        <div className="p-6">
-          {loading ? (
-            <div className="text-sm text-gray-400 text-center py-8">
-              Đang tải lịch sử dịch vụ...
-            </div>
-          ) : error ? (
-            <div className="text-sm text-rose-400 text-center py-8">
-              Lỗi: {error}
-            </div>
+          {(items?.length || 0) === 0 ? (
+            <p className="text-gray-400 text-center py-8">
+              Chưa có dịch vụ nào được sử dụng.
+            </p>
           ) : (
-            <>
-              {/* Filter */}
-              {serviceTypes.length > 0 && (
-                <div className="mb-4 flex items-center justify-end gap-2">
-                  <label className="text-sm text-gray-400">Lọc theo loại:</label>
-                  <select
-                    value={selectedType}
-                    onChange={(e) => {
-                      setSelectedType(e.target.value);
-                      setDisplayCount(3); // Reset display count khi filter
-                    }}
-                    className="rounded-md border border-white/10 bg-neutral-800 px-3 py-1.5 text-sm text-white"
+            <div className="space-y-6">
+              {displayedItems.map((item, index) => {
+                const bookingId = item?.id;
+                const title = item?.services?.title || "Dịch vụ";
+                const type = item?.services?.type || "Khác";
+                const image = item?.services?.image_url || "";
+                const createdAtDisplay = formatDateTime(item?.created_at);
+                const status = item?.status || "unknown";
+                const totalPriceFormatted = formatCurrencyVND(item?.total_price);
+                const depositFormatted = formatCurrencyVND(item?.deposit_amount);
+                const remainingAmount = (item?.total_price || 0) - (item?.deposit_amount || 0);
+                const remainingFormatted = formatCurrencyVND(remainingAmount);
+                const checkIn = formatDateOnly(item?.date_from);
+                const checkOut = formatDateOnly(item?.date_to);
+                const isCancelled = status === "cancelled";
+                const canCancel = !isCancelled && status === "pending";
+                
+                const paymentStep = getPaymentStep(item);
+                const paymentStepInfo = getPaymentStepText(paymentStep);
+                // Hiển thị chấm đỏ cho tất cả đơn chưa confirmed và chưa cancelled
+                const hasPendingAction = status !== "confirmed" && status !== "cancelled";
+
+                return (
+                  <div
+                    key={bookingId}
+                    className={`bg-neutral-800 rounded-xl overflow-hidden shadow hover:shadow-lg transition animate-fadeIn relative ${
+                      hasPendingAction ? "ring-2 ring-red-500/50" : ""
+                    }`}
+                    style={{ animationDelay: `${index * 100}ms` }}
                   >
-                    <option value="__all__">Tất cả</option>
-                    {serviceTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {(items?.length || 0) === 0 ? (
-                <p className="text-gray-400 text-center py-8">
-                  Chưa có dịch vụ nào được sử dụng.
-                </p>
-              ) : (
-                <div className="space-y-6">
-                  {displayedItems.map((item, index) => {
-                    const bookingId = item?.id;
-                    const title = item?.service_title || item?.services?.title || "Dịch vụ";
-                    const type = item?.service_type || item?.services?.type || "Khác";
-                    const image = item?.service_image_url || item?.services?.image_url || "";
-                    const createdAtDisplay = formatDateTime(item?.created_at);
-                    const status = item?.status || "unknown";
-                    const paymentStatus = typeof item?.payment_status === "string" ? item.payment_status : "";
-                    const totalPriceFormatted = formatCurrencyVND(item?.total_price);
-                    const checkIn = formatDateOnly(item?.date_from);
-                    const checkOut = formatDateOnly(item?.date_to);
-                    const isCancelled = status === "cancelled";
-                    const canCancel = !isCancelled && status === "pending";
-
-                    const paymentStatusClass =
-                      paymentStatus === "unpaid"
-                        ? "text-amber-400"
-                        : paymentStatus === "paid"
-                        ? "text-emerald-400"
-                        : paymentStatus === "refunded"
-                        ? "text-sky-400"
-                        : "text-gray-400";
-
-                    return (
-                      <div
-                        key={bookingId}
-                        className="bg-neutral-800 rounded-xl overflow-hidden shadow hover:shadow-lg transition animate-fadeIn"
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                        {image && (
-                          <img
-                            src={image}
-                            alt={title}
-                            className="w-full h-56 object-cover"
-                          />
-                        )}
-
-                        <div className="p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-lg">{title}</h3>
-                              <p className="text-sm text-gray-400">Loại: {type}</p>
-                              <p className="text-sm text-gray-500">
-                                {createdAtDisplay} —{" "}
-                                <span className={`font-medium ${getStatusColorSafe(status)}`}>
-                                  {status}
-                                </span>
-                              </p>
-                              <p className="mt-1 text-sm text-gray-300">
-                                Ngày đến: <span className="text-gray-200">{checkIn}</span>
-                              </p>
-                              <p className="text-sm text-gray-300">
-                                Ngày đi: <span className="text-gray-200">{checkOut}</span>
-                              </p>
-                              <p className="mt-1 text-sm text-gray-100">
-                                Tổng tiền:{" "}
-                                <span className="font-semibold text-white">{totalPriceFormatted}</span>
-                              </p>
-                              <p className="mt-1 text-sm text-gray-300">
-                                Trạng thái thanh toán:{" "}
-                                <span className={`font-medium ${paymentStatusClass}`}>
-                                  {paymentStatus || "--"}
-                                </span>
-                              </p>
-                            </div>
-
-                            <div className="flex flex-col gap-2 shrink-0">
-                              {(paymentStatus === "unpaid" || status === "pending") && bookingId && !isCancelled && (
-                                <button
-                                  onClick={() => handlePay(bookingId)}
-                                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
-                                >
-                                  Thanh toán
-                                </button>
-                              )}
-                              
-                              {canCancel && bookingId && (
-                                <button
-                                  onClick={() => handleCancel(bookingId)}
-                                  disabled={cancellingId === bookingId}
-                                  className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {cancellingId === bookingId ? "Đang hủy..." : "Hủy dịch vụ"}
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                    {/* Chấm đỏ indicator */}
+                    {hasPendingAction && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <div className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                         </div>
                       </div>
-                    );
-                  })}
+                    )}
 
-                  {/* Load more button */}
-                  {hasMore && (
-                    <div className="flex justify-center pt-4">
-                      <button
-                        onClick={loadMore}
-                        disabled={isLoadingMore}
-                        className="px-6 py-2 bg-neutral-800 text-white rounded-lg hover:bg-neutral-700 transition disabled:opacity-50"
-                      >
-                        {isLoadingMore ? "Đang tải..." : "Xem thêm"}
-                      </button>
+                    {image && (
+                      <img
+                        src={image}
+                        alt={title}
+                        className="w-full h-56 object-cover"
+                      />
+                    )}
+
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-lg">{title}</h3>
+                            {hasPendingAction && (
+                              <div className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-400">Loại: {type}</p>
+                          <p className="text-sm text-gray-500">
+                            {createdAtDisplay} –{" "}
+                            <span className={`font-medium ${getStatusColorSafe(status)}`}>
+                              {status}
+                            </span>
+                          </p>
+                          <p className="mt-1 text-sm text-gray-300">
+                            Ngày đến: <span className="text-gray-200">{checkIn}</span>
+                          </p>
+                          <p className="text-sm text-gray-300">
+                            Ngày đi: <span className="text-gray-200">{checkOut}</span>
+                          </p>
+                          
+                          {/* Thông tin thanh toán chi tiết */}
+                          <div className="mt-3 pt-3 border-t border-gray-700">
+                            <p className="text-sm text-gray-100 mb-1">
+                              Tổng tiền:{" "}
+                              <span className="font-semibold text-white">{totalPriceFormatted}</span>
+                            </p>
+                            <p className="text-sm text-gray-300">
+                              Đặt cọc:{" "}
+                              <span className={`font-medium ${
+                                item?.deposit_status === "paid" ? "text-green-400 line-through" : "text-yellow-400"
+                              }`}>
+                                {depositFormatted}
+                              </span>
+                              {item?.deposit_status === "paid" && (
+                                <span className="ml-2 text-xs text-green-400">✓ Đã thanh toán</span>
+                              )}
+                            </p>
+                            <p className="text-sm text-gray-300">
+                              Còn lại:{" "}
+                              <span className={`font-medium ${
+                                item?.payment_status === "paid" ? "text-green-400 line-through" : "text-red-400"
+                              }`}>
+                                {remainingFormatted}
+                              </span>
+                              {item?.payment_status === "paid" && (
+                                <span className="ml-2 text-xs text-green-400">✓ Đã thanh toán</span>
+                              )}
+                            </p>
+                            <p className="mt-2 text-sm">
+                              <span className="text-gray-400">Trạng thái: </span>
+                              <span className={`font-semibold ${paymentStepInfo.color}`}>
+                                {paymentStepInfo.text}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 shrink-0">
+                          {/* Nút thanh toán - hiển thị khi cần đặt cọc hoặc thanh toán full */}
+                          {(paymentStep === "need_deposit" || paymentStep === "need_full_payment") && 
+                            bookingId && !isCancelled && (
+                            <button
+                              onClick={() => handlePay(bookingId)}
+                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 flex items-center gap-1"
+                            >
+                              <span>💳</span>
+                              Thanh toán
+                            </button>
+                          )}
+                          
+                          {/* Nút xem chi tiết - hiển thị khi đang chờ xác nhận */}
+                          {(paymentStep === "waiting_deposit_confirm" || paymentStep === "waiting_payment_confirm") && 
+                            bookingId && !isCancelled && (
+                            <button
+                              onClick={() => handlePay(bookingId)}
+                              className="rounded-lg bg-yellow-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-yellow-500 flex items-center gap-1"
+                            >
+                              <span>⏱️</span>
+                              Xem chi tiết
+                            </button>
+                          )}
+                          
+                          {/* Nút hủy */}
+                          {canCancel && bookingId && (
+                            <button
+                              onClick={() => handleCancel(bookingId)}
+                              disabled={cancellingId === bookingId}
+                              className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {cancellingId === bookingId ? "Đang hủy..." : "Hủy dịch vụ"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  </div>
+                );
+              })}
+
+              {/* Load more button */}
+              {hasMore && (
+                <div className="flex justify-center pt-4">
+                  <button
+                    onClick={loadMore}
+                    disabled={isLoadingMore}
+                    className="px-6 py-2 bg-neutral-700 text-white rounded-lg hover:bg-neutral-600 transition disabled:opacity-50"
+                  >
+                    {isLoadingMore ? "Đang tải..." : "Xem thêm"}
+                  </button>
                 </div>
               )}
-            </>
+            </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
 
       <style jsx>{`
         @keyframes fadeIn {

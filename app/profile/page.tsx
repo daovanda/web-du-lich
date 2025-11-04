@@ -9,6 +9,8 @@ import ServiceHistory from "./components/ServiceHistory";
 import UserPostsTable from "../posts/components/UserPostsTable";
 import { UserPost } from "../posts/types/index";
 
+type TabType = "posts" | "profile" | "orders";
+
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [phone, setPhone] = useState("");
@@ -22,6 +24,8 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedPost, setSelectedPost] = useState<UserPost | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>("posts");
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
   /* ---------------------- Fetch user data ---------------------- */
   useEffect(() => {
@@ -153,9 +157,14 @@ export default function ProfilePage() {
 
   const handleOpenPost = (post: UserPost) => {
     setSelectedPost(post);
-    // Bạn có thể mở modal hoặc navigate đến trang chi tiết bài đăng
     console.log("Open post:", post);
   };
+
+  const tabs: { id: TabType; label: string }[] = [
+    { id: "posts", label: "Bài đăng" },
+    { id: "profile", label: "Hồ sơ" },
+    { id: "orders", label: "Đơn hàng" },
+  ];
 
   return (
     <ResizableLayout>
@@ -169,7 +178,7 @@ export default function ProfilePage() {
         >
           {user ? (
             <>
-              {/* Phần header profile */}
+              {/* Header Profile */}
               <div 
                 className={`transition-all duration-700 ease-out delay-300 ${
                   isInitialLoad 
@@ -186,22 +195,7 @@ export default function ProfilePage() {
                 />
               </div>
 
-                            {/* 🆕 Bài đăng của người dùng - nằm trên cùng */}
-              <div 
-                className={`transition-all duration-700 ease-out delay-100 ${
-                  isInitialLoad 
-                    ? 'opacity-0 translate-y-6' 
-                    : 'opacity-100 translate-y-0'
-                }`}
-              >
-                <UserPostsTable 
-                  currentUserId={user.id} 
-                  onOpenPost={handleOpenPost}
-                />
-              </div>
-
-
-              {/* Form cập nhật thông tin */}
+              {/* Tab Navigation */}
               <div 
                 className={`transition-all duration-700 ease-out delay-500 ${
                   isInitialLoad 
@@ -209,38 +203,68 @@ export default function ProfilePage() {
                     : 'opacity-100 translate-y-0'
                 }`}
               >
-                <ProfileForm
-                  fullName={fullName}
-                  username={username}
-                  phone={phone}
-                  email={email}
-                  loading={loading}
-                  error={error}
-                  success={success}
-                  setFullName={setFullName}
-                  setUsername={setUsername}
-                  setPhone={setPhone}
-                  setEmail={setEmail}
-                  handleUpdateProfile={handleUpdateProfile}
-                />
-              </div>
+                <div className="bg-neutral-900 rounded-xl shadow overflow-hidden">
+                  <div className="flex border-b border-neutral-800">
+                    {tabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex-1 px-6 py-4 text-center font-semibold transition-all duration-300 ${
+                          activeTab === tab.id
+                            ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                            : "text-gray-400 hover:text-white hover:bg-neutral-800"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
 
-              {/* Lịch sử dịch vụ */}
-              <div 
-                className={`transition-all duration-700 ease-out delay-700 ${
-                  isInitialLoad 
-                    ? 'opacity-0 translate-y-6' 
-                    : 'opacity-100 translate-y-0'
-                }`}
-              >
-                <ServiceHistory
-                  getStatusColor={getStatusColor}
-                />
+                  {/* Tab Content */}
+                  <div className="p-6">
+                    {/* Bài đăng Tab */}
+                    {activeTab === "posts" && (
+                      <div className="animate-fadeIn">
+                        <UserPostsTable 
+                          currentUserId={user.id} 
+                          onOpenPost={handleOpenPost}
+                        />
+                      </div>
+                    )}
+
+                    {/* Hồ sơ Tab */}
+                    {activeTab === "profile" && (
+                      <div className="animate-fadeIn">
+                        <ProfileForm
+                          fullName={fullName}
+                          username={username}
+                          phone={phone}
+                          email={email}
+                          loading={loading}
+                          error={error}
+                          success={success}
+                          setFullName={setFullName}
+                          setUsername={setUsername}
+                          setPhone={setPhone}
+                          setEmail={setEmail}
+                          handleUpdateProfile={handleUpdateProfile}
+                        />
+                      </div>
+                    )}
+
+                    {/* Đơn hàng Tab */}
+                    {activeTab === "orders" && (
+                      <div className="animate-fadeIn">
+                        <ServiceHistory getStatusColor={getStatusColor} />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Nút đăng xuất */}
               <div 
-                className={`pt-6 transition-all duration-700 ease-out delay-900 ${
+                className={`pt-6 transition-all duration-700 ease-out delay-700 ${
                   isInitialLoad 
                     ? 'opacity-0 translate-y-4' 
                     : 'opacity-100 translate-y-0'
@@ -270,6 +294,23 @@ export default function ProfilePage() {
           )}
         </main>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.4s ease-out forwards;
+        }
+      `}</style>
     </ResizableLayout>
   );
 }

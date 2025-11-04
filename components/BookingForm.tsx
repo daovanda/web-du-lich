@@ -10,6 +10,9 @@ type BookingFormProps = {
   serviceId: string;
   price?: string | null;
   onSubmitSuccess?: (formData: any) => Promise<void> | void;
+  initialQuantity?: number;
+  initialCheckIn?: Date | null;
+  initialCheckOut?: Date | null;
 };
 
 // yyyy-mm-dd (local)
@@ -24,7 +27,7 @@ const formatDate = (date: Date | null) => {
 // VN phone: 0 + 9–10 digits
 const isValidPhone = (value: string) => /^0\d{9,10}$/.test(value);
 
-// Parse "1.200.000đ" -> 1200000
+// Parse "1.200.000₫" -> 1200000
 const parsePriceNumber = (value?: string | null): number | null => {
   if (!value) return null;
   const onlyNum = value.replace(/[^0-9.,]/g, "").replace(/\./g, "").replace(/,/g, "");
@@ -32,50 +35,213 @@ const parsePriceNumber = (value?: string | null): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-// Số đêm
-const countNights = (from: Date | null, to: Date | null) => {
+// Tính số đơn vị (ngày/đêm)
+const countDays = (from: Date | null, to: Date | null) => {
   if (!from || !to) return 0;
   const start = new Date(from);
   const end = new Date(to);
   start.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
   const ms = end.getTime() - start.getTime();
-  const nights = Math.ceil(ms / (1000 * 60 * 60 * 24));
-  return Math.max(0, nights);
+  const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
+  return Math.max(0, days);
 };
 
-export default function BookingForm({ serviceId, price, onSubmitSuccess }: BookingFormProps) {
-  const [from, setFrom] = useState<Date | null>(null);
-  const [to, setTo] = useState<Date | null>(null);
+// Hàm tạo booking code unique
+const generateBookingCode = (): string => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `BK${timestamp}${random}`;
+};
+
+export default function BookingForm({ 
+  serviceId, 
+  price, 
+  onSubmitSuccess, 
+  initialQuantity,
+  initialCheckIn,
+  initialCheckOut
+}: BookingFormProps) {
+  // Initialize dates with passed values or null
+  const [from, setFrom] = useState<Date | null>(initialCheckIn || null);
+  const [to, setTo] = useState<Date | null>(initialCheckOut || null);
+  const [quantity, setQuantity] = useState<string>(
+    initialQuantity ? String(initialQuantity) : "1"
+  );
 
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState(""); // thêm email
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
 
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "momo" | "zalopay">("cash");
-
+  const [serviceCategory, setServiceCategory] = useState<string | null>(null);
+  const [tourDurationDays, setTourDurationDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [prefillLoading, setPrefillLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
 
   const router = useRouter();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Update dates when initial values change
+  useEffect(() => {
+    if (initialCheckIn) setFrom(initialCheckIn);
+    if (initialCheckOut) setTo(initialCheckOut);
+  }, [initialCheckIn, initialCheckOut]);
+
+  // Fetch service category và duration_days cho tour
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("services")
+          .select("type")
+          .eq("id", serviceId)
+          .single();
+        
+        if (data?.type) {
+          setServiceCategory(data.type.toLowerCase());
+          
+          // Nếu là tour, lấy duration_days
+          if (data.type.toLowerCase() === 'tour') {
+            const { data: tourData } = await supabase
+              .from("tours")
+              .select("duration_days")
+              .eq("id", serviceId)
+              .single();
+            
+            if (tourData?.duration_days) {
+              setTourDurationDays(tourData.duration_days);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching service type:", err);
+      }
+    })();
+  }, [serviceId]);
+
+  // Tự động tính ngày kết thúc cho tour
+  useEffect(() => {
+    if (serviceCategory === 'tour' && tourDurationDays && from) {
+      const endDate = new Date(from);
+      endDate.setDate(endDate.getDate() + tourDurationDays - 1);
+      setTo(endDate);
+    }
+  }, [from, serviceCategory, tourDurationDays]);
+
+  // Xác định loại đơn vị và cách tính theo type
+  const pricingConfig = useMemo(() => {
+    switch (serviceCategory) {
+      case "stay":
+        return {
+          unit: "đêm",
+          dateLabel: { from: "Ngày nhận phòng", to: "Ngày trả phòng" },
+          requiresDates: true,
+          requiresQuantity: false,
+          quantityLabel: null,
+          autoCalculateEndDate: false,
+        };
+      case "motorbike":
+        return {
+          unit: "ngày",
+          dateLabel: { from: "Ngày nhận xe", to: "Ngày trả xe" },
+          requiresDates: true,
+          requiresQuantity: true,
+          quantityLabel: "Số xe",
+          autoCalculateEndDate: false,
+        };
+      case "tour":
+        return {
+          unit: "người",
+          dateLabel: { from: "Ngày khởi hành", to: "Ngày kết thúc" },
+          requiresDates: true,
+          requiresQuantity: true,
+          quantityLabel: "Số người",
+          autoCalculateEndDate: true, // Tour tự động tính
+        };
+      case "car":
+        return {
+          unit: "chuyến",
+          dateLabel: { from: "Ngày đi", to: "Ngày về (nếu có)" },
+          requiresDates: true,
+          requiresQuantity: true,
+          quantityLabel: "Số người",
+          autoCalculateEndDate: false,
+        };
+      default:
+        return {
+          unit: "ngày",
+          dateLabel: { from: "Ngày đến", to: "Ngày đi" },
+          requiresDates: true,
+          requiresQuantity: false,
+          quantityLabel: null,
+          autoCalculateEndDate: false,
+        };
+    }
+  }, [serviceCategory]);
+
+  // Validation số lượng
+  const isValidQuantity = (val: string): boolean => {
+    if (!val.trim()) return false;
+    const num = parseInt(val);
+    return !isNaN(num) && num >= 1 && num <= 999;
+  };
+
+  const quantityNum = useMemo(() => {
+    const num = parseInt(quantity);
+    return isNaN(num) ? 0 : num;
+  }, [quantity]);
+
   const isValidDate = !!from && !!to && from >= today && to >= from;
-  const canBook = isValidDate && !!fullName && isValidPhone(phone);
+  const canBook = isValidDate && !!fullName && isValidPhone(phone) && 
+                  (!pricingConfig.requiresQuantity || (isValidQuantity(quantity) && quantityNum > 0));
 
-  // Tính toán tổng tiền = số đêm × đơn giá (nếu có price)
+  // Tính toán tổng tiền
   const unitPrice = useMemo(() => parsePriceNumber(price), [price]);
-  const nights = useMemo(() => countNights(from, to), [from, to]);
+  const days = useMemo(() => countDays(from, to), [from, to]);
+  
   const totalPrice = useMemo(() => {
-    if (!unitPrice || nights <= 0) return null;
-    return Number(unitPrice) * nights;
-  }, [unitPrice, nights]);
+    if (!unitPrice) return null;
+    
+    switch (serviceCategory) {
+      case "stay":
+        // Số đêm = số ngày - 1 (VD: 1/1 -> 3/1 = 2 đêm)
+        const nights = Math.max(0, days);
+        if (nights <= 0) return null;
+        return Number(unitPrice) * nights;
+        
+      case "motorbike":
+        // Giá xe/ngày * số ngày * số xe
+        if (days <= 0 || quantityNum <= 0) return null;
+        return Number(unitPrice) * days * quantityNum;
+        
+      case "tour":
+        // Giá tour/người * số người
+        if (quantityNum <= 0) return null;
+        return Number(unitPrice) * quantityNum;
+        
+      case "car":
+        // Giá xe/người * số người
+        if (quantityNum <= 0) return null;
+        return Number(unitPrice) * quantityNum;
+        
+      default:
+        if (days <= 0) return null;
+        return Number(unitPrice) * days;
+    }
+  }, [unitPrice, days, quantityNum, serviceCategory]);
 
-  // Prefill fullName + email từ profiles (người dùng vẫn có thể sửa)
+  // Tính tiền đặt cọc (30% tổng tiền) - cho TẤT CẢ dịch vụ
+  const depositAmount = useMemo(() => {
+    if (!totalPrice) return null;
+    return Math.round(totalPrice * 0.00003)*10000;
+  }, [totalPrice]);
+
+  // Prefill fullName + email từ profiles
   useEffect(() => {
     (async () => {
       setPrefillLoading(true);
@@ -83,7 +249,6 @@ export default function BookingForm({ serviceId, price, onSubmitSuccess }: Booki
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Ưu tiên profiles
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name, email")
@@ -91,14 +256,12 @@ export default function BookingForm({ serviceId, price, onSubmitSuccess }: Booki
           .maybeSingle();
 
         if (profile?.full_name && !fullName) setFullName(profile.full_name);
-        // Nếu profiles.email không có, fallback auth user.email
         const initialEmail = profile?.email || user.email || "";
         if (initialEmail && !email) setEmail(initialEmail);
       } finally {
         setPrefillLoading(false);
       }
     })();
-    // chỉ prefill một lần khi mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -116,22 +279,31 @@ export default function BookingForm({ serviceId, price, onSubmitSuccess }: Booki
         return;
       }
 
+      const bookingCode = generateBookingCode();
       const payment_status = "unpaid";
+      const payment_method = "bank_transfer";
+      const deposit_status = "unpaid";
+      const deposit_percentage = 30;
 
       const { data: inserted, error: insertError } = await supabase
         .from("bookings")
         .insert({
           user_id: user.id,
           service_id: serviceId,
+          booking_code: bookingCode,
           date_from: formatDate(from),
           date_to: formatDate(to),
+          quantity: pricingConfig.requiresQuantity ? quantityNum : null,
           full_name: fullName,
           phone,
           additional_requests: note,
           status: "pending",
-          total_price: totalPrice,        // <= tổng tiền (null nếu chưa đủ dữ liệu)
-          payment_status,                 // 'unpaid'
-          payment_method: paymentMethod,  // 'cash' | 'credit_card' | 'momo' | 'zalopay'
+          total_price: totalPrice,
+          deposit_amount: depositAmount,
+          deposit_percentage: deposit_percentage,
+          payment_status,
+          payment_method: payment_method,
+          deposit_status: deposit_status,
         })
         .select("id")
         .single();
@@ -141,75 +313,225 @@ export default function BookingForm({ serviceId, price, onSubmitSuccess }: Booki
       if (onSubmitSuccess) {
         await onSubmitSuccess({
           bookingId: inserted.id,
+          bookingCode: bookingCode,
           userId: user.id,
           serviceId,
           fullName,
-          email,                     // gửi kèm email để wrapper có thể dùng
+          email,
           phone,
           note,
-          price,                     // chuỗi hiển thị
-          unitPrice,                 // số đơn giá đã parse
-          total_price: totalPrice,   // số tổng tiền
+          price,
+          unitPrice,
+          total_price: totalPrice,
+          deposit_amount: depositAmount,
+          deposit_percentage: deposit_percentage,
           dateFrom: formatDate(from),
           dateTo: formatDate(to),
-          payment_status,            // 'unpaid'
-          payment_method: paymentMethod,
-          nights,                    // số đêm
+          payment_status,
+          payment_method: payment_method,
+          deposit_status: deposit_status,
+          days: days,
+          quantity: pricingConfig.requiresQuantity ? quantityNum : null,
+          category: serviceCategory,
         });
       }
-
-      router.push(`/payment?bookingId=${inserted.id}`);
     } catch (err: any) {
       console.error("Booking error:", err);
-      setError(err.message || "Đặt phòng thất bại. Vui lòng thử lại.");
+      setError(err.message || "Đặt dịch vụ thất bại. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
   };
 
+  // Hiển thị tóm tắt tính tiền
+  const renderPriceSummary = () => {
+    if (!unitPrice) return "Chọn ngày để tính tạm tính";
+
+    switch (serviceCategory) {
+      case "stay":
+        const nights = Math.max(0, days);
+        if (nights <= 0) return "Chọn ngày để tính tạm tính";
+        return (
+          <>
+            <div>Số đêm: {nights} • Tạm tính: {new Intl.NumberFormat("vi-VN").format(totalPrice!)} ₫</div>
+            {depositAmount && (
+              <div className="text-yellow-400 font-semibold">
+                Đặt cọc 30%: {new Intl.NumberFormat("vi-VN").format(depositAmount)} ₫
+              </div>
+            )}
+          </>
+        );
+
+      case "motorbike":
+        if (days <= 0 || quantityNum <= 0) return "Chọn ngày và số xe để tính tạm tính";
+        return (
+          <>
+            <div>
+              {quantityNum} xe × {days} ngày • Tạm tính: {new Intl.NumberFormat("vi-VN").format(totalPrice!)} ₫
+            </div>
+            {depositAmount && (
+              <div className="text-yellow-400 font-semibold">
+                Đặt cọc 30%: {new Intl.NumberFormat("vi-VN").format(depositAmount)} ₫
+              </div>
+            )}
+          </>
+        );
+
+      case "tour":
+        if (quantityNum <= 0) return "Nhập số người để tính tạm tính";
+        return (
+          <>
+            <div>Số người: {quantityNum} • Tạm tính: {new Intl.NumberFormat("vi-VN").format(totalPrice!)} ₫</div>
+            {depositAmount && (
+              <div className="text-yellow-400 font-semibold">
+                Đặt cọc 30%: {new Intl.NumberFormat("vi-VN").format(depositAmount)} ₫
+              </div>
+            )}
+            {tourDurationDays && (
+              <div className="text-blue-400 text-xs mt-1">
+                Tour {tourDurationDays} ngày {tourDurationDays - 1} đêm
+              </div>
+            )}
+          </>
+        );
+
+      case "car":
+        if (quantityNum <= 0) return "Nhập số người để tính tạm tính";
+        return (
+          <>
+            <div>Số người: {quantityNum} • Tổng tiền: {new Intl.NumberFormat("vi-VN").format(totalPrice!)} ₫</div>
+            {depositAmount && (
+              <div className="text-yellow-400 font-semibold">
+                Đặt cọc 30%: {new Intl.NumberFormat("vi-VN").format(depositAmount)} ₫
+              </div>
+            )}
+          </>
+        );
+
+      default:
+        if (days <= 0) return "Chọn ngày để tính tạm tính";
+        return (
+          <>
+            <div>Số ngày: {days} • Tạm tính: {new Intl.NumberFormat("vi-VN").format(totalPrice!)} ₫</div>
+            {depositAmount && (
+              <div className="text-yellow-400 font-semibold">
+                Đặt cọc 30%: {new Intl.NumberFormat("vi-VN").format(depositAmount)} ₫
+              </div>
+            )}
+          </>
+        );
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <div className="mb-3 text-right text-sm text-gray-300">Giá/đêm từ</div>
-      <div className="mb-4 text-right text-2xl font-bold text-blue-400">{price || "Liên hệ"}</div>
+      <div className="mb-3 text-right text-sm text-gray-300">
+        Giá/{pricingConfig.unit} từ
+      </div>
+      <div className="mb-4 text-right text-2xl font-bold text-blue-400">
+        {price || "Liên hệ"}
+      </div>
 
       {/* Tóm tắt tính tiền */}
-      <div className="mb-4 text-right text-sm text-gray-300">
-        {nights > 0 && unitPrice
-          ? `Số đêm: ${nights} • Tạm tính: ${new Intl.NumberFormat("vi-VN").format(totalPrice!)} đ`
-          : "Chọn ngày để tính tạm tính"}
+      <div className="mb-4 space-y-1 text-right text-sm text-gray-300">
+        {renderPriceSummary()}
       </div>
 
       <form onSubmit={onSubmit} className="space-y-3">
         {/* Ngày đến */}
         <div className="w-full">
-          <label className="mb-1 block text-sm text-gray-300">Ngày đến</label>
+          <label className="mb-1 block text-sm text-gray-300">
+            {pricingConfig.dateLabel.from}
+          </label>
           <DatePicker
             selected={from}
             onChange={(date) => setFrom(date)}
             minDate={today}
             dateFormat="dd/MM/yyyy"
-            placeholderText="Chọn ngày đến"
+            placeholderText={`Chọn ${pricingConfig.dateLabel.from.toLowerCase()}`}
             className="block w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white"
           />
         </div>
 
-        {/* Ngày đi */}
-        <div className="w-full">
-          <label className="mb-1 block text-sm text-gray-300">Ngày đi</label>
-          <DatePicker
-            selected={to}
-            onChange={(date) => setTo(date)}
-            minDate={from || today}
-            dateFormat="dd/MM/yyyy"
-            placeholderText="Chọn ngày đi"
-            className="block w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white"
-          />
-          {from && to && to < from && (
-            <p className="mt-1 text-sm text-red-400">Ngày đi không được sớm hơn ngày đến.</p>
-          )}
-        </div>
+        {/* Ngày đi - chỉ hiển thị nếu KHÔNG phải tour (vì tour tự động tính) */}
+        {!pricingConfig.autoCalculateEndDate && (
+          <div className="w-full">
+            <label className="mb-1 block text-sm text-gray-300">
+              {pricingConfig.dateLabel.to}
+            </label>
+            <DatePicker
+              selected={to}
+              onChange={(date) => setTo(date)}
+              minDate={from || today}
+              dateFormat="dd/MM/yyyy"
+              placeholderText={`Chọn ${pricingConfig.dateLabel.to.toLowerCase()}`}
+              className="block w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white"
+            />
+            {from && to && to < from && (
+              <p className="mt-1 text-sm text-red-400">
+                {pricingConfig.dateLabel.to} không được sớm hơn {pricingConfig.dateLabel.from.toLowerCase()}.
+              </p>
+            )}
+          </div>
+        )}
 
-        {/* Họ và Tên (prefill từ profiles, cho phép sửa) */}
+        {/* Hiển thị ngày kết thúc tự động cho tour (read-only) */}
+        {pricingConfig.autoCalculateEndDate && to && (
+          <div className="w-full">
+            <label className="mb-1 block text-sm text-gray-300">
+              {pricingConfig.dateLabel.to}
+            </label>
+            <div className="block w-full rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-gray-400">
+              {to.toLocaleDateString('vi-VN')}
+            </div>
+            <p className="mt-1 text-xs text-blue-400">
+              ℹ️ Ngày kết thúc được tự động tính dựa trên thời lượng tour ({tourDurationDays} ngày)
+            </p>
+          </div>
+        )}
+
+        {/* Số lượng (số người/số xe) - hiển thị với motorbike, tour, car */}
+        {pricingConfig.requiresQuantity && (
+          <div>
+            <label className="mb-1 block text-sm text-gray-300">
+              {pricingConfig.quantityLabel}
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="999"
+              required
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              onBlur={(e) => {
+                const val = e.target.value;
+                if (!val.trim() || parseInt(val) < 1) {
+                  setQuantity("1");
+                } else if (parseInt(val) > 999) {
+                  setQuantity("999");
+                }
+              }}
+              className={`w-full rounded-lg border px-3 py-2 outline-none ${
+                quantity && !isValidQuantity(quantity)
+                  ? "border-red-500 bg-black/30 text-red-400"
+                  : "border-white/20 bg-black/30 text-white"
+              }`}
+              placeholder={`Nhập ${pricingConfig.quantityLabel?.toLowerCase()}`}
+            />
+            {quantity && !isValidQuantity(quantity) && (
+              <p className="mt-1 text-sm text-red-400">
+                Số lượng không hợp lệ (từ 1 đến 999).
+              </p>
+            )}
+            {quantityNum > 50 && isValidQuantity(quantity) && (
+              <p className="mt-1 text-sm text-yellow-400">
+                Số lượng lớn. Vui lòng liên hệ để được hỗ trợ tốt nhất.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Họ và Tên */}
         <div>
           <label className="mb-1 block text-sm text-gray-300">Họ và Tên</label>
           <input
@@ -222,7 +544,7 @@ export default function BookingForm({ serviceId, price, onSubmitSuccess }: Booki
           />
         </div>
 
-        {/* Email (prefill từ profiles, cho phép sửa) */}
+        {/* Email */}
         <div>
           <label className="mb-1 block text-sm text-gray-300">Email</label>
           <input
@@ -268,21 +590,13 @@ export default function BookingForm({ serviceId, price, onSubmitSuccess }: Booki
           />
         </div>
 
-        {/* Phương thức thanh toán */}
-        <div>
-          <label className="mb-1 block text-sm text-gray-300">Phương thức thanh toán</label>
-          <select
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value as any)}
-            className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white outline-none"
-          >
-            <option value="cash">Tiền mặt</option>
-            <option value="credit_card">Thẻ tín dụng</option>
-            <option value="momo">MoMo</option>
-            <option value="zalopay">ZaloPay</option>
-          </select>
-          <p className="mt-1 text-xs text-gray-400">
-            Trạng thái thanh toán mặc định: unpaid (sẽ cập nhật khi hoàn tất thanh toán).
+        {/* Thông báo phương thức thanh toán */}
+        <div className="bg-blue-900/30 border border-blue-500/30 rounded-lg p-3">
+          <p className="text-sm text-blue-300">
+            💳 <strong>Phương thức thanh toán:</strong> Chuyển khoản ngân hàng
+          </p>
+          <p className="text-xs text-blue-400 mt-1">
+            Bạn cần đặt cọc 30% để xác nhận đơn. Phần còn lại thanh toán khi nhận dịch vụ.
           </p>
         </div>
 
@@ -299,6 +613,7 @@ export default function BookingForm({ serviceId, price, onSubmitSuccess }: Booki
       {error && <p className="mt-3 text-red-400">{error}</p>}
 
       <div className="mt-4 space-y-1 text-sm text-gray-300">
+        <div>• Hoàn tiền ngay lập tức</div>
         <div>• Xác nhận tức thì</div>
         <div>• Không cần thẻ tín dụng</div>
         <div>• Hỗ trợ 24/7</div>

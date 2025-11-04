@@ -4,19 +4,35 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import ResizableLayout from "@/components/ResizableLayout";
+import PaymentProgress from "./components/PaymentProgress";
+import Step1DepositPayment from "./components/Step1DepositPayment";
+import Step2WaitingDepositConfirm from "./components/Step2WaitingDepositConfirm";
+import Step3FullPayment from "./components/Step3FullPayment";
+import Step4WaitingPaymentConfirm from "./components/Step4WaitingPaymentConfirm";
+import Step5Completed from "./components/Step5Completed";
 
 type Booking = {
   id: string;
+  booking_code: string | null;
   full_name: string | null;
   phone: string | null;
   date_from: string;
   date_to: string;
   additional_requests: string | null;
   status: string;
+  total_price: number | null;
+  deposit_amount: number | null;
+  deposit_percentage: number | null;
+  deposit_status: string;
+  deposit_proof_url: string | null;
+  payment_proof_url: string | null;
+  payment_status: string;
   services?: {
     title: string;
     price: string | null;
+    type: string | null;
   } | null;
+  quantity: number | null;
 };
 
 function PaymentContent() {
@@ -26,9 +42,58 @@ function PaymentContent() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [paying, setPaying] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Thông tin chuyển khoản
+  const bankInfo = {
+    bankName: "Vietcombank",
+    accountNumber: "1234567890",
+    accountName: "NGUYEN VAN B",
+  };
+
+  const formatCurrency = (amount?: number | null) => {
+    if (!amount) return "—";
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(amount);
+  };
+
+  // Xác định bước hiện tại
+  const getCurrentStep = (): number => {
+    if (!booking) return 1;
+
+    // Bước 1: Đặt cọc - chưa có proof URL
+    if (booking.deposit_status === "unpaid" && !booking.deposit_proof_url) {
+      return 1;
+    }
+
+    // Bước 2: Chờ xác nhận đặt cọc - đã upload proof nhưng chưa được admin xác nhận
+    if (booking.deposit_status === "unpaid" && booking.deposit_proof_url) {
+      return 2;
+    }
+
+    // Bước 3: Thanh toán toàn bộ - đặt cọc đã paid, chưa thanh toán full
+    if (booking.deposit_status === "paid" && booking.payment_status === "unpaid" && !booking.payment_proof_url) {
+      return 3;
+    }
+
+    // Bước 4: Chờ xác nhận thanh toán toàn bộ
+    if (booking.deposit_status === "paid" && booking.payment_status === "unpaid" && booking.payment_proof_url) {
+      return 4;
+    }
+
+    // Bước 5: Hoàn thành
+    if (booking.payment_status === "paid" ) {
+      return 5;
+    }
+
+    return 1;
+  };
+
+  const currentStep = getCurrentStep();
+  const remainingAmount = (booking?.total_price || 0) - (booking?.deposit_amount || 0);
 
   useEffect(() => {
     if (!bookingId) {
@@ -38,11 +103,11 @@ function PaymentContent() {
       return;
     }
 
-    (async () => {
+    const fetchBooking = async () => {
       try {
         const { data, error } = await supabase
           .from("bookings")
-          .select("*, services(title, price)")
+          .select("*, services(title, price, type)")
           .eq("id", bookingId)
           .single();
 
@@ -55,28 +120,74 @@ function PaymentContent() {
         setLoading(false);
         setTimeout(() => setIsInitialLoad(false), 150);
       }
-    })();
+    };
+
+    fetchBooking();
+
+    // Real-time subscription để cập nhật trạng thái
+    const channel = supabase
+      .channel(`booking-${bookingId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "bookings",
+          filter: `id=eq.${bookingId}`,
+        },
+        (payload) => {
+          setBooking((prev) => (prev ? { ...prev, ...payload.new } : null));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [bookingId]);
 
-  const handlePayment = async (method: string) => {
-    if (!booking) return;
-    setPaying(true);
+  const handleFileUpload = async (file: File) => {
+    if (!file || !booking) return;
+
+    setUploading(true);
     setError(null);
 
     try {
-      const { error } = await supabase
+      const fileExt = file.name.split(".").pop();
+      const isFullPayment = currentStep === 3;
+      const fileName = `${isFullPayment ? "payment" : "deposit"}_${Date.now()}.${fileExt}`;
+      const filePath = `payment_proofs/${booking.id}/${fileName}`;
+
+      // Upload file to storage
+      const { error: uploadError } = await supabase.storage
+        .from("payment_proofs")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("payment_proofs").getPublicUrl(filePath);
+
+      // Update booking with correct field
+      const updateField = isFullPayment ? "payment_proof_url" : "deposit_proof_url";
+      const { error: updateError } = await supabase
         .from("bookings")
-        .update({ status: "confirmed" })
+        .update({ [updateField]: publicUrl })
         .eq("id", booking.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      setSuccess(true);
+      // Update local state
+      setBooking({ ...booking, [updateField]: publicUrl });
+
+      alert("Đã tải lên thành công! Vui lòng đợi admin xác nhận.");
     } catch (err: any) {
-      console.error("Payment error:", err);
-      setError("Thanh toán thất bại. Vui lòng thử lại.");
+      console.error("Upload error:", err);
+      setError("Tải ảnh thất bại. Vui lòng thử lại.");
     } finally {
-      setPaying(false);
+      setUploading(false);
     }
   };
 
@@ -105,135 +216,119 @@ function PaymentContent() {
 
   return (
     <ResizableLayout>
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div
-          className={`w-full max-w-md rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-lg p-6 text-white space-y-6 transition-all duration-700 ease-out ${
-            isInitialLoad ? "opacity-0 translate-y-6" : "opacity-100 translate-y-0"
-          }`}
-        >
-          <h1
-            className={`text-center text-xl font-bold transition-all duration-700 ease-out ${
-              isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
-            }`}
-            style={{ transitionDelay: "150ms" }}
-          >
-            Thanh toán
-          </h1>
-
-          {/* Thông tin booking */}
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
           <div
-            className={`space-y-1 text-sm text-gray-300 transition-all duration-700 ease-out ${
-              isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+            className={`bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-lg p-6 mb-6 transition-all duration-700 ease-out ${
+              isInitialLoad ? "opacity-0 translate-y-6" : "opacity-100 translate-y-0"
             }`}
-            style={{ transitionDelay: "250ms" }}
           >
-            <p>
-              <span className="font-semibold">Dịch vụ:</span>{" "}
-              {booking.services?.title}
-            </p>
-            <p>
-              <span className="font-semibold">Tên khách:</span>{" "}
-              {booking.full_name}
-            </p>
-            <p>
-              <span className="font-semibold">SĐT:</span> {booking.phone}
-            </p>
-            <p>
-              <span className="font-semibold">Ngày:</span>{" "}
-              {booking.date_from} → {booking.date_to}
-            </p>
-            <p>
-              <span className="font-semibold">Giá:</span>{" "}
-              {booking.services?.price || "Liên hệ"}
-            </p>
-            <p>
-              <span className="font-semibold">Trạng thái:</span>{" "}
-              <span
-                className={`${
-                  booking.status === "confirmed"
-                    ? "text-green-400"
-                    : "text-yellow-400"
-                }`}
-              >
-                {booking.status}
-              </span>
-            </p>
+            <h1 className="text-3xl font-bold text-white mb-6">Thanh toán đơn hàng</h1>
+
+            <PaymentProgress currentStep={currentStep} />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+              <div>
+                <span className="text-gray-400">Mã đơn:</span>
+                <span className="ml-2 font-bold text-blue-400">{booking.booking_code}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Dịch vụ:</span>
+                <span className="ml-2 font-semibold text-white">{booking.services?.title}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Khách hàng:</span>
+                <span className="ml-2 font-semibold text-white">{booking.full_name}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">SĐT:</span>
+                <span className="ml-2 font-semibold text-white">{booking.phone}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Thời gian:</span>
+                <span className="ml-2 font-semibold text-white">
+                  {booking.date_from} → {booking.date_to}
+                </span>
+              </div>
+              {booking.quantity && (
+                <div>
+                  <span className="text-gray-400">Số lượng:</span>
+                  <span className="ml-2 font-semibold text-white">
+                    {booking.quantity} {booking.services?.type === "motorbike" ? "xe" : "người"}
+                  </span>
+                </div>
+              )}
+              <div className="md:col-span-2 border-t border-white/10 pt-3 mt-2">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-400">Tổng tiền:</span>
+                  <span className="font-semibold text-white text-lg">
+                    {formatCurrency(booking.total_price)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-400">Đặt cọc (30%):</span>
+                  <span
+                    className={`font-bold text-lg ${
+                      booking.deposit_status === "paid"
+                        ? "text-green-400 line-through"
+                        : "text-yellow-400"
+                    }`}
+                  >
+                    {formatCurrency(booking.deposit_amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Còn lại:</span>
+                  <span className="font-bold text-red-400 text-xl">
+                    {formatCurrency(remainingAmount)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Phương thức thanh toán */}
-          {!success && (
-            <div
-              className={`space-y-3 transition-all duration-700 ease-out ${
-                isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
-              }`}
-              style={{ transitionDelay: "350ms" }}
-            >
-              <h2 className="text-lg font-semibold text-gray-200">Chọn phương thức</h2>
-              <button
-                disabled={paying}
-                onClick={() => handlePayment("momo")}
-                className="w-full rounded-xl border border-white/20 py-3 font-semibold hover:bg-white/10 transition disabled:opacity-50"
-              >
-                Thanh toán bằng Momo
-              </button>
-              <button
-                disabled={paying}
-                onClick={() => handlePayment("zalopay")}
-                className="w-full rounded-xl border border-white/20 py-3 font-semibold hover:bg-white/10 transition disabled:opacity-50"
-              >
-                Thanh toán bằng ZaloPay
-              </button>
-              <button
-                disabled={paying}
-                onClick={() => handlePayment("card")}
-                className="w-full rounded-xl border border-white/20 py-3 font-semibold hover:bg-white/10 transition disabled:opacity-50"
-              >
-                Thanh toán bằng Thẻ
-              </button>
+          {/* Render step components */}
+          {currentStep === 1 && (
+            <Step1DepositPayment
+              booking={booking}
+              bankInfo={bankInfo}
+              onFileUpload={handleFileUpload}
+              uploading={uploading}
+              isInitialLoad={isInitialLoad}
+            />
+          )}
+
+          {currentStep === 2 && (
+            <Step2WaitingDepositConfirm booking={booking} isInitialLoad={isInitialLoad} />
+          )}
+
+          {currentStep === 3 && (
+            <Step3FullPayment
+              booking={booking}
+              bankInfo={bankInfo}
+              remainingAmount={remainingAmount}
+              onFileUpload={handleFileUpload}
+              uploading={uploading}
+              isInitialLoad={isInitialLoad}
+            />
+          )}
+
+          {currentStep === 4 && (
+            <Step4WaitingPaymentConfirm
+              booking={booking}
+              remainingAmount={remainingAmount}
+              isInitialLoad={isInitialLoad}
+            />
+          )}
+
+          {currentStep === 5 && <Step5Completed booking={booking} isInitialLoad={isInitialLoad} />}
+
+          {error && (
+            <div className="mt-6 bg-red-500/20 border border-red-500/30 rounded-lg p-4 text-red-300 text-center">
+              {error}
             </div>
           )}
-
-          {/* Trạng thái */}
-          {paying && (
-            <p
-              className={`text-center text-gray-400 transition-all duration-500 ease-out ${
-                isInitialLoad ? "opacity-0" : "opacity-100"
-              }`}
-              style={{ transitionDelay: "450ms" }}
-            >
-              Đang xử lý thanh toán...
-            </p>
-          )}
-          {success && (
-            <p
-              className={`text-center text-green-400 transition-all duration-500 ease-out ${
-                isInitialLoad ? "opacity-0" : "opacity-100"
-              }`}
-              style={{ transitionDelay: "450ms" }}
-            >
-              Thanh toán thành công! Vui lòng kiểm tra đơn trong trang cá nhân.
-            </p>
-          )}
-          {error && (
-            <p
-              className={`text-center text-red-400 transition-all duration-500 ease-out ${
-                isInitialLoad ? "opacity-0" : "opacity-100"
-              }`}
-              style={{ transitionDelay: "450ms" }}
-            >
-              {error}
-            </p>
-          )}
-
-          <p
-            className={`text-center text-xs text-gray-400 transition-all duration-700 ease-out ${
-              isInitialLoad ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
-            }`}
-            style={{ transitionDelay: "500ms" }}
-          >
-            Bằng cách thanh toán, bạn đồng ý với{" "}
-            <span className="underline">Điều khoản dịch vụ</span>.
-          </p>
         </div>
       </div>
     </ResizableLayout>

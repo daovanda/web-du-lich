@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import ResizableLayout from "@/components/ResizableLayout";
 import PostCard from "@/components/PostCard";
 import SpecialEvents from "@/components/SpecialEvents";
+import ServiceCard from "@/components/ServiceCard";
 import { Analytics } from "@vercel/analytics/react";
 
 // 🧱 Skeleton shimmer
@@ -25,6 +26,13 @@ function PostSkeleton() {
   );
 }
 
+// 🧱 Skeleton service card (khám phá)
+function ServiceSkeleton() {
+  return (
+    <div className="min-w-[260px] max-w-[260px] h-[300px] bg-gray-900 border border-gray-800 rounded-2xl animate-pulse" />
+  );
+}
+
 export default function Page() {
   const [posts, setPosts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -33,6 +41,14 @@ export default function Page() {
   const [hasMore, setHasMore] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [initialLoaded, setInitialLoaded] = useState(false);
+
+  // Services (khám phá)
+  const [services, setServices] = useState<any[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+
+  // Visibility map cho hiệu ứng fade in/out ServiceCard
+  const [serviceVisibleMap, setServiceVisibleMap] = useState<Record<string, boolean>>({});
+  const serviceItemObserverRef = useRef<IntersectionObserver | null>(null);
 
   const limit = 5;
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -44,7 +60,6 @@ export default function Page() {
   // 🧩 Cursor-based fetch - BỎ loading khỏi dependency
   const fetchPosts = useCallback(
     async (reset = false) => {
-      // ✅ Kiểm tra chặt chẽ hơn
       if (isFetchingRef.current) {
         console.log("⚠️ Đang fetch, bỏ qua request");
         return;
@@ -74,7 +89,6 @@ export default function Page() {
           query = query.lt("created_at", lastCursorRef.current);
         }
 
-        // ✅ Dùng currentSearchRef thay vì searchQuery
         if (currentSearchRef.current.trim()) {
           query = query.ilike("caption", `%${currentSearchRef.current}%`);
         }
@@ -110,7 +124,7 @@ export default function Page() {
         isFetchingRef.current = false;
       }
     },
-    [] // ✅ BỎ HẾT dependency để tránh recreate
+    []
   );
 
   // 🧠 Fetch user session
@@ -122,12 +136,12 @@ export default function Page() {
     checkUser();
   }, []);
 
-  // 🔎 Debounce search - cập nhật ref
+  // 🔎 Debounce search - cập nhật ref (giữ logic, chỉ ẩn UI tìm kiếm)
   useEffect(() => {
-    currentSearchRef.current = searchQuery; // ✅ Sync ref
+    currentSearchRef.current = searchQuery;
 
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    
+
     searchTimeoutRef.current = setTimeout(() => {
       lastCursorRef.current = null;
       setHasMore(true);
@@ -138,12 +152,11 @@ export default function Page() {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [searchQuery]); // ✅ Chỉ depend vào searchQuery
+  }, [searchQuery]);
 
   // 🧱 IntersectionObserver - disconnect khi loading
   const loadMoreRef = useCallback(
     (node: HTMLDivElement | null) => {
-      // ✅ Disconnect observer cũ trước
       if (observerRef.current) {
         observerRef.current.disconnect();
         observerRef.current = null;
@@ -151,7 +164,6 @@ export default function Page() {
 
       if (!node) return;
 
-      // ✅ Không tạo observer nếu đang loading hoặc hết data
       if (loading || !hasMore || !initialLoaded) {
         return;
       }
@@ -164,7 +176,7 @@ export default function Page() {
             fetchPosts(false);
           }
         },
-        { threshold: 0.1, rootMargin: "0px 0px 100px 0px" } // ✅ Giảm rootMargin
+        { threshold: 0.1, rootMargin: "0px 0px 100px 0px" }
       );
 
       observerRef.current.observe(node);
@@ -192,12 +204,127 @@ export default function Page() {
     fetchPosts(true);
   }, [fetchPosts]);
 
+  // 🔎 Fetch dịch vụ để “Khám phá”
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setServicesLoading(true);
+        const { data, error } = await supabase
+          .from("services")
+          .select(`
+            id,
+            title,
+            description,
+            image_url,
+            price,
+            type,
+            location,
+            average_rating,
+            reviews_count,
+            status,
+            created_at
+          `)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        if (mounted) setServices(data || []);
+      } catch (e) {
+        console.error("Fetch services error:", e);
+        if (mounted) setServices([]);
+      } finally {
+        if (mounted) setServicesLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Quan sát từng ServiceCard để fade in/out khi vào/ra viewport
+  const observeServiceItem = useCallback((node: HTMLDivElement | null, id: string) => {
+    if (!node) return;
+
+    if (!serviceItemObserverRef.current) {
+      serviceItemObserverRef.current = new IntersectionObserver(
+        (entries) => {
+          setServiceVisibleMap((prev) => {
+            const next = { ...prev };
+            for (const entry of entries) {
+              const targetId = (entry.target as HTMLDivElement).dataset.sid || "";
+              if (!targetId) continue;
+              next[targetId] = entry.isIntersecting;
+            }
+            return next;
+          });
+        },
+        { threshold: 0.15, rootMargin: "0px 0px -5% 0px" }
+      );
+    }
+
+    setServiceVisibleMap((prev) => (prev[id] === undefined ? { ...prev, [id]: false } : prev));
+    serviceItemObserverRef.current.observe(node);
+  }, []);
+
+  // Cleanup observer cho services
+  useEffect(() => {
+    return () => {
+      if (serviceItemObserverRef.current) {
+        serviceItemObserverRef.current.disconnect();
+        serviceItemObserverRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <>
       <ResizableLayout searchQuery={searchQuery} onSearchChange={setSearchQuery}>
         {/* 🔥 Special Events Section */}
         <div className="max-w-6xl mx-auto mt-4 px-4">
           <SpecialEvents isInitialLoad={isInitialLoad} />
+        </div>
+
+        {/* 🌟 Khám phá dịch vụ (horizontal scroll) */}
+        <div className="max-w-6xl mx-auto mt-6 px-4">
+          <div
+            className={`flex items-center justify-between mb-3 transition-all duration-700 ${
+              isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+            }`}
+          >
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Khám phá dịch vụ</h2>
+          </div>
+
+          <div
+            className={`relative transition-all duration-700 delay-100 ${
+              isInitialLoad ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+            }`}
+          >
+            <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth pb-2">
+              {servicesLoading
+                ? Array.from({ length: 6 }).map((_, i) => <ServiceSkeleton key={i} />)
+                : services.length > 0
+                ? services.map((service, index) => (
+                    <div
+                      key={service.id}
+                      data-sid={service.id}
+                      ref={(el) => observeServiceItem(el, service.id)}
+                      className={`min-w-[260px] max-w-[260px] snap-start transform transition-all duration-700 ease-out ${
+                        serviceVisibleMap[service.id] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+                      }`}
+                      style={{
+                        transitionDelay: `${Math.min(index, 8) * 60}ms`,
+                        willChange: "opacity, transform",
+                      }}
+                    >
+                      <ServiceCard service={service} />
+                    </div>
+                  ))
+                : (
+                  <p className="text-gray-500 text-sm">Hiện chưa có dịch vụ.</p>
+                )}
+            </div>
+          </div>
         </div>
 
         <div className="text-white mt-0">
@@ -209,12 +336,12 @@ export default function Page() {
             }`}
           >
             <p className="text-gray-400 text-sm sm:text-base">
-              Chia sẻ hành trình của bạn, khám phá những khoảnh khắc du lịch đầy
-              cảm hứng cùng cộng đồng Việt Nam Travel.
+              Chia sẻ hành trình và kinh nghiệm du lịch của bạn,
+              cùng khám phá những khoảnh khắc đầy cảm hứng với cộng đồng Việt Nam Travel.
             </p>
           </div>
 
-          {/* Bài đăng */}
+          {/* Bài đăng - Kinh nghiệm du lịch */}
           <div
             className={`max-w-2xl mx-auto p-4 transition-all duration-1000 ease-out delay-300 ${
               isInitialLoad
@@ -222,23 +349,6 @@ export default function Page() {
                 : "opacity-100 translate-y-0"
             }`}
           >
-            {/* Thanh tìm kiếm */}
-            <div
-              className={`my-2 transition-all duration-700 ease-out delay-500 ${
-                isInitialLoad
-                  ? "opacity-0 translate-y-4"
-                  : "opacity-100 translate-y-0"
-              }`}
-            >
-              <input
-                type="text"
-                placeholder="Tìm kiếm bài đăng..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full p-2 rounded-lg bg-gray-900 text-white border border-gray-700 focus:outline-none focus:border-gray-500 transition-all duration-300 ease-out hover:border-gray-600"
-              />
-            </div>
-
             {/* Posts List */}
             {loading && posts.length === 0 ? (
               <div className="flex flex-col gap-6">
@@ -303,6 +413,17 @@ export default function Page() {
 
       {/* ✅ Vercel Analytics */}
       <Analytics />
+
+      {/* CSS để ẩn scrollbar (dùng chung cho services và gallery) */}
+      <style jsx>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </>
   );
 }
