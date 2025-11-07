@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PENDING_SERVICE_TYPES, SERVICE_SOURCES } from "../types";
+import { validatePhone, validateEmail, validateFiles, formatPhoneNumber, formatPrice, parsePrice } from "../helpers";
 
 type PendingFormData = {
   title: string;
@@ -50,43 +51,6 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
-  // Helper functions
-  const validatePhone = (phone: string) => {
-    const cleanPhone = phone.replace(/\s/g, '');
-    const phoneRegex = /^(\+84|84|0)[0-9]{9,10}$/;
-    return phoneRegex.test(cleanPhone);
-  };
-
-  const validateFiles = (files: File[]) => {
-    const maxFiles = 10;
-    const maxSize = 5 * 1024 * 1024; // 5MB per file
-    
-    if (files.length > maxFiles) {
-      return `Tối đa ${maxFiles} hình ảnh`;
-    }
-    
-    for (const file of files) {
-      if (file.size > maxSize) {
-        return `File "${file.name}" quá lớn (tối đa 5MB)`;
-      }
-      if (!file.type.startsWith('image/')) {
-        return `File "${file.name}" không phải hình ảnh hợp lệ`;
-      }
-    }
-    
-    return null;
-  };
-
-  const formatPhoneNumber = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('84')) {
-      return '+' + cleaned;
-    } else if (cleaned.startsWith('0')) {
-      return '+84' + cleaned.slice(1);
-    }
-    return phone;
-  };
-
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -110,11 +74,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
     }
     
     if (!form.email.trim()) newErrors.email = "Email là bắt buộc";
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    if (form.email && !validateEmail(form.email)) {
       newErrors.email = "Email không hợp lệ";
     }
 
-    // File validation
     const allFiles = [...(avatarFile ? [avatarFile] : []), ...additionalFiles];
     const fileError = validateFiles(allFiles);
     if (fileError) {
@@ -155,6 +118,13 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
     setErrors({ ...errors, files: "" });
   };
 
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numericValue = parsePrice(value);
+    const formattedValue = formatPrice(numericValue);
+    setForm({ ...form, price: formattedValue });
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
     
@@ -162,7 +132,6 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
       await onSubmit(form, avatarFile, additionalFiles);
       alert("✅ Dịch vụ đã được thêm vào danh sách chờ duyệt!");
       
-      // Reset form
       setForm({
         title: "",
         type: "stay",
@@ -204,351 +173,418 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-black border border-gray-800 rounded-2xl p-6">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-white mb-2">Thêm Dịch Vụ Mới</h2>
-        <p className="text-gray-400 text-sm">Điền thông tin để chờ admin duyệt</p>
-      </div>
-
-      <div className="space-y-6">
-        {/* Basic Info */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white border-b border-gray-800 pb-2">Thông Tin Cơ Bản</h3>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tên dịch vụ *</label>
-            <input
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="Nhập tên dịch vụ..."
-              maxLength={200}
-              className={`w-full p-3 bg-gray-900 border rounded-lg text-white placeholder-gray-500 transition-colors ${
-                errors.title ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-              } outline-none`}
-            />
-            <div className="flex justify-between mt-1">
-              {errors.title && <p className="text-red-400 text-xs">{errors.title}</p>}
-              <p className="text-gray-500 text-xs ml-auto">{form.title.length}/200</p>
+    <div className="max-w-4xl mx-auto">
+      <div className="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-3xl shadow-2xl overflow-hidden border border-gray-700/50">
+        {/* Header với gradient */}
+        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-8 text-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-black/20"></div>
+          <div className="relative z-10">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-4">
+              <span className="text-4xl">✨</span>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Loại dịch vụ *</label>
-              <select
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-blue-500 outline-none"
-              >
-                {PENDING_SERVICE_TYPES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Nguồn gửi</label>
-              <select
-                value={form.source}
-                onChange={(e) => setForm({ ...form, source: e.target.value })}
-                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-blue-500 outline-none"
-              >
-                {SERVICE_SOURCES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Mô tả dịch vụ *</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Mô tả chi tiết về dịch vụ..."
-              maxLength={1000}
-              className={`w-full p-3 bg-gray-900 border rounded-lg text-white placeholder-gray-500 transition-colors h-24 resize-none ${
-                errors.description ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-              } outline-none`}
-            />
-            <div className="flex justify-between mt-1">
-              {errors.description && <p className="text-red-400 text-xs">{errors.description}</p>}
-              <p className="text-gray-500 text-xs ml-auto">{form.description.length}/1000</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Địa điểm *</label>
-              <input
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                placeholder="Ví dụ: Hà Nội, TP.HCM..."
-                className={`w-full p-3 bg-gray-900 border rounded-lg text-white placeholder-gray-500 transition-colors ${
-                  errors.location ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                } outline-none`}
-              />
-              {errors.location && <p className="text-red-400 text-xs mt-1">{errors.location}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Giá dịch vụ *</label>
-              <input
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                placeholder="Ví dụ: 500,000 VND/ngày"
-                className={`w-full p-3 bg-gray-900 border rounded-lg text-white placeholder-gray-500 transition-colors ${
-                  errors.price ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                } outline-none`}
-              />
-              {errors.price && <p className="text-red-400 text-xs mt-1">{errors.price}</p>}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tiện nghi</label>
-            <input
-              value={form.amenities}
-              onChange={(e) => setForm({ ...form, amenities: e.target.value })}
-              placeholder="wifi, hồ bơi, gym, parking (cách nhau bằng dấu phẩy)"
-              className="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-            />
+            <h2 className="text-3xl font-bold text-white mb-2">Thêm Dịch Vụ Mới</h2>
+            <p className="text-white/90 text-sm">Điền thông tin để chờ admin duyệt</p>
           </div>
         </div>
 
-        {/* Images */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white border-b border-gray-800 pb-2">Hình Ảnh</h3>
-          
-          {/* Avatar */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Ảnh đại diện</label>
-            <button
-              type="button"
-              onClick={() => document.getElementById("avatar-file")?.click()}
-              disabled={uploadingFiles}
-              className="w-full py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {uploadingFiles ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Đang tải lên...
-                </>
-              ) : (
-                <>
-                  <span>📸</span>
-                  Chọn ảnh đại diện
-                </>
-              )}
-            </button>
+        <div className="p-8 space-y-8">
+          {/* Basic Info */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <span className="text-xl">📝</span>
+              </div>
+              <h3 className="text-xl font-bold text-white">Thông Tin Cơ Bản</h3>
+            </div>
             
-            <input
-              id="avatar-file"
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-              disabled={uploadingFiles}
-            />
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">
+                Tên dịch vụ <span className="text-red-400">*</span>
+              </label>
+              <input
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="Nhập tên dịch vụ..."
+                maxLength={200}
+                className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
+                  errors.title ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
+                } outline-none`}
+              />
+              <div className="flex justify-between mt-2">
+                {errors.title && <p className="text-red-400 text-xs flex items-center gap-1">⚠️ {errors.title}</p>}
+                <p className="text-gray-500 text-xs ml-auto">{form.title.length}/200</p>
+              </div>
+            </div>
 
-            {avatarFile && (
-              <div className="flex items-center gap-3 p-3 bg-gray-900 border border-gray-700 rounded-lg mt-2">
-                <img
-                  src={URL.createObjectURL(avatarFile)}
-                  alt="Avatar preview"
-                  className="w-12 h-12 object-cover rounded-lg"
-                />
-                <div className="flex-1">
-                  <p className="text-white text-sm font-medium">{avatarFile.name}</p>
-                  <p className="text-gray-400 text-xs">{(avatarFile.size / 1024 / 1024).toFixed(1)}MB</p>
-                </div>
-                <button
-                  onClick={removeAvatar}
-                  disabled={uploadingFiles}
-                  className="text-red-400 hover:text-red-300 transition disabled:opacity-50"
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  Loại dịch vụ <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white focus:border-blue-500 focus:bg-gray-800 outline-none transition-all appearance-none cursor-pointer"
+                  style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem'}}
                 >
-                  ✕
-                </button>
+                  {PENDING_SERVICE_TYPES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">Nguồn gửi</label>
+                <select
+                  value={form.source}
+                  onChange={(e) => setForm({ ...form, source: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white focus:border-blue-500 focus:bg-gray-800 outline-none transition-all appearance-none cursor-pointer"
+                  style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem'}}
+                >
+                  {SERVICE_SOURCES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">
+                Mô tả dịch vụ <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Mô tả chi tiết về dịch vụ..."
+                maxLength={1000}
+                className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all h-32 resize-none focus:bg-gray-800 ${
+                  errors.description ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
+                } outline-none`}
+              />
+              <div className="flex justify-between mt-2">
+                {errors.description && <p className="text-red-400 text-xs flex items-center gap-1">⚠️ {errors.description}</p>}
+                <p className="text-gray-500 text-xs ml-auto">{form.description.length}/1000</p>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  Địa điểm <span className="text-red-400">*</span>
+                </label>
+                <input
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  placeholder="Ví dụ: Hà Nội, TP.HCM..."
+                  className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
+                    errors.location ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
+                  } outline-none`}
+                />
+                {errors.location && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.location}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  Giá dịch vụ <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    value={form.price}
+                    onChange={handlePriceChange}
+                    placeholder="500.000"
+                    className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
+                      errors.price ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
+                    } outline-none pr-16`}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">VND</span>
+                </div>
+                {errors.price && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.price}</p>}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">Tiện nghi</label>
+              <input
+                value={form.amenities}
+                onChange={(e) => setForm({ ...form, amenities: e.target.value })}
+                placeholder="wifi, hồ bơi, gym, parking (cách nhau bằng dấu phẩy)"
+                className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+              />
+            </div>
           </div>
 
-          {/* Additional Images */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Hình ảnh bổ sung ({additionalFiles.length}/9)</label>
+          {/* Images */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
+                <span className="text-xl">📸</span>
+              </div>
+              <h3 className="text-xl font-bold text-white">Hình Ảnh</h3>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-3">Ảnh đại diện</label>
+              <button
+                type="button"
+                onClick={() => document.getElementById("avatar-file")?.click()}
+                disabled={uploadingFiles}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                {uploadingFiles ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Đang tải lên...
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xl">📷</span>
+                    Chọn ảnh đại diện
+                  </>
+                )}
+              </button>
+              
+              <input
+                id="avatar-file"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+                disabled={uploadingFiles}
+              />
+
+              {avatarFile && (
+                <div className="flex items-center gap-3 p-4 bg-gray-800/50 border-2 border-gray-700 rounded-xl mt-3 hover:border-gray-600 transition-all">
+                  <img
+                    src={URL.createObjectURL(avatarFile)}
+                    alt="Avatar preview"
+                    className="w-16 h-16 object-cover rounded-lg shadow-md"
+                  />
+                  <div className="flex-1">
+                    <p className="text-white text-sm font-semibold">{avatarFile.name}</p>
+                    <p className="text-gray-400 text-xs mt-1">{(avatarFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                  <button
+                    onClick={removeAvatar}
+                    disabled={uploadingFiles}
+                    className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-3">
+                Hình ảnh bổ sung <span className="text-gray-500">({additionalFiles.length}/9)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => document.getElementById("additional-files")?.click()}
+                disabled={uploadingFiles}
+                className="w-full py-4 rounded-xl bg-gray-800/50 border-2 border-gray-700 hover:bg-gray-800 hover:border-gray-600 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {uploadingFiles ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Đang tải lên...
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xl">🖼️</span>
+                    Thêm hình ảnh
+                  </>
+                )}
+              </button>
+              
+              <input
+                id="additional-files"
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={handleAdditionalFilesChange}
+                disabled={uploadingFiles}
+              />
+
+              {errors.files && (
+                <div className="flex items-start gap-2 text-red-400 text-sm bg-red-900/20 p-4 rounded-xl border-2 border-red-500/50 mt-3">
+                  <span className="text-lg">⚠️</span>
+                  <span>{errors.files}</span>
+                </div>
+              )}
+
+              {additionalFiles.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  {additionalFiles.map((file, i) => (
+                    <div key={i} className="relative group">
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`preview-${i}`}
+                        className="w-full h-24 object-cover rounded-lg shadow-md group-hover:shadow-lg transition-all"
+                      />
+                      <button
+                        onClick={() => removeAdditionalImage(i)}
+                        disabled={uploadingFiles}
+                        className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm hover:bg-red-600 transition-all disabled:opacity-50 shadow-lg"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Owner Info */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                <span className="text-xl">👤</span>
+              </div>
+              <h3 className="text-xl font-bold text-white">Thông Tin Liên Hệ</h3>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  Tên chủ sở hữu <span className="text-red-400">*</span>
+                </label>
+                <input
+                  value={form.owner_name}
+                  onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
+                  placeholder="Nhập tên đầy đủ..."
+                  className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
+                    errors.owner_name ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
+                  } outline-none`}
+                />
+                {errors.owner_name && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.owner_name}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  Số điện thoại <span className="text-red-400">*</span>
+                </label>
+                <input
+                  value={form.phone}
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value);
+                    setForm({ ...form, phone: formatted });
+                  }}
+                  placeholder="+84xxxxxxxxx"
+                  className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
+                    errors.phone ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
+                  } outline-none`}
+                />
+                {errors.phone && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.phone}</p>}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-300 mb-2">
+                Email <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="example@email.com"
+                className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
+                  errors.email ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
+                } outline-none`}
+              />
+              {errors.email && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.email}</p>}
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-blue-400">📘</span> Facebook
+                  </span>
+                </label>
+                <input
+                  value={form.facebook}
+                  onChange={(e) => setForm({ ...form, facebook: e.target.value })}
+                  placeholder="https://facebook.com/..."
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-blue-500">💬</span> Zalo
+                  </span>
+                </label>
+                <input
+                  value={form.zalo}
+                  onChange={(e) => setForm({ ...form, zalo: e.target.value })}
+                  placeholder="Số điện thoại Zalo"
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-pink-400">🎵</span> TikTok
+                  </span>
+                </label>
+                <input
+                  value={form.tiktok}
+                  onChange={(e) => setForm({ ...form, tiktok: e.target.value })}
+                  placeholder="@username"
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-pink-500">📷</span> Instagram
+                  </span>
+                </label>
+                <input
+                  value={form.instagram}
+                  onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+                  placeholder="@username"
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <div className="pt-6">
             <button
-              type="button"
-              onClick={() => document.getElementById("additional-files")?.click()}
-              disabled={uploadingFiles}
-              className="w-full py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={handleSubmit}
+              disabled={loading || uploadingFiles}
+              className="w-full py-5 rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5"
             >
-              {uploadingFiles ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Đang tải lên...
-                </>
+              {loading ? (
+                <span className="flex items-center justify-center gap-3">
+                  <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Đang gửi...
+                </span>
               ) : (
-                <>
-                  <span>📷</span>
-                  Thêm hình ảnh
-                </>
+                <span className="flex items-center justify-center gap-2">
+                  <span className="text-2xl">🚀</span>
+                  Gửi Dịch Vụ Chờ Duyệt
+                </span>
               )}
             </button>
             
-            <input
-              id="additional-files"
-              type="file"
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={handleAdditionalFilesChange}
-              disabled={uploadingFiles}
-            />
-
-            {errors.files && (
-              <p className="text-red-400 text-sm bg-red-900/20 p-3 rounded-lg border border-red-500 mt-2">
-                {errors.files}
+            <div className="text-center mt-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl">
+              <p className="text-blue-300 text-sm flex items-center justify-center gap-2">
+                <span className="text-lg">⏰</span>
+                Dịch vụ sẽ được admin xem xét và duyệt trong vòng 24-48 giờ
               </p>
-            )}
-
-            {additionalFiles.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {additionalFiles.map((file, i) => (
-                  <div key={i} className="relative group">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`preview-${i}`}
-                      className="w-full h-20 object-cover rounded-lg"
-                    />
-                    <button
-                      onClick={() => removeAdditionalImage(i)}
-                      disabled={uploadingFiles}
-                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 transition disabled:opacity-50"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Owner Info */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white border-b border-gray-800 pb-2">Thông Tin Liên Hệ</h3>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Tên chủ sở hữu *</label>
-              <input
-                value={form.owner_name}
-                onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
-                placeholder="Nhập tên đầy đủ..."
-                className={`w-full p-3 bg-gray-900 border rounded-lg text-white placeholder-gray-500 transition-colors ${
-                  errors.owner_name ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                } outline-none`}
-              />
-              {errors.owner_name && <p className="text-red-400 text-xs mt-1">{errors.owner_name}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Số điện thoại *</label>
-              <input
-                value={form.phone}
-                onChange={(e) => {
-                  const formatted = formatPhoneNumber(e.target.value);
-                  setForm({ ...form, phone: formatted });
-                }}
-                placeholder="+84xxxxxxxxx"
-                className={`w-full p-3 bg-gray-900 border rounded-lg text-white placeholder-gray-500 transition-colors ${
-                  errors.phone ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                } outline-none`}
-              />
-              {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="example@email.com"
-              className={`w-full p-3 bg-gray-900 border rounded-lg text-white placeholder-gray-500 transition-colors ${
-                errors.email ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-              } outline-none`}
-            />
-            {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Facebook</label>
-              <input
-                value={form.facebook}
-                onChange={(e) => setForm({ ...form, facebook: e.target.value })}
-                placeholder="https://facebook.com/..."
-                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Zalo</label>
-              <input
-                value={form.zalo}
-                onChange={(e) => setForm({ ...form, zalo: e.target.value })}
-                placeholder="Số điện thoại Zalo"
-                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">TikTok</label>
-              <input
-                value={form.tiktok}
-                onChange={(e) => setForm({ ...form, tiktok: e.target.value })}
-                placeholder="@username"
-                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Instagram</label>
-              <input
-                value={form.instagram}
-                onChange={(e) => setForm({ ...form, instagram: e.target.value })}
-                placeholder="@username"
-                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Submit */}
-        <div className="pt-4">
-          <button
-            onClick={handleSubmit}
-            disabled={loading || uploadingFiles}
-            className="w-full py-4 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold text-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Đang gửi...
-              </span>
-            ) : (
-              "🚀 Gửi Dịch Vụ Chờ Duyệt"
-            )}
-          </button>
-          
-          <p className="text-center text-gray-400 text-sm mt-3">
-            Dịch vụ sẽ được admin xem xét và duyệt trong vòng 24-48 giờ
-          </p>
         </div>
       </div>
     </div>

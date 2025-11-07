@@ -32,8 +32,8 @@ export type Service = {
   type: string;
   location: string | null;
   price: string | null;
-  image_url?: string | null; // Ảnh đại diện
-  images: string[] | null; // Mảng ảnh phụ
+  image_url?: string | null;
+  images: string[] | null;
   amenities: any[] | null;
   average_rating?: number | null;
   reviews_count?: number | null;
@@ -56,6 +56,131 @@ export type Service = {
   tiktok?: string | null;
   instagram?: string | null;
   address?: string | null;
+};
+
+// Tour Detail type
+export type TourDetail = {
+  destination: string;
+  duration_days: number;
+  start_date: string;
+  end_date: string;
+  available_slots: number;
+  guide_name: string | null;
+  itinerary: Record<string, string> | null;
+};
+
+// Stay Detail type
+export type StayDetail = {
+  accommodation_type: string;
+  max_guests: number;
+  number_of_rooms: number;
+  number_of_beds: number;
+  price_per_night: number | null;
+};
+
+// Accommodation types
+export const ACCOMMODATION_TYPES = [
+  { value: "hotel", label: "Khách sạn" },
+  { value: "resort", label: "Resort" },
+  { value: "homestay", label: "Homestay" },
+  { value: "apartment", label: "Căn hộ" },
+  { value: "villa", label: "Biệt thự" },
+  { value: "hostel", label: "Nhà trọ" },
+  { value: "guesthouse", label: "Nhà nghỉ" },
+  { value: "boutique_hotel", label: "Boutique Hotel" },
+  { value: "bungalow", label: "Bungalow" },
+  { value: "cabin", label: "Cabin" },
+];
+
+// Car Detail type
+export type CarDetail = {
+  route: string;
+  departure_location: string;
+  arrival_location: string;
+  seats: number;
+  vehicle_type: string;
+  departure_time: string | null;
+  arrival_time: string | null;
+  duration_hours: number | null;
+};
+
+// Vehicle types
+export const VEHICLE_TYPES = [
+  { value: "sleeper_bus", label: "Xe khách giường nằm" },
+  { value: "limousine_cabin", label: "Limousine cabin riêng" },
+  { value: "limousine", label: "Limousine" },
+  { value: "seat_bus", label: "Xe khách ghế ngồi" },
+  { value: "private_charter", label: "Xe riêng đưa đón tận nơi" },
+];
+
+// Popular locations
+export const POPULAR_LOCATIONS = [
+  "Hà Nội",
+  "TP. Hồ Chí Minh",
+  "Đà Nẵng",
+  "Hải Phòng",
+  "Hạ Long",
+  "Ninh Bình",
+  "Sapa",
+  "Huế",
+  "Hội An",
+  "Nha Trang",
+  "Đà Lạt",
+  "Vũng Tàu",
+  "Cần Thơ",
+  "Phú Quốc",
+];
+
+// Motorbike Detail type
+export type MotorbikeDetail = {
+  brand: string;
+  model: string;
+  engine_size: number;
+  bike_type: string;
+  year: number;
+  price_per_day: number;
+};
+
+// Bike types
+export const BIKE_TYPES = [
+  { value: "", label: "Tất cả loại" },
+  { value: "scooter", label: "Xe tay ga" },  // Vision, Lead, SH Mode: Dễ đi, đi phố
+  { value: "manual", label: "Xe số" }, // Wave, Sirius: Giá rẻ, đi đèo khỏe
+  { value: "clutch", label: "Xe côn tay" }, // Exciter, Winner X: Trẻ, thích mạnh
+  { value: "adventure", label: "Xe chuyên đi phượt xa" }, // CB500X, GSX, ADV: Đi phượt xa
+  { value: "electric", label: "Xe điện" }, // VinFast Evo, Yadea: Nội đô, rẻ nhiên liệu
+];
+
+// Popular brands
+export const POPULAR_BRANDS = [
+  "Honda",
+  "Yamaha",
+  "Suzuki",
+  "Kawasaki",
+  "Piaggio",
+  "SYM",
+  "Vespa",
+  "Ducati",
+  "BMW",
+  "Harley-Davidson",
+];
+
+// ApproveForm type
+export type ApproveForm = {
+  title: string;
+  description: string;
+  type: string;
+  location: string;
+  price: string;
+  images: string[];
+  amenities: string;
+  owner_name: string;
+  phone: string;
+  email: string;
+  facebook: string;
+  zalo: string;
+  tiktok: string;
+  instagram: string;
 };
 
 // Pending services chỉ hỗ trợ 3 loại dịch vụ

@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import { Service } from "../types";
 import { uploadImagesToBucket } from "../helpers";
 import { supabase } from "@/lib/supabase";
+import { useServiceDetail } from "../hooks/useServiceDetails";
 import ImageEditorModal from "./ImageEditorModal";
 import TourDetailEditor from "./TourDetailEditor";
+import StayDetailEditor from "./StayDetailEditor";
+import CarDetailEditor from "./CarDetailEditor";
+import MotorbikeDetailEditor from "./MotorbikeDetailEditor";
 
 type Props = {
   open: boolean;
@@ -14,68 +18,33 @@ type Props = {
   onUpdate?: (updatedService: Service) => void;
 };
 
-type TourDetail = {
-  destination: string;
-  duration_days: number;
-  start_date: string;
-  end_date: string;
-  available_slots: number;
-  guide_name: string | null;
-  itinerary: Record<string, string> | null;
-};
-
 export default function ServiceDetailModal({ open, service, onClose, onUpdate }: Props) {
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [showTourEditor, setShowTourEditor] = useState(false);
+  const [showStayEditor, setShowStayEditor] = useState(false);
+  const [showCarEditor, setShowCarEditor] = useState(false);
+  const [showMotorbikeEditor, setShowMotorbikeEditor] = useState(false);
   const [existingImages, setExistingImages] = useState<string[]>([]);
-  const [tourDetail, setTourDetail] = useState<TourDetail | null>(null);
-  const [loadingTour, setLoadingTour] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Sync existing images khi mở modal
+  // Use the hook to fetch service details
+  const { data: serviceDetail, loading } = useServiceDetail(
+    open ? service?.id || null : null,
+    open ? (service?.type as any) || null : null
+  );
+
   useEffect(() => {
     if (service?.images) {
       setExistingImages(service.images);
     }
   }, [service?.images]);
 
-  // Fetch tour details nếu service type là tour
-  useEffect(() => {
-    const fetchTourDetails = async () => {
-      if (service?.type === "tour" && service?.id && open) {
-        setLoadingTour(true);
-        try {
-          const { data, error } = await supabase
-            .from("tours")
-            .select("*")
-            .eq("id", service.id)
-            .maybeSingle();
-
-          if (!error && data) {
-            setTourDetail(data);
-          } else {
-            setTourDetail(null);
-          }
-        } catch (err) {
-          console.error("Error fetching tour:", err);
-          setTourDetail(null);
-        } finally {
-          setLoadingTour(false);
-        }
-      }
-    };
-
-    fetchTourDetails();
-  }, [service?.id, service?.type, open]);
-
   if (!open || !service) return null;
 
-  /* ========== HELPER FUNCTIONS ========== */
-  const formatCurrencyVND = (value?: string | null) => {
+  const formatCurrencyVND = (value?: string | number | null) => {
     if (!value) return "—";
-    const numMatch = value.match(/[\d,]+/);
-    if (!numMatch) return value;
-    const num = parseInt(numMatch[0].replace(/,/g, ''));
-    if (isNaN(num)) return value;
+    const num = typeof value === 'string' ? parseInt(value.replace(/[^\d]/g, '')) : value;
+    if (isNaN(num)) return value.toString();
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(num);
   };
 
@@ -95,27 +64,16 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
     return new Date(dateString).toLocaleDateString("vi-VN");
   };
 
-  const getStatusColor = (status?: string | null) => {
-    switch (status) {
-      case "active": return "text-green-400";
-      case "inactive": return "text-yellow-400";
-      case "archived": return "text-gray-400";
-      default: return "text-gray-400";
-    }
-  };
-
   const getTypeLabel = (type?: string | null) => {
     const typeMap: Record<string, string> = {
       "stay": "Lưu trú",
       "car": "Thuê xe",
       "motorbike": "Thuê xe máy",
-      "tour": "Tour du lịch",
-      "trekking": "Trekking"
+      "tour": "Tour du lịch"
     };
     return typeMap[type || ""] || type || "—";
   };
 
-  /* ========== SAVE IMAGES ========== */
   const handleSaveImages = async ({
     avatarFile,
     additionalFiles,
@@ -158,312 +116,378 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
     alert("Đã cập nhật ảnh thành công!");
   };
 
-  /* ========== SAVE TOUR DETAILS ========== */
-  const handleTourSaved = async () => {
-    // Re-fetch tour details after save
-    if (service?.id) {
-      const { data } = await supabase
-        .from("tours")
-        .select("*")
-        .eq("id", service.id)
-        .maybeSingle();
+  const handleDetailSaved = () => {
+    // Trigger re-fetch by changing key
+    setRefreshKey(prev => prev + 1);
+  };
 
-      if (data) {
-        setTourDetail(data);
-      }
+  const renderDetailButton = () => {
+    const buttonClass = "px-4 py-2 rounded-lg text-sm font-medium text-white transition disabled:opacity-50";
+    
+    switch (service.type) {
+      case "tour":
+        return (
+          <button
+            onClick={() => setShowTourEditor(true)}
+            disabled={loading}
+            className={`${buttonClass} bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600`}
+          >
+            {serviceDetail ? "Sửa Tour" : "Thêm Tour"}
+          </button>
+        );
+      
+      case "stay":
+        return (
+          <button
+            onClick={() => setShowStayEditor(true)}
+            disabled={loading}
+            className={`${buttonClass} bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600`}
+          >
+            {serviceDetail ? "Sửa Chỗ ở" : "Thêm Chỗ ở"}
+          </button>
+        );
+      
+      case "car":
+        return (
+          <button
+            onClick={() => setShowCarEditor(true)}
+            disabled={loading}
+            className={`${buttonClass} bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600`}
+          >
+            {serviceDetail ? "Sửa Xe" : "Thêm Xe"}
+          </button>
+        );
+      
+      case "motorbike":
+        return (
+          <button
+            onClick={() => setShowMotorbikeEditor(true)}
+            disabled={loading}
+            className={`${buttonClass} bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600`}
+          >
+            {serviceDetail ? "Sửa Xe máy" : "Thêm Xe máy"}
+          </button>
+        );
+      
+      default:
+        return null;
     }
   };
 
-  /* ========== RENDER ========== */
-  return (
-    <>
-      {/* === MODAL CHI TIẾT DỊCH VỤ === */}
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4 py-8">
-        <div className="bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 text-white w-full max-w-4xl rounded-3xl shadow-2xl border border-neutral-700 max-h-[95vh] overflow-y-auto">
-          {/* Header */}
-          <div className="sticky top-0 bg-neutral-900/95 backdrop-blur-sm border-b border-neutral-700 p-6 rounded-t-3xl z-10">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
-                  {service.title}
-                </h2>
-                <div className="flex items-center gap-4 text-sm text-gray-400">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-                    <span className={getStatusColor(service.status)}>
-                      {service.status === "active" ? "Hoạt động" : 
-                       service.status === "inactive" ? "Tạm dừng" : 
-                       service.status === "archived" ? "Lưu trữ" : service.status}
-                    </span>
-                  </span>
-                  <span>•</span>
-                  <span>{getTypeLabel(service.type)}</span>
-                  <span>•</span>
-                  <span>ID: {service.id.slice(0, 8)}...</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {/* Nút Tour Editor - Chỉ hiện với type="tour" */}
-                {service.type === "tour" && (
-                  <button
-                    onClick={() => setShowTourEditor(true)}
-                    disabled={loadingTour}
-                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 rounded-lg text-sm font-medium text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loadingTour ? (
-                      <span className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Đang tải...
-                      </span>
-                    ) : tourDetail ? (
-                      "Sửa thông tin tour"
-                    ) : (
-                      "Thêm thông tin tour"
-                    )}
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowImageEditor(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg text-sm font-medium text-white transition"
-                >
-                  Chỉnh sửa ảnh
-                </button>
-                <button 
-                  onClick={onClose} 
-                  className="text-gray-400 hover:text-white text-2xl transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+  const renderServiceDetails = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <div className="flex items-center gap-3 text-gray-400">
+            <div className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
+            <span>Đang tải thông tin...</span>
           </div>
+        </div>
+      );
+    }
 
-          <div className="p-6 space-y-6">
-            {/* Service Overview */}
-            <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">📋 Tổng Quan Dịch Vụ</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Loại dịch vụ</span>
-                    <p className="text-white font-medium">{getTypeLabel(service.type)}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Địa điểm</span>
-                    <p className="text-white">{service.location || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Giá dịch vụ</span>
-                    <p className="text-white font-semibold text-lg">{formatCurrencyVND(service.price)}</p>
-                  </div>
-                </div>
+    if (!serviceDetail) return null;
 
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Đánh giá trung bình</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-yellow-400 text-xl">⭐</span>
-                      <span className="text-white font-semibold text-lg">{service.average_rating || "0.0"}</span>
-                      <span className="text-gray-400 text-sm">({service.reviews_count || 0} đánh giá)</span>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Số lượt đánh giá</span>
-                    <p className="text-white">{service.reviews_count || 0}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Ngày tạo</span>
-                    <p className="text-white">{formatDate(service.created_at)}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Trạng thái</span>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                      service.status === "active" ? "bg-green-500/20 text-green-400" :
-                      service.status === "inactive" ? "bg-yellow-500/20 text-yellow-400" :
-                      service.status === "archived" ? "bg-gray-500/20 text-gray-400" :
-                      "bg-gray-500/20 text-gray-400"
-                    }`}>
-                      {service.status === "active" ? "Hoạt động" : 
-                       service.status === "inactive" ? "Tạm dừng" : 
-                       service.status === "archived" ? "Lưu trữ" : service.status || "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Ngày duyệt</span>
-                    <p className="text-white">{formatDate(service.approved_at)}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Duyệt bởi</span>
-                    <p className="text-white">{service.approved_by ? "Admin" : "—"}</p>
-                  </div>
-                </div>
+    switch (service.type) {
+      case "tour":
+        return (
+          <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 rounded-xl p-5 border border-green-700/50">
+            <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+              <span>🗺️</span>
+              <span>Thông Tin Tour</span>
+            </h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Điểm đến</span>
+                <p className="text-white font-medium">{serviceDetail.destination}</p>
               </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Thời lượng</span>
+                <p className="text-white font-medium">{serviceDetail.duration_days} ngày</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Khởi hành</span>
+                <p className="text-white">{formatDateOnly(serviceDetail.start_date)}</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Kết thúc</span>
+                <p className="text-white">{formatDateOnly(serviceDetail.end_date)}</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Chỗ trống</span>
+                <p className="text-green-400 font-semibold">{serviceDetail.available_slots} chỗ</p>
+              </div>
+              {serviceDetail.guide_name && (
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Hướng dẫn viên</span>
+                  <p className="text-white">{serviceDetail.guide_name}</p>
+                </div>
+              )}
             </div>
 
-            {/* Tour Details Section - Chỉ hiện nếu type="tour" */}
-            {service.type === "tour" && (
-              <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 rounded-2xl p-6 border border-green-700/50">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <span className="mr-2">🗺️ Thông Tin Tour</span>
-                </h3>
-                
-                {loadingTour ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="flex items-center gap-3 text-gray-400">
-                      <div className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
-                      <span>Đang tải thông tin tour...</span>
+            {serviceDetail.itinerary && Object.keys(serviceDetail.itinerary).length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                  <span>📅</span>
+                  <span>Lịch trình</span>
+                </h4>
+                <div className="space-y-2">
+                  {Object.entries(serviceDetail.itinerary).map(([day, content], index) => (
+                    <div key={day} className="flex gap-2 bg-gray-800/50 rounded-lg p-3">
+                      <div className="flex-shrink-0 w-7 h-7 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center font-bold text-xs">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-400 text-xs mb-0.5">{day}</p>
+                        <p className="text-sm text-gray-300">{String(content)}</p>
+                      </div>
                     </div>
-                  </div>
-                ) : tourDetail ? (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <div>
-                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Điểm đến</span>
-                        <p className="text-white font-medium">{tourDetail.destination}</p>
-                      </div>
-                      <div>
-                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Thời lượng</span>
-                        <p className="text-white font-medium">{tourDetail.duration_days} ngày</p>
-                      </div>
-                      <div>
-                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Khởi hành</span>
-                        <p className="text-white">{formatDateOnly(tourDetail.start_date)}</p>
-                      </div>
-                      <div>
-                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Kết thúc</span>
-                        <p className="text-white">{formatDateOnly(tourDetail.end_date)}</p>
-                      </div>
-                      <div>
-                        <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Chỗ trống</span>
-                        <p className="text-white font-semibold text-lg text-green-400">{tourDetail.available_slots} chỗ</p>
-                      </div>
-                      {tourDetail.guide_name && (
-                        <div>
-                          <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Hướng dẫn viên</span>
-                          <p className="text-white">{tourDetail.guide_name}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Itinerary */}
-                    {tourDetail.itinerary && Object.keys(tourDetail.itinerary).length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-neutral-700">
-                        <h4 className="font-semibold mb-4 flex items-center gap-2">
-                          <span>📅</span>
-                          <span>Lịch trình chi tiết</span>
-                        </h4>
-                        <div className="space-y-3">
-                          {Object.entries(tourDetail.itinerary).map(([day, content], index) => (
-                            <div key={day} className="flex gap-3 bg-neutral-800/50 rounded-xl p-4">
-                              <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
-                                {index + 1}
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-medium capitalize text-gray-300 mb-1">
-                                  {day.replace(/_/g, " ").replace(/day/i, "Ngày")}
-                                </p>
-                                <p className="text-gray-400 text-sm leading-relaxed">{String(content)}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-gray-400">
-                    <p className="mb-4">Chưa có thông tin tour chi tiết</p>
-                    <button
-                      onClick={() => setShowTourEditor(true)}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white transition"
-                    >
-                      Thêm thông tin tour
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Owner Information */}
-            <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <span className="mr-2">👤 Thông Tin Chủ Sở Hữu</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Tên chủ sở hữu</span>
-                    <p className="text-white font-medium">{service.owner_name || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Số điện thoại</span>
-                    <p className="text-white">{service.phone || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Email</span>
-                    <p className="text-white">{service.email || "—"}</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Facebook</span>
-                    <p className="text-white">{service.facebook || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Zalo</span>
-                    <p className="text-white">{service.zalo || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">TikTok</span>
-                    <p className="text-white">{service.tiktok || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-400 uppercase tracking-wide mb-1">Instagram</span>
-                    <p className="text-white">{service.instagram || "—"}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Amenities */}
-            {service.amenities && Array.isArray(service.amenities) && service.amenities.length > 0 && (
-              <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <span className="mr-2">✨ Tiện Nghi</span>
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {service.amenities.map((amenity, index) => (
-                    <span 
-                      key={index}
-                      className="px-3 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 rounded-full text-sm border border-purple-500/30"
-                    >
-                      {typeof amenity === 'string' ? amenity : amenity.name || amenity}
-                    </span>
                   ))}
                 </div>
               </div>
             )}
+          </div>
+        );
+
+      case "stay":
+        return (
+          <div className="bg-gradient-to-br from-emerald-900/20 to-blue-900/20 rounded-xl p-5 border border-emerald-700/50">
+            <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+              <span>🏠</span>
+              <span>Thông Tin Chỗ ở</span>
+            </h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Loại chỗ ở</span>
+                <p className="text-white font-medium capitalize">{serviceDetail.accommodation_type.replace('_', ' ')}</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Số khách tối đa</span>
+                <p className="text-white font-medium">{serviceDetail.max_guests} người</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Số phòng</span>
+                <p className="text-white font-medium">{serviceDetail.number_of_rooms} phòng</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Số giường</span>
+                <p className="text-white font-medium">{serviceDetail.number_of_beds} giường</p>
+              </div>
+              {serviceDetail.price_per_night && (
+                <div className="md:col-span-2">
+                  <span className="block text-xs text-gray-400 mb-1">Giá mỗi đêm</span>
+                  <p className="text-emerald-400 font-semibold text-lg">
+                    {formatCurrencyVND(serviceDetail.price_per_night)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case "car":
+        return (
+          <div className="bg-gradient-to-br from-orange-900/20 to-red-900/20 rounded-xl p-5 border border-orange-700/50">
+            <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+              <span>🚗</span>
+              <span>Thông Tin Xe</span>
+            </h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="md:col-span-3">
+                <span className="block text-xs text-gray-400 mb-1">Tuyến đường</span>
+                <p className="text-white font-medium">{serviceDetail.route}</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Điểm khởi hành</span>
+                <p className="text-white">{serviceDetail.departure_location}</p>
+                {serviceDetail.departure_time && (
+                  <p className="text-orange-400 text-sm mt-1">{serviceDetail.departure_time}</p>
+                )}
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Điểm đến</span>
+                <p className="text-white">{serviceDetail.arrival_location}</p>
+                {serviceDetail.arrival_time && (
+                  <p className="text-orange-400 text-sm mt-1">{serviceDetail.arrival_time}</p>
+                )}
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Thời gian</span>
+                <p className="text-white font-medium">
+                  {serviceDetail.duration_hours ? `${serviceDetail.duration_hours}h` : "—"}
+                </p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Loại xe</span>
+                <p className="text-white font-medium capitalize">{serviceDetail.vehicle_type}</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Số chỗ ngồi</span>
+                <p className="text-orange-400 font-semibold">{serviceDetail.seats} chỗ</p>
+              </div>
+            </div>
+          </div>
+        );
+
+      case "motorbike":
+        return (
+          <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 rounded-xl p-5 border border-cyan-700/50">
+            <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+              <span>🏍️</span>
+              <span>Thông Tin Xe Máy</span>
+            </h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <span className="block text-xs text-gray-400 mb-1">Xe</span>
+                <p className="text-white font-bold text-lg">
+                  {serviceDetail.brand} {serviceDetail.model}
+                </p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Loại xe</span>
+                <p className="text-white capitalize">{serviceDetail.bike_type}</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Dung tích</span>
+                <p className="text-white font-medium">{serviceDetail.engine_size}cc</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-400 mb-1">Năm sản xuất</span>
+                <p className="text-white font-medium">{serviceDetail.year}</p>
+              </div>
+
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-gradient-to-br from-gray-900 to-black text-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-800 max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-start justify-between p-5 border-b border-gray-800">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purpSle-400 bg-clip-text text-transparent mb-2">
+                {service.title}
+              </h2>
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span className={`px-2 py-1 rounded ${
+                  service.status === "active" ? "bg-green-500/20 text-green-400" :
+                  service.status === "inactive" ? "bg-yellow-500/20 text-yellow-400" :
+                  "bg-gray-500/20 text-gray-400"
+                }`}>
+                  {service.status === "active" ? "Hoạt động" : 
+                   service.status === "inactive" ? "Tạm dừng" : "Lưu trữ"}
+                </span>
+                <span>•</span>
+                <span>{getTypeLabel(service.type)}</span>
+                <span>•</span>
+                <span>ID: {service.id.slice(0, 8)}...</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {renderDetailButton()}
+              <button
+                onClick={() => setShowImageEditor(true)}
+                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg text-sm font-medium transition"
+              >
+                Ảnh
+              </button>
+              <button 
+                onClick={onClose} 
+                className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {/* Service Overview */}
+            <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
+              <h3 className="text-base font-semibold mb-4">📋 Tổng Quan</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Địa điểm</span>
+                  <p className="text-white">{service.location || "—"}</p>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Giá</span>
+                  <p className="text-white font-semibold">{formatCurrencyVND(service.price)}</p>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Đánh giá</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-yellow-400">⭐</span>
+                    <span className="text-white font-semibold">{service.average_rating || "0.0"}</span>
+                    <span className="text-gray-400">({service.reviews_count || 0})</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Ngày tạo</span>
+                  <p className="text-white">{formatDate(service.created_at)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Service Specific Details */}
+            {renderServiceDetails()}
+
+            {/* Owner Information */}
+            <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
+              <h3 className="text-base font-semibold mb-4">👤 Chủ Sở Hữu</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Tên</span>
+                  <p className="text-white">{service.owner_name || "—"}</p>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Điện thoại</span>
+                  <p className="text-white">{service.phone || "—"}</p>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Email</span>
+                  <p className="text-white">{service.email || "—"}</p>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Facebook</span>
+                  <p className="text-white">{service.facebook || "—"}</p>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">Zalo</span>
+                  <p className="text-white">{service.zalo || "—"}</p>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1">TikTok</span>
+                  <p className="text-white">{service.tiktok || "—"}</p>
+                </div>
+              </div>
+            </div>
 
             {/* Images */}
             {existingImages.length > 0 && (
-              <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <span className="mr-2">🖼️ Hình Ảnh Dịch Vụ</span>
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
+                <h3 className="text-base font-semibold mb-4">🖼️ Hình Ảnh</h3>
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                   {existingImages.map((img, i) => (
-                    <div key={i} className="group relative overflow-hidden rounded-xl border border-neutral-600">
+                    <div key={i} className="group relative overflow-hidden rounded-lg border border-gray-700">
                       <img 
                         src={img} 
                         alt={`${service.title} - ${i + 1}`}
-                        className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300" 
+                        className="w-full h-24 object-cover group-hover:scale-105 transition" 
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300"></div>
                     </div>
                   ))}
                 </div>
@@ -472,22 +496,18 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
 
             {/* Description */}
             {service.description && (
-              <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <span className="mr-2">📝 Mô Tả Dịch Vụ</span>
-                </h3>
-                <div className="prose prose-invert max-w-none">
-                  <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
-                    {service.description}
-                  </p>
-                </div>
+              <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
+                <h3 className="text-base font-semibold mb-3">📝 Mô Tả</h3>
+                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                  {service.description}
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Image Editor Modal */}
+      {/* Modals */}
       <ImageEditorModal
         open={showImageEditor}
         initialAvatarUrl={service.image_url}
@@ -498,14 +518,43 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
         maxFileSizeMB={5}
       />
 
-      {/* Tour Detail Editor Modal */}
       {service.type === "tour" && (
         <TourDetailEditor
           open={showTourEditor}
           serviceId={service.id}
-          existingTour={tourDetail}
+          existingTour={serviceDetail}
           onClose={() => setShowTourEditor(false)}
-          onSave={handleTourSaved}
+          onSave={handleDetailSaved}
+        />
+      )}
+
+      {service.type === "stay" && (
+        <StayDetailEditor
+          open={showStayEditor}
+          serviceId={service.id}
+          existingStay={serviceDetail}
+          onClose={() => setShowStayEditor(false)}
+          onSave={handleDetailSaved}
+        />
+      )}
+
+      {service.type === "car" && (
+        <CarDetailEditor
+          open={showCarEditor}
+          serviceId={service.id}
+          existingCar={serviceDetail}
+          onClose={() => setShowCarEditor(false)}
+          onSave={handleDetailSaved}
+        />
+      )}
+
+      {service.type === "motorbike" && (
+        <MotorbikeDetailEditor
+          open={showMotorbikeEditor}
+          serviceId={service.id}
+          existingMotorbike={serviceDetail}
+          onClose={() => setShowMotorbikeEditor(false)}
+          onSave={handleDetailSaved}
         />
       )}
     </>

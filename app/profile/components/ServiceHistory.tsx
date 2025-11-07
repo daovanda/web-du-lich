@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { useServiceHistory } from "../hooks/useServiceHistory";
 
 type Props = {
   serviceHistory?: any[];
@@ -10,70 +10,171 @@ type Props = {
   onPendingTransactionsChange?: (count: number) => void;
 };
 
-export default function ServiceHistory({ serviceHistory, getStatusColor, onPendingTransactionsChange }: Props) {
-  const router = useRouter();
+// Modal hủy dịch vụ
+function CancelModal({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  needRefund,
+  totalPaid
+}: { 
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (reason?: string) => void;
+  needRefund: boolean;
+  totalPaid: number;
+}) {
+  const [selectedReason, setSelectedReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // State dữ liệu
-  const [data, setData] = useState<any[] | null>(serviceHistory ?? null);
-  const [loading, setLoading] = useState<boolean>(!serviceHistory);
-  const [error, setError] = useState<string>("");
+  const predefinedReasons = [
+    "Thay đổi kế hoạch du lịch",
+    "Tìm được dịch vụ phù hợp hơn",
+    "Lý do cá nhân"
+  ];
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("vi-VN", { 
+      style: "currency", 
+      currency: "VND" 
+    }).format(value);
+  };
+
+  const handleSubmit = async () => {
+    if (needRefund && !selectedReason && !customReason.trim()) {
+      alert("Vui lòng chọn hoặc nhập lý do hủy");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const finalReason = selectedReason === "other" ? customReason : selectedReason;
+    await onConfirm(needRefund ? finalReason : undefined);
+    setIsSubmitting(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-neutral-800 rounded-xl max-w-md w-full p-6 shadow-xl">
+        <h3 className="text-xl font-bold mb-4">
+          {needRefund ? "Hủy dịch vụ và yêu cầu hoàn tiền" : "Xác nhận hủy dịch vụ"}
+        </h3>
+        
+        {needRefund ? (
+          <>
+            <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <p className="text-sm text-amber-200 mb-2">
+                Bạn sẽ được hoàn lại số tiền đã thanh toán:
+              </p>
+              <p className="text-2xl font-bold text-amber-400">
+                {formatCurrency(totalPaid)}
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                Lý do hủy dịch vụ <span className="text-red-400">*</span>
+              </label>
+              
+              <div className="space-y-2 mb-3">
+                {predefinedReasons.map((reason) => (
+                  <label key={reason} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="reason"
+                      value={reason}
+                      checked={selectedReason === reason}
+                      onChange={(e) => {
+                        setSelectedReason(e.target.value);
+                        setCustomReason("");
+                      }}
+                      className="text-indigo-500"
+                    />
+                    <span className="text-sm">{reason}</span>
+                  </label>
+                ))}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="reason"
+                    value="other"
+                    checked={selectedReason === "other"}
+                    onChange={() => setSelectedReason("other")}
+                    className="text-indigo-500"
+                  />
+                  <span className="text-sm">Khác (Vui lòng ghi rõ)</span>
+                </label>
+              </div>
+
+              {selectedReason === "other" && (
+                <textarea
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  placeholder="Nhập lý do của bạn..."
+                  className="w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  rows={3}
+                />
+              )}
+            </div>
+
+            <p className="text-xs text-gray-400 mb-4">
+              * Yêu cầu hoàn tiền sẽ được xử lý trong vòng 3-5 ngày làm việc
+            </p>
+          </>
+        ) : (
+          <p className="text-gray-300 mb-6">
+            Bạn có chắc chắn muốn hủy dịch vụ này? Hành động này không thể hoàn tác.
+          </p>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="flex-1 px-4 py-2 bg-neutral-700 rounded-lg hover:bg-neutral-600 transition disabled:opacity-50"
+          >
+            Đóng
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="flex-1 px-4 py-2 bg-rose-600 rounded-lg hover:bg-rose-500 transition disabled:opacity-50"
+          >
+            {isSubmitting ? "Đang xử lý..." : needRefund ? "Xác nhận hủy & hoàn tiền" : "Xác nhận hủy"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ServiceHistory({ 
+  serviceHistory, 
+  getStatusColor, 
+  onPendingTransactionsChange 
+}: Props) {
+  const router = useRouter();
+  
+  // Use custom hook
+  const { 
+    data, 
+    loading, 
+    error, 
+    cancelBooking, 
+    cancelBookingWithRefund 
+  } = useServiceHistory({ 
+    initialData: serviceHistory 
+  });
   
   // State cho lazy loading
   const [displayCount, setDisplayCount] = useState(3);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  // State cho cancel
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
-
-  // Fetch dữ liệu
-  useEffect(() => {
-    if (serviceHistory && Array.isArray(serviceHistory)) {
-      setData(serviceHistory);
-      setLoading(false);
-      return;
-    }
-    
-    let isMounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setData([]);
-          setLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("bookings")
-          .select(`
-            id, user_id, service_id, date_from, date_to, total_price, 
-            payment_status, deposit_status, deposit_amount, deposit_proof_url,
-            payment_proof_url, status, created_at, cancelled_at,
-            services(title, type, image_url)
-          `)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        
-        if (!isMounted) return;
-        setData(data ?? []);
-      } catch (e: any) {
-        if (!isMounted) return;
-        setError(e?.message || "Không thể tải dữ liệu");
-        setData([]);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    })();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [serviceHistory]);
+  // State cho cancel modal
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
   // Màu trạng thái
   const getStatusColorSafe = (status: string) => {
@@ -88,37 +189,30 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
   const getPaymentStep = (item: any): string => {
     const { deposit_status, deposit_proof_url, payment_status, payment_proof_url, status } = item;
     
-    // Nếu booking đã bị hủy, không cần hiển thị trạng thái thanh toán
     if (status === "cancelled") {
       return "cancelled";
     }
     
-    // Hoàn thành - đã thanh toán đầy đủ và được xác nhận
     if (payment_status === "paid" && status === "confirmed") {
       return "completed";
     }
     
-    // Đã thanh toán đủ nhưng chưa được admin confirm
     if (payment_status === "paid" && status === "pending") {
       return "waiting_admin_confirm";
     }
     
-    // Chờ xác nhận thanh toán full
     if (deposit_status === "paid" && payment_status === "unpaid" && payment_proof_url) {
       return "waiting_payment_confirm";
     }
     
-    // Cần thanh toán phần còn lại
     if (deposit_status === "paid" && payment_status === "unpaid" && !payment_proof_url) {
       return "need_full_payment";
     }
     
-    // Chờ xác nhận đặt cọc
     if (deposit_status === "unpaid" && deposit_proof_url) {
       return "waiting_deposit_confirm";
     }
     
-    // Cần đặt cọc
     if (deposit_status === "unpaid" && !deposit_proof_url) {
       return "need_deposit";
     }
@@ -152,19 +246,13 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
     return sorted.filter((i) => i?.services?.type === selectedType);
   }, [data, selectedType]);
 
-  // Đếm số giao dịch đang chờ (tất cả đơn chưa confirmed và chưa cancelled)
+  // Đếm số giao dịch đang chờ
   const pendingTransactionsCount = useMemo(() => {
-    const count = items.filter(item => {
+    return items.filter(item => {
       return item?.status !== "confirmed" && item?.status !== "cancelled";
     }).length;
-    console.log("ServiceHistory - Pending count:", count);
-    console.log("Items with pending status:", items.filter(item => {
-      return item?.status !== "confirmed" && item?.status !== "cancelled";
-    }));
-    return count;
   }, [items]);
 
-  // Notify parent component về số lượng pending transactions
   useEffect(() => {
     if (onPendingTransactionsChange) {
       onPendingTransactionsChange(pendingTransactionsCount);
@@ -178,7 +266,6 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
 
   const hasMore = displayCount < items.length;
 
-  // Load more items
   const loadMore = () => {
     setIsLoadingMore(true);
     setTimeout(() => {
@@ -192,41 +279,59 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
     router.push(`/payment?bookingId=${bookingId}`);
   };
 
-  // Hủy booking  
-  const handleCancel = async (bookingId: string) => {
-    if (!bookingId) return;
+  // Tính tổng số tiền đã thanh toán
+  const calculateTotalPaid = (item: any): number => {
+    let totalPaid = 0;
     
-    const confirmed = window.confirm("Bạn có chắc chắn muốn hủy dịch vụ này?");
-    if (!confirmed) return;
+    if (item.deposit_status === "paid") {
+      totalPaid += item.deposit_amount || 0;
+    }
     
-    setCancellingId(bookingId);
+    if (item.payment_status === "paid") {
+      const remaining = (item.total_price || 0) - (item.deposit_amount || 0);
+      totalPaid += remaining;
+    }
     
-    try {
-      const { error } = await supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-          cancelled_at: new Date().toISOString()
-        })
-        .eq("id", bookingId);
-      
-      if (error) throw error;
-      
-      // Cập nhật local state
-      setData(prevData => 
-        prevData?.map(item => 
-          item.id === bookingId 
-            ? { ...item, status: "cancelled", cancelled_at: new Date().toISOString() }
-            : item
-        ) ?? null
+    return totalPaid;
+  };
+
+  // Mở modal hủy
+  const openCancelModal = (item: any) => {
+    setSelectedBooking(item);
+    setCancelModalOpen(true);
+  };
+
+  // Xử lý hủy dịch vụ
+  const handleCancelConfirm = async (reason?: string) => {
+    if (!selectedBooking) return;
+    
+    const paymentStep = getPaymentStep(selectedBooking);
+    const needRefund = paymentStep !== "need_deposit";
+    const totalPaid = calculateTotalPaid(selectedBooking);
+    
+    let result;
+    
+    if (needRefund) {
+      result = await cancelBookingWithRefund(
+        selectedBooking.id, 
+        totalPaid, 
+        reason || ""
       );
+    } else {
+      result = await cancelBooking(selectedBooking.id);
+    }
+    
+    if (result.success) {
+      setCancelModalOpen(false);
+      setSelectedBooking(null);
       
-      alert("Đã hủy dịch vụ thành công!");
-    } catch (e: any) {
-      console.error("Error cancelling booking:", e);
-      alert("Lỗi: " + (e?.message || "Không thể hủy dịch vụ"));
-    } finally {
-      setCancellingId(null);
+      if (needRefund) {
+        alert("Đã hủy dịch vụ và gửi yêu cầu hoàn tiền thành công! Chúng tôi sẽ xử lý trong vòng 3-5 ngày làm việc.");
+      } else {
+        alert("Đã hủy dịch vụ thành công!");
+      }
+    } else {
+      alert("Lỗi: " + (result.error || "Không thể hủy dịch vụ"));
     }
   };
 
@@ -289,6 +394,17 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
 
   return (
     <div>
+      <CancelModal
+        isOpen={cancelModalOpen}
+        onClose={() => {
+          setCancelModalOpen(false);
+          setSelectedBooking(null);
+        }}
+        onConfirm={handleCancelConfirm}
+        needRefund={selectedBooking ? getPaymentStep(selectedBooking) !== "need_deposit" : false}
+        totalPaid={selectedBooking ? calculateTotalPaid(selectedBooking) : 0}
+      />
+
       {loading ? (
         <div className="text-sm text-gray-400 text-center py-8">
           Đang tải lịch sử dịch vụ...
@@ -345,7 +461,6 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
                 
                 const paymentStep = getPaymentStep(item);
                 const paymentStepInfo = getPaymentStepText(paymentStep);
-                // Hiển thị chấm đỏ cho tất cả đơn chưa confirmed và chưa cancelled
                 const hasPendingAction = status !== "confirmed" && status !== "cancelled";
 
                 return (
@@ -388,7 +503,7 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
                           </div>
                           <p className="text-sm text-gray-400">Loại: {type}</p>
                           <p className="text-sm text-gray-500">
-                            {createdAtDisplay} –{" "}
+                            {createdAtDisplay} •{" "}
                             <span className={`font-medium ${getStatusColorSafe(status)}`}>
                               {status}
                             </span>
@@ -434,11 +549,33 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
                                 {paymentStepInfo.text}
                               </span>
                             </p>
+
+                            {/* Hiển thị thông tin hoàn tiền nếu có */}
+                            {item?.refund_status && item.refund_status !== "not_requested" && (
+                              <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                <p className="text-sm text-amber-200 mb-1">
+                                  <span className="font-medium">Yêu cầu hoàn tiền:</span>{" "}
+                                  {item.refund_status === "requested" && "Đang chờ xử lý"}
+                                  {item.refund_status === "approved" && "Đã chấp nhận"}
+                                  {item.refund_status === "processing" && "Đang xử lý"}
+                                  {item.refund_status === "completed" && "Đã hoàn thành"}
+                                  {item.refund_status === "rejected" && "Đã từ chối"}
+                                </p>
+                                <p className="text-sm text-amber-100">
+                                  Số tiền: {formatCurrencyVND(item.refund_amount)}
+                                </p>
+                                {item.refund_reason && (
+                                  <p className="text-xs text-amber-200/80 mt-1">
+                                    Lý do: {item.refund_reason}
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
 
                         <div className="flex flex-col gap-2 shrink-0">
-                          {/* Nút thanh toán - hiển thị khi cần đặt cọc hoặc thanh toán full */}
+                          {/* Nút thanh toán */}
                           {(paymentStep === "need_deposit" || paymentStep === "need_full_payment") && 
                             bookingId && !isCancelled && (
                             <button
@@ -450,7 +587,7 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
                             </button>
                           )}
                           
-                          {/* Nút xem chi tiết - hiển thị khi đang chờ xác nhận */}
+                          {/* Nút xem chi tiết */}
                           {(paymentStep === "waiting_deposit_confirm" || paymentStep === "waiting_payment_confirm") && 
                             bookingId && !isCancelled && (
                             <button
@@ -465,11 +602,10 @@ export default function ServiceHistory({ serviceHistory, getStatusColor, onPendi
                           {/* Nút hủy */}
                           {canCancel && bookingId && (
                             <button
-                              onClick={() => handleCancel(bookingId)}
-                              disabled={cancellingId === bookingId}
-                              className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={() => openCancelModal(item)}
+                              className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500"
                             >
-                              {cancellingId === bookingId ? "Đang hủy..." : "Hủy dịch vụ"}
+                              {paymentStep === "need_deposit" ? "Hủy dịch vụ" : "Hủy & hoàn tiền"}
                             </button>
                           )}
                         </div>

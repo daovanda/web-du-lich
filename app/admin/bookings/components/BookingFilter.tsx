@@ -1,187 +1,150 @@
+// components/BookingFilter.tsx
 "use client";
 
-import { useState } from "react";
-import { Search, Calendar, X } from "lucide-react"; // Thêm icon X
-import { format } from "date-fns";
-import { BookingStatus, PayoutStatus } from "../types";
+import { PAYMENT_STEPS, PaymentStep } from "../types";
 
 interface BookingFilterProps {
-  search: string;
-  setSearch: (value: string) => void;
-
-  filterStatus: BookingStatus | "all";
-  setFilterStatus: (value: BookingStatus | "all") => void;
-
-  filterPayoutStatus: PayoutStatus | "all";
-  setFilterPayoutStatus: (value: PayoutStatus | "all") => void;
-
-  startDate: Date | null;
-  setStartDate: (date: Date | null) => void;
-
-  endDate: Date | null;
-  setEndDate: (date: Date | null) => void;
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
+  statusFilter: string;
+  setStatusFilter: (value: string) => void;
+  stepFilter: "all" | "cancelled_no_action" | PaymentStep;
+  setStepFilter: (value: "all" | "cancelled_no_action" | PaymentStep) => void;
+  stepCounts: Record<string, number>;
 }
 
-export function BookingFilter({
-  search,
-  setSearch,
-  filterStatus,
-  setFilterStatus,
-  filterPayoutStatus,
-  setFilterPayoutStatus,
-  startDate,
-  setStartDate,
-  endDate,
-  setEndDate,
+export default function BookingFilter({
+  searchTerm,
+  setSearchTerm,
+  statusFilter,
+  setStatusFilter,
+  stepFilter,
+  setStepFilter,
+  stepCounts,
 }: BookingFilterProps) {
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
-  const formatDateDisplay = (date: Date | null) => {
-    if (!date) return "Chọn ngày";
-    return format(date, "dd/MM/yyyy");
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Ô tìm kiếm */}
+    <div className="space-y-3">
+      {/* Search */}
       <div className="relative">
         <input
           type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Tìm kiếm theo tên, SĐT, mã dịch vụ..."
-          className="w-full px-4 py-3 bg-black border border-gray-800 rounded-lg text-white placeholder-gray-400 focus:border-gray-600 focus:outline-none pr-12"
+          placeholder="🔍 Tìm kiếm theo tên, SĐT, mã đơn, dịch vụ..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-800 rounded-xl text-white text-sm placeholder-gray-500 focus:border-blue-500 focus:bg-gray-900 outline-none transition-all"
         />
-        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-          <Search className="w-5 h-5" />
-        </div>
       </div>
 
-      {/* Bộ lọc trạng thái đơn đặt */}
+      {/* Booking Status Filter */}
       <div>
-        <h3 className="text-sm font-medium text-gray-300 mb-2">
-          Trạng thái đơn đặt
+        <h3 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">
+          Trạng thái đơn
         </h3>
         <div className="flex flex-wrap gap-2">
-          {[
-            { key: "all" as const, label: "Tất cả trạng thái" },
-            { key: "pending" as const, label: "Chờ xác nhận" },
-            { key: "confirmed" as const, label: "Đã xác nhận" },
-            { key: "cancelled" as const, label: "Đã hủy" },
-          ].map((item) => (
+          {["all", "pending", "confirmed", "cancelled"].map((status) => (
             <button
-              key={item.key}
-              onClick={() => setFilterStatus(item.key)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                filterStatus === item.key
-                  ? "bg-white text-black"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                statusFilter === status
+                  ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg"
+                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white"
               }`}
             >
-              {item.label}
+              {status === "all" ? "Tất cả" : status}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Bộ lọc thanh toán cho Partner */}
+      {/* Payment Steps Filter */}
       <div>
-        <h3 className="text-sm font-medium text-gray-300 mb-2">
-          Thanh toán cho Partner
+        <h3 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">
+          Bước thanh toán
         </h3>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { key: "all" as const, label: "Tất cả" },
-            { key: "pending" as const, label: "Chờ thanh toán" },
-            { key: "paid" as const, label: "Đã thanh toán" },
-            { key: "failed" as const, label: "Thất bại" },
-          ].map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setFilterPayoutStatus(item.key)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                filterPayoutStatus === item.key
-                  ? "bg-white text-black"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Bộ lọc theo ngày */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-300 mb-2">
-          Thời gian đặt
-        </h3>
-        <div className="relative">
+        <div className="grid grid-cols-4 gap-2">
+          {/* All button */}
           <button
-            onClick={() => setShowDatePicker(!showDatePicker)}
-            className="w-full px-4 py-3 bg-black border border-gray-800 rounded-lg text-white text-left flex items-center justify-between focus:border-gray-600 focus:outline-none"
+            onClick={() => setStepFilter("all")}
+            className={`relative px-3 py-2.5 rounded-lg text-xs font-semibold transition-all border ${
+              stepFilter === "all"
+                ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white border-blue-500 shadow-lg scale-105"
+                : "bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-800 hover:text-white"
+            }`}
           >
-            <span className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-gray-400" />
-              {startDate && endDate
-                ? `${formatDateDisplay(startDate)} to ${formatDateDisplay(endDate)}`
-                : "Chọn khoảng thời gian"}
-            </span>
-
-            {/* Nút X – ĐÃ SỬA: dùng <span> thay vì <button> */}
-            {(startDate || endDate) && (
-              <span
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setStartDate(null);
-                  setEndDate(null);
-                }}
-                className="inline-flex items-center justify-center w-6 h-6 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white cursor-pointer transition-colors"
-                title="Xóa khoảng thời gian"
-              >
-                <X className="w-4 h-4" />
-              </span>
-            )}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-base">📋</span>
+              <span>Tất cả</span>
+              {stepCounts && (
+                <span className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                  stepFilter === "all" 
+                    ? 'bg-white text-gray-900' 
+                    : 'bg-blue-500 text-white'
+                }`}>
+                  {Object.values(stepCounts).reduce((sum, count) => sum + count, 0)}
+                </span>
+              )}
+            </div>
           </button>
 
-          {/* Date Picker */}
-          {showDatePicker && (
-            <div className="absolute top-full mt-2 left-0 right-0 bg-black border border-gray-800 rounded-lg p-4 z-10 shadow-xl">
-              <div className="grid grid-cols-1 gap-3">
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Từ ngày</label>
-                  <input
-                    type="date"
-                    value={startDate ? format(startDate, "yyyy-MM-dd") : ""}
-                    onChange={(e) =>
-                      setStartDate(e.target.value ? new Date(e.target.value) : null)
-                    }
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Đến ngày</label>
-                  <input
-                    type="date"
-                    value={endDate ? format(endDate, "yyyy-MM-dd") : ""}
-                    onChange={(e) =>
-                      setEndDate(e.target.value ? new Date(e.target.value) : null)
-                    }
-                    min={startDate ? format(startDate, "yyyy-MM-dd") : undefined}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 mt-3">
-                <button
-                  onClick={() => setShowDatePicker(false)}
-                  className="px-3 py-1 text-sm text-gray-400 hover:text-white"
-                >
-                  Đóng
-                </button>
-              </div>
+          {/* Cancelled no action button */}
+          <button
+            onClick={() => setStepFilter("cancelled_no_action")}
+            className={`relative px-3 py-2.5 rounded-lg text-xs font-semibold transition-all border ${
+              stepFilter === "cancelled_no_action"
+                ? "bg-gray-500/20 text-gray-300 border-gray-500 shadow-lg scale-105"
+                : "bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-800 hover:text-white"
+            }`}
+          >
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-base">❌</span>
+              <span>Hủy (0đ)</span>
+              {stepCounts.cancelled_no_action > 0 && (
+                <span className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                  stepFilter === "cancelled_no_action" 
+                    ? 'bg-white text-gray-900' 
+                    : 'bg-gray-500 text-white'
+                }`}>
+                  {stepCounts.cancelled_no_action}
+                </span>
+              )}
             </div>
-          )}
+          </button>
+
+          {/* Payment steps 1-7 */}
+          {Object.values(PAYMENT_STEPS).map((step) => (
+            <button
+              key={step.id}
+              onClick={() => setStepFilter(step.id)}
+              className={`relative px-3 py-2.5 rounded-lg text-xs font-semibold transition-all border ${
+                stepFilter === step.id
+                  ? `${step.bgColor} ${step.color} ${step.borderColor} shadow-lg scale-105`
+                  : "bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-800 hover:text-white"
+              }`}
+            >
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-base">
+                  {step.id === 1 ? "⏳" : 
+                   step.id === 2 ? "⚠️" : 
+                   step.id === 3 ? "💰" : 
+                   step.id === 4 ? "✅" : 
+                   step.id === 5 ? "🎉" :
+                   step.id === 6 ? "💳" :
+                   "🔄"}
+                </span>
+                <span>{step.shortLabel}</span>
+                {stepCounts[step.id] > 0 && (
+                  <span className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                    stepFilter === step.id 
+                      ? 'bg-white text-gray-900' 
+                      : 'bg-red-500 text-white'
+                  }`}>
+                    {stepCounts[step.id]}
+                  </span>
+                )}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>

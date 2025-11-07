@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Booking, BookingStatus, PayoutStatus } from "../types";
+import { Booking, BookingStatus, PayoutStatus, RefundStatus } from "../types";
 import { format } from "date-fns";
 
 export function useBookings(
@@ -16,7 +16,6 @@ export function useBookings(
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Chỉ fetch khi các filter thay đổi
   useEffect(() => {
     fetchBookings();
   }, [filterStatus, filterPayoutStatus, search, startDate, endDate]);
@@ -30,17 +29,14 @@ export function useBookings(
         .select("*")
         .order("created_at", { ascending: false });
 
-      // 1. Lọc trạng thái đơn đặt
       if (filterStatus !== "all") {
         query = query.eq("status", filterStatus);
       }
 
-      // 2. Lọc thanh toán cho Partner
       if (filterPayoutStatus !== "all") {
         query = query.eq("payout_status", filterPayoutStatus);
       }
 
-      // 3. Tìm kiếm (tên, SĐT, dịch vụ)
       if (search.trim()) {
         const q = search.trim();
         query = query.or(`
@@ -50,7 +46,6 @@ export function useBookings(
         `);
       }
 
-      // 4. Lọc theo khoảng ngày (date_from)
       if (startDate) {
         const formattedStart = format(startDate, "yyyy-MM-dd");
         query = query.gte("date_from", formattedStart);
@@ -86,7 +81,46 @@ export function useBookings(
       return false;
     } else {
       alert("Cập nhật trạng thái thành công!");
-      fetchBookings(); // Cập nhật lại danh sách
+      fetchBookings();
+      return true;
+    }
+  }
+
+  // Xác nhận đặt cọc
+  async function confirmDeposit(id: string) {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ 
+        deposit_status: "paid",
+        deposit_paid_at: new Date().toISOString()
+      })
+      .eq("id", id);
+
+    if (error) {
+      alert("Lỗi xác nhận đặt cọc: " + error.message);
+      return false;
+    } else {
+      alert("Xác nhận đặt cọc thành công!");
+      fetchBookings();
+      return true;
+    }
+  }
+
+  // Xác nhận thanh toán full
+  async function confirmPayment(id: string) {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ 
+        payment_status: "paid"
+      })
+      .eq("id", id);
+
+    if (error) {
+      alert("Lỗi xác nhận thanh toán: " + error.message);
+      return false;
+    } else {
+      alert("Xác nhận thanh toán thành công!");
+      fetchBookings();
       return true;
     }
   }
@@ -112,8 +146,67 @@ export function useBookings(
       return false;
     } else {
       alert("Cập nhật thanh toán partner thành công!");
-      fetchBookings(); // Cập nhật lại danh sách
+      fetchBookings();
       return true;
+    }
+  }
+
+  // Cập nhật trạng thái hoàn trả
+  async function updateRefundStatus(
+    id: string,
+    refund_status: RefundStatus,
+    refund_amount: number,
+    refund_proof_url?: string,
+    note?: string
+  ) {
+    try {
+      const updateData: any = {
+        refund_status,
+        refund_amount,
+        refund_processed_at: new Date().toISOString()
+      };
+
+      // Thêm proof URL nếu có
+      if (refund_proof_url) {
+        updateData.refund_proof_url = refund_proof_url;
+      }
+
+      // Thêm note vào notes field nếu có
+      if (note) {
+        // Lấy booking hiện tại để append note
+        const { data: currentBooking } = await supabase
+          .from("bookings")
+          .select("notes")
+          .eq("id", id)
+          .single();
+
+        const existingNotes = currentBooking?.notes || "";
+        const timestamp = new Date().toLocaleString("vi-VN");
+        const newNote = `[${timestamp}] Hoàn trả: ${note}`;
+        updateData.notes = existingNotes 
+          ? `${existingNotes}\n${newNote}` 
+          : newNote;
+      }
+
+      const { error } = await supabase
+        .from("bookings")
+        .update(updateData)
+        .eq("id", id);
+
+      if (error) throw error;
+
+      alert(
+        refund_status === "completed" 
+          ? "Hoàn trả thành công!" 
+          : "Từ chối hoàn trả thành công!"
+      );
+      
+      await fetchBookings();
+      return true;
+    } catch (error: any) {
+      console.error("Error updating refund status:", error);
+      alert("Lỗi cập nhật hoàn trả: " + error.message);
+      return false;
     }
   }
 
@@ -121,7 +214,10 @@ export function useBookings(
     bookings,
     loading,
     updateStatus,
+    confirmDeposit,
+    confirmPayment,
     updatePayoutStatus,
-    refetch: fetchBookings, // Cho phép gọi thủ công
+    updateRefundStatus,
+    refetch: fetchBookings,
   };
 }

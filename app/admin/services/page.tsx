@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   fetchPendingServices,
   fetchServices,
@@ -20,6 +20,8 @@ import ApproveModal from "./components/ApproveModal";
 import ServiceDetailModal from "./components/ServiceDetailModal";
 import DetailedStats from "./components/DetailedStats";
 
+type TabType = "pending" | "services" | "addNew";
+
 export default function AdminServicesPage() {
   /* ---------------------- State ---------------------- */
   const [pendingServices, setPendingServices] = useState<PendingService[]>([]);
@@ -34,15 +36,15 @@ export default function AdminServicesPage() {
     byType: {} as Record<string, number>,
   });
 
+  // Active tab
+  const [activeTab, setActiveTab] = useState<TabType>("pending");
+
   // Modals
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [selectedPending, setSelectedPending] = useState<PendingService | null>(null);
 
   const [serviceDetailOpen, setServiceDetailOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-
-  // 📌 Ref để cuộn xuống form
-  const pendingFormRef = useRef<HTMLDivElement | null>(null);
 
   /* ---------------------- Fetch data ---------------------- */
   useEffect(() => {
@@ -83,10 +85,10 @@ export default function AdminServicesPage() {
   /* ---------------------- Pending actions ---------------------- */
   const handleAddPending = async (form: any, avatarFile: File | null, additionalFiles: File[]) => {
     try {
-      // Received avatarFile and additionalFiles from PendingForm
       await addPendingService(form, avatarFile, additionalFiles);
       alert("✅ Đã thêm dịch vụ chờ duyệt!");
       refreshPending();
+      setActiveTab("pending");
     } catch (err: any) {
       alert(err.message || "❌ Lỗi khi thêm dịch vụ chờ duyệt!");
     }
@@ -132,66 +134,189 @@ export default function AdminServicesPage() {
     refreshPending();
   };
 
-  // 📍 Hàm cuộn xuống form pending
-  const scrollToPendingForm = () => {
-    pendingFormRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Tab configuration
+  const tabs = [
+    {
+      id: "pending" as TabType,
+      label: "Chờ duyệt",
+      icon: "⏳",
+      count: stats.totalPending,
+      color: "from-amber-500 to-orange-500",
+      bgColor: "bg-amber-500/10",
+      borderColor: "border-amber-500/30",
+      textColor: "text-amber-400",
+    },
+    {
+      id: "services" as TabType,
+      label: "Dịch vụ",
+      icon: "✅",
+      count: stats.totalConfirmed,
+      color: "from-emerald-500 to-green-500",
+      bgColor: "bg-emerald-500/10",
+      borderColor: "border-emerald-500/30",
+      textColor: "text-emerald-400",
+    },
+    {
+      id: "addNew" as TabType,
+      label: "Thêm mới",
+      icon: "➕",
+      count: null,
+      color: "from-violet-500 to-purple-500",
+      bgColor: "bg-violet-500/10",
+      borderColor: "border-violet-500/30",
+      textColor: "text-violet-400",
+    },
+  ];
 
   /* ---------------------- JSX ---------------------- */
   return (
-    <div className="bg-black text-gray-100 min-h-screen p-6 space-y-12 font-sans">
-      <h1 className="text-3xl font-bold mb-2 text-center tracking-tight">
-        Quản lý dịch vụ
-      </h1>
+    <div className="bg-black text-gray-100 min-h-screen p-4 md:p-6 space-y-6 font-sans">
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+          Quản lý dịch vụ
+        </h1>
+        <p className="text-sm md:text-base text-gray-400">Quản lý và phê duyệt các dịch vụ du lịch</p>
+      </div>
 
-      {/* 📊 Stats */}
+      {/* Stats Overview - Always visible */}
       <StatsOverview {...stats} />
+
+      {/* Detailed Stats - Always visible below overview */}
       <DetailedStats />
 
-      {/* 📦 Danh sách dịch vụ */}
-      <div className="space-y-12">
-        {/* ✅ Pending Services */}
-        <PendingTable
-          pendingServices={pendingServices}
-          loading={loadingPending}
-          onApprove={handleApproveModal}
-          onToggle={handleTogglePending}
-          onDetail={handleApproveModal}
-        />
-
-        {/* 📍 Nút cuộn xuống form ngay dưới bảng pending */}
-        <div className="flex justify-center">
-          <button
-            onClick={scrollToPendingForm}
-            className="mt-4 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-xl shadow hover:opacity-90 transition"
-          >
-            ➕ Thêm dịch vụ chờ duyệt mới
-          </button>
-        </div>
-
-        {/* ✅ Official Services */}
-        <div className="space-y-4">
-          <OfficialTable
-            services={services}
-            loading={loadingServices}
-            onToggleStatus={handleToggleStatus}
-            onDetail={(svc) => {
-              setSelectedService(svc);
-              setServiceDetailOpen(true);
-            }}
-          />
+      {/* Full-Width Rounded Tabs */}
+      <div className="w-full max-w-7xl mx-auto">
+        <div className="flex gap-2 p-2 bg-neutral-900/50 backdrop-blur-sm rounded-2xl border border-neutral-800 shadow-xl">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  relative flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all duration-300
+                  ${
+                    isActive
+                      ? `bg-gradient-to-r ${tab.color} text-white shadow-lg scale-[1.02]`
+                      : `${tab.bgColor} ${tab.textColor} hover:scale-[1.01] hover:shadow-md border ${tab.borderColor}`
+                  }
+                `}
+              >
+                <span className="text-lg md:text-xl">{tab.icon}</span>
+                <span className="text-sm md:text-base font-semibold">{tab.label}</span>
+                {tab.count !== null && (
+                  <span
+                    className={`
+                      px-2 py-0.5 rounded-full text-xs font-bold min-w-[24px] text-center
+                      ${
+                        isActive
+                          ? "bg-white/25 text-white"
+                          : "bg-neutral-800 text-gray-300"
+                      }
+                    `}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+                
+                {/* Active indicator bar */}
+                {isActive && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/50 rounded-b-xl" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* 📥 FORM - chỉ còn pending form */}
-      <div
-        ref={pendingFormRef}
-        className="space-y-12 pt-12 border-t border-neutral-800"
-      >
-        <PendingForm onSubmit={handleAddPending} loading={false} />
+      {/* Tab Content with smooth transition */}
+      <div className="relative min-h-[500px]">
+        <div className="absolute inset-0">
+          {/* Pending Services Tab */}
+          {activeTab === "pending" && (
+            <div className="space-y-4 animate-slideIn">
+              <div className="flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white text-xl shadow-lg">
+                    ⏳
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Dịch vụ chờ duyệt</h2>
+                    <p className="text-sm text-amber-400">{stats.totalPending} dịch vụ đang chờ</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab("addNew")}
+                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white text-sm rounded-full hover:shadow-lg transition-all hover:scale-105"
+                >
+                  ➕ Thêm mới
+                </button>
+              </div>
+              <PendingTable
+                pendingServices={pendingServices}
+                loading={loadingPending}
+                onApprove={handleApproveModal}
+                onToggle={handleTogglePending}
+                onDetail={handleApproveModal}
+              />
+            </div>
+          )}
+
+          {/* Official Services Tab */}
+          {activeTab === "services" && (
+            <div className="space-y-4 animate-slideIn">
+              <div className="flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-2xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center text-white text-xl shadow-lg">
+                    ✅
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Dịch vụ chính thức</h2>
+                    <p className="text-sm text-emerald-400">{stats.totalConfirmed} dịch vụ đang hoạt động</p>
+                  </div>
+                </div>
+              </div>
+              <OfficialTable
+                services={services}
+                loading={loadingServices}
+                onToggleStatus={handleToggleStatus}
+                onDetail={(svc) => {
+                  setSelectedService(svc);
+                  setServiceDetailOpen(true);
+                }}
+                onRefresh={refreshServices}
+              />
+            </div>
+          )}
+
+          {/* Add New Service Tab */}
+          {activeTab === "addNew" && (
+            <div className="space-y-4 animate-slideIn">
+              <div className="flex items-center justify-between bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-2xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center text-white text-xl shadow-lg">
+                    ➕
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Thêm dịch vụ mới</h2>
+                    <p className="text-sm text-violet-400">Tạo dịch vụ chờ duyệt</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab("pending")}
+                  className="px-4 py-2 bg-neutral-800 text-gray-300 text-sm rounded-full hover:bg-neutral-700 transition-all"
+                >
+                  ← Quay lại
+                </button>
+              </div>
+              <PendingForm onSubmit={handleAddPending} loading={false} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 📦 Pending Approve Modal */}
+      {/* Modals */}
       <ApproveModal
         open={approveModalOpen}
         pending={selectedPending}
@@ -204,7 +329,6 @@ export default function AdminServicesPage() {
         refresh={refreshPending}
       />
 
-      {/* 📄 Service Detail Modal */}
       <ServiceDetailModal
         open={serviceDetailOpen}
         service={selectedService}
@@ -213,6 +337,36 @@ export default function AdminServicesPage() {
           setSelectedService(null);
         }}
       />
+
+      <style jsx global>{`
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        .animate-slideIn {
+          animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .scale-102 {
+          transform: scale(1.02);
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 }

@@ -2,16 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-
-type TourDetail = {
-  destination: string;
-  duration_days: number;
-  start_date: string;
-  end_date: string;
-  available_slots: number;
-  guide_name: string | null;
-  itinerary: Record<string, string> | null;
-};
+import { TourDetail } from "../types";
 
 type Props = {
   open: boolean;
@@ -35,22 +26,20 @@ export default function TourDetailEditor({
     start_date: "",
     end_date: "",
     available_slots: 0,
-    guide_name: "chagmihaydi", // Giá trị mặc định
+    guide_name: "chagmihaydi",
     itinerary: {},
   });
   const [itineraryDays, setItineraryDays] = useState<{ day: string; content: string }[]>([
     { day: "day1", content: "" },
   ]);
 
-  // Load existing tour data
   useEffect(() => {
     if (open && existingTour) {
       setFormData({
         ...existingTour,
-        guide_name: existingTour.guide_name || "chagmihaydi", // Đảm bảo luôn có giá trị mặc định
+        guide_name: existingTour.guide_name || "chagmihaydi",
       });
       
-      // Convert itinerary object to array
       if (existingTour.itinerary) {
         const days = Object.entries(existingTour.itinerary).map(([day, content]) => ({
           day,
@@ -59,21 +48,19 @@ export default function TourDetailEditor({
         setItineraryDays(days.length > 0 ? days : [{ day: "day1", content: "" }]);
       }
     } else if (open) {
-      // Reset form for new tour
       setFormData({
         destination: "",
         duration_days: 1,
         start_date: "",
         end_date: "",
         available_slots: 0,
-        guide_name: "chagmihaydi", // Giá trị mặc định cho tour mới
+        guide_name: "chagmihaydi",
         itinerary: {},
       });
       setItineraryDays([{ day: "day1", content: "" }]);
     }
   }, [open, existingTour]);
 
-  // Auto-calculate end_date based on start_date and duration
   useEffect(() => {
     if (formData.start_date && formData.duration_days > 0) {
       const startDate = new Date(formData.start_date);
@@ -95,7 +82,7 @@ export default function TourDetailEditor({
   };
 
   const handleRemoveDay = (index: number) => {
-    if (itineraryDays.length <= 1) return; // Keep at least 1 day
+    if (itineraryDays.length <= 1) return;
     setItineraryDays(itineraryDays.filter((_, i) => i !== index));
   };
 
@@ -110,7 +97,6 @@ export default function TourDetailEditor({
     setLoading(true);
 
     try {
-      // Convert itinerary array to object
       const itineraryObj = itineraryDays.reduce((acc, { day, content }) => {
         if (day.trim() && content.trim()) {
           acc[day] = content;
@@ -120,11 +106,10 @@ export default function TourDetailEditor({
 
       const tourData = {
         ...formData,
-        guide_name: formData.guide_name || "chagmihaydi", // Đảm bảo luôn có giá trị
+        guide_name: formData.guide_name || "chagmihaydi",
         itinerary: Object.keys(itineraryObj).length > 0 ? itineraryObj : null,
       };
 
-      // Check if tour exists
       const { data: existingData } = await supabase
         .from("tours")
         .select("id")
@@ -132,7 +117,6 @@ export default function TourDetailEditor({
         .maybeSingle();
 
       if (existingData) {
-        // Update
         const { error } = await supabase
           .from("tours")
           .update(tourData)
@@ -140,7 +124,6 @@ export default function TourDetailEditor({
 
         if (error) throw error;
       } else {
-        // Insert
         const { error } = await supabase
           .from("tours")
           .insert({ id: serviceId, ...tourData });
@@ -162,33 +145,38 @@ export default function TourDetailEditor({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] px-4 py-8">
-      <div className="bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 text-white w-full max-w-4xl rounded-3xl shadow-2xl border border-neutral-700 max-h-[95vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+      <div className="bg-gradient-to-br from-gray-900 to-black text-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-800 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 bg-neutral-900/95 backdrop-blur-sm border-b border-neutral-700 p-6 rounded-t-3xl">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
-              {existingTour ? "Chỉnh sửa" : "Thêm"} thông tin Tour
+        <div className="flex items-center justify-between p-5 border-b border-gray-800 bg-gradient-to-r from-blue-600/10 to-purple-600/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold">
+              {existingTour ? "Chỉnh sửa" : "Thêm"} Tour
             </h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white text-2xl transition-colors"
-              disabled={loading}
-            >
-              ✕
-            </button>
           </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition"
+            disabled={loading}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
           {/* Basic Info */}
-          <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700 space-y-4">
-            <h3 className="text-lg font-semibold mb-4">Thông tin cơ bản</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
                   Điểm đến <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -196,13 +184,13 @@ export default function TourDetailEditor({
                   required
                   value={formData.destination}
                   onChange={(e) => handleInputChange("destination", e.target.value)}
-                  className="w-full bg-neutral-700 border border-neutral-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 transition"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   placeholder="VD: Vịnh Hạ Long"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
                   Số ngày <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -211,7 +199,7 @@ export default function TourDetailEditor({
                   required
                   value={formData.duration_days === 0 ? '' : formData.duration_days}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, ''); // Chỉ cho phép số
+                    const value = e.target.value.replace(/\D/g, '');
                     if (value === '') {
                       handleInputChange("duration_days", 0);
                       return;
@@ -222,19 +210,19 @@ export default function TourDetailEditor({
                     }
                   }}
                   onBlur={(e) => {
-                    // Khi blur, nếu giá trị là 0 hoặc rỗng thì set về 1
                     if (formData.duration_days === 0 || e.target.value === '') {
                       handleInputChange("duration_days", 1);
                     }
                   }}
-                  className="w-full bg-neutral-700 border border-neutral-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  placeholder="Nhập số ngày (1-365)"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  placeholder="1-365"
                 />
-                <p className="text-xs text-gray-500 mt-1">Nhập trực tiếp số ngày từ 1 đến 365</p>
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
                   Ngày khởi hành <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -242,27 +230,26 @@ export default function TourDetailEditor({
                   required
                   value={formData.start_date}
                   onChange={(e) => handleInputChange("start_date", e.target.value)}
-                  className="w-full bg-neutral-700 border border-neutral-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 transition"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Ngày kết thúc <span className="text-red-400">*</span>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                  Ngày kết thúc
                 </label>
                 <input
                   type="date"
-                  required
                   value={formData.end_date}
                   readOnly
-                  className="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-4 py-2 text-gray-400 cursor-not-allowed"
-                  title="Tự động tính dựa trên ngày khởi hành và số ngày"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
                 />
-                <p className="text-xs text-gray-500 mt-1">Tự động tính dựa trên ngày khởi hành</p>
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
                   Số chỗ trống <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -271,7 +258,7 @@ export default function TourDetailEditor({
                   required
                   value={formData.available_slots === 0 ? '' : formData.available_slots}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, ''); // Chỉ cho phép số
+                    const value = e.target.value.replace(/\D/g, '');
                     if (value === '') {
                       handleInputChange("available_slots", 0);
                       return;
@@ -281,71 +268,63 @@ export default function TourDetailEditor({
                       handleInputChange("available_slots", numValue);
                     }
                   }}
-                  onBlur={(e) => {
-                    // Khi blur, nếu giá trị rỗng thì set về 0
-                    if (e.target.value === '') {
-                      handleInputChange("available_slots", 0);
-                    }
-                  }}
-                  className="w-full bg-neutral-700 border border-neutral-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  placeholder="Nhập số chỗ (0-1000)"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  placeholder="0-1000"
                 />
-                <p className="text-xs text-gray-500 mt-1">Nhập trực tiếp số chỗ trống từ 0 đến 1000</p>
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
                   Hướng dẫn viên
                 </label>
                 <input
                   type="text"
                   value={formData.guide_name || "chagmihaydi"}
                   onChange={(e) => handleInputChange("guide_name", e.target.value || "chagmihaydi")}
-                  className="w-full bg-neutral-700 border border-neutral-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 transition"
-                  placeholder="VD: Nguyễn Văn A"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  placeholder="Tên HDV"
                 />
-                <p className="text-xs text-gray-500 mt-1">Mặc định: chagmihaydi</p>
               </div>
             </div>
           </div>
 
           {/* Itinerary */}
-          <div className="bg-neutral-800/50 rounded-2xl p-6 border border-neutral-700 space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Lịch trình tour</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-300">Lịch trình tour</h3>
               <button
                 type="button"
                 onClick={handleAddDay}
-                className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition flex items-center gap-2"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 Thêm ngày
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
               {itineraryDays.map((item, index) => (
-                <div key={index} className="bg-neutral-700/50 rounded-xl p-4 border border-neutral-600">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-bold shadow-lg">
+                <div key={index} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-xs font-bold">
                       {index + 1}
                     </div>
 
-                    <div className="flex-1 space-y-3">
+                    <div className="flex-1 space-y-2">
                       <input
                         type="text"
                         value={item.day}
                         onChange={(e) => handleDayChange(index, "day", e.target.value)}
-                        className="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder={`day${index + 1}`}
                       />
                       <textarea
                         value={item.content}
                         onChange={(e) => handleDayChange(index, "content", e.target.value)}
-                        className="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 min-h-[80px] resize-y"
-                        placeholder="Mô tả chi tiết lịch trình ngày này..."
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 min-h-[60px] resize-none"
+                        placeholder="Mô tả lịch trình..."
                       />
                     </div>
 
@@ -353,10 +332,9 @@ export default function TourDetailEditor({
                       type="button"
                       onClick={() => handleRemoveDay(index)}
                       disabled={itineraryDays.length <= 1}
-                      className="flex-shrink-0 text-red-400 hover:text-red-300 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={itineraryDays.length <= 1 ? "Phải có ít nhất 1 ngày" : "Xóa ngày này"}
+                      className="flex-shrink-0 w-7 h-7 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
                     >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
@@ -364,45 +342,40 @@ export default function TourDetailEditor({
                 </div>
               ))}
             </div>
-
-            {itineraryDays.length === 0 && (
-              <div className="text-center py-8 text-gray-400">
-                <p>Chưa có lịch trình nào. Nhấn "Thêm ngày" để bắt đầu.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-6 py-2 bg-neutral-700 hover:bg-neutral-600 rounded-lg transition disabled:opacity-50"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Đang lưu...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Lưu thông tin
-                </>
-              )}
-            </button>
           </div>
         </form>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-800 bg-gray-900/50">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition disabled:opacity-50"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg text-sm font-medium transition disabled:opacity-50 flex items-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Đang lưu...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Lưu
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
