@@ -138,7 +138,6 @@ export type MotorbikeDetail = {
   engine_size: number;
   bike_type: string;
   year: number;
-  price_per_day: number;
 };
 
 // Bike types
