@@ -176,6 +176,10 @@ export default function ServiceHistory({
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
+  // State cho filters
+  const [selectedType, setSelectedType] = useState<string>("__all__");
+  const [selectedProcessStatus, setSelectedProcessStatus] = useState<string>("__all__");
+
   // Màu trạng thái
   const getStatusColorSafe = (status: string) => {
     if (getStatusColor) return getStatusColor(status);
@@ -220,7 +224,32 @@ export default function ServiceHistory({
     return "unknown";
   };
 
-  const [selectedType, setSelectedType] = useState<string>("__all__");
+  // Xác định trạng thái quy trình (in-progress, waiting, completed, cancelled)
+  const getProcessStatus = (item: any): string => {
+    const paymentStep = getPaymentStep(item);
+    
+    if (paymentStep === "cancelled") {
+      return "cancelled";
+    }
+    
+    if (paymentStep === "completed") {
+      // Kiểm tra ngày sử dụng để xác định đã dùng hay chưa
+      const dateFrom = item?.date_from ? new Date(item.date_from) : null;
+      const dateTo = item?.date_to ? new Date(item.date_to) : null;
+      const now = new Date();
+      
+      if (dateTo && dateTo < now) {
+        return "used"; // Đã sử dụng
+      } else if (dateFrom && dateFrom > now) {
+        return "waiting"; // Chờ sử dụng
+      } else {
+        return "in-use"; // Đang sử dụng
+      }
+    }
+    
+    // Còn trong quy trình thanh toán
+    return "in-progress";
+  };
 
   // Lấy danh sách loại dịch vụ
   const serviceTypes = useMemo(() => {
@@ -235,16 +264,45 @@ export default function ServiceHistory({
     return types;
   }, [data]);
 
-  // Sắp xếp + lọc theo loại
+  // Sắp xếp + lọc theo loại và trạng thái quy trình
   const items = useMemo(() => {
-    const sorted = [...(data || [])].sort((a, b) => {
+    let filtered = [...(data || [])];
+    
+    // Lọc theo loại dịch vụ
+    if (selectedType !== "__all__") {
+      filtered = filtered.filter((i) => i?.services?.type === selectedType);
+    }
+    
+    // Lọc theo trạng thái quy trình
+    if (selectedProcessStatus !== "__all__") {
+      filtered = filtered.filter((i) => getProcessStatus(i) === selectedProcessStatus);
+    }
+    
+    // Sắp xếp theo thời gian
+    filtered.sort((a, b) => {
+      const processA = getProcessStatus(a);
+      const processB = getProcessStatus(b);
+      
+      // Ưu tiên: in-progress > waiting > in-use > used > cancelled
+      const priority: { [key: string]: number } = {
+        'in-progress': 0,
+        'waiting': 1,
+        'in-use': 2,
+        'used': 3,
+        'cancelled': 4
+      };
+      
+      const priorityDiff = priority[processA] - priority[processB];
+      if (priorityDiff !== 0) return priorityDiff;
+      
+      // Nếu cùng trạng thái, sắp xếp theo thời gian tạo (mới nhất trước)
       const ta = new Date(a?.created_at || 0).getTime();
       const tb = new Date(b?.created_at || 0).getTime();
       return tb - ta;
     });
-    if (selectedType === "__all__") return sorted;
-    return sorted.filter((i) => i?.services?.type === selectedType);
-  }, [data, selectedType]);
+    
+    return filtered;
+  }, [data, selectedType, selectedProcessStatus]);
 
   // Đếm số giao dịch đang chờ
   const pendingTransactionsCount = useMemo(() => {
@@ -252,6 +310,25 @@ export default function ServiceHistory({
       return item?.status !== "confirmed" && item?.status !== "cancelled";
     }).length;
   }, [items]);
+
+  // Đếm số lượng cho mỗi trạng thái
+  const statusCounts = useMemo(() => {
+    const counts = {
+      all: data?.length || 0,
+      'in-progress': 0,
+      'waiting': 0,
+      'in-use': 0,
+      'used': 0,
+      'cancelled': 0
+    };
+    
+    (data || []).forEach(item => {
+      const status = getProcessStatus(item);
+      counts[status as keyof typeof counts]++;
+    });
+    
+    return counts;
+  }, [data]);
 
   useEffect(() => {
     if (onPendingTransactionsChange) {
@@ -392,6 +469,11 @@ export default function ServiceHistory({
     }
   };
 
+  // Reset displayCount khi thay đổi filter
+  useEffect(() => {
+    setDisplayCount(3);
+  }, [selectedType, selectedProcessStatus]);
+
   return (
     <div>
       <CancelModal
@@ -415,31 +497,102 @@ export default function ServiceHistory({
         </div>
       ) : (
         <>
-          {/* Filter */}
-          {serviceTypes.length > 0 && (
-            <div className="mb-4 flex items-center justify-end gap-2">
-              <label className="text-sm text-gray-400">Lọc theo loại:</label>
-              <select
-                value={selectedType}
-                onChange={(e) => {
-                  setSelectedType(e.target.value);
-                  setDisplayCount(3);
-                }}
-                className="rounded-md border border-white/10 bg-neutral-800 px-3 py-1.5 text-sm text-white"
-              >
-                <option value="__all__">Tất cả</option>
-                {serviceTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+          {/* Filters */}
+          <div className="mb-6 space-y-4">
+            {/* Bộ lọc trạng thái quy trình */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Trạng thái:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <button
+                  onClick={() => setSelectedProcessStatus("__all__")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedProcessStatus === "__all__"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-neutral-800 text-gray-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  Tất cả ({statusCounts.all})
+                </button>
+                <button
+                  onClick={() => setSelectedProcessStatus("in-progress")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedProcessStatus === "in-progress"
+                      ? "bg-amber-600 text-white"
+                      : "bg-neutral-800 text-gray-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  🔄 Trong quy trình ({statusCounts['in-progress']})
+                </button>
+                <button
+                  onClick={() => setSelectedProcessStatus("waiting")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedProcessStatus === "waiting"
+                      ? "bg-blue-600 text-white"
+                      : "bg-neutral-800 text-gray-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  ⏳ Chờ sử dụng ({statusCounts.waiting})
+                </button>
+                <button
+                  onClick={() => setSelectedProcessStatus("in-use")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedProcessStatus === "in-use"
+                      ? "bg-cyan-600 text-white"
+                      : "bg-neutral-800 text-gray-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  🎯 Đang sử dụng ({statusCounts['in-use']})
+                </button>
+                <button
+                  onClick={() => setSelectedProcessStatus("used")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedProcessStatus === "used"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-neutral-800 text-gray-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  ✅ Đã sử dụng ({statusCounts.used})
+                </button>
+                <button
+                  onClick={() => setSelectedProcessStatus("cancelled")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    selectedProcessStatus === "cancelled"
+                      ? "bg-rose-600 text-white"
+                      : "bg-neutral-800 text-gray-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  ❌ Đã hủy ({statusCounts.cancelled})
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* Bộ lọc loại dịch vụ */}
+            {serviceTypes.length > 0 && (
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-300 shrink-0">
+                  Loại dịch vụ:
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="flex-1 rounded-lg border border-white/10 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="__all__">Tất cả loại</option>
+                  {serviceTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
 
           {(items?.length || 0) === 0 ? (
             <p className="text-gray-400 text-center py-8">
-              Chưa có dịch vụ nào được sử dụng.
+              Chưa có dịch vụ nào phù hợp với bộ lọc.
             </p>
           ) : (
             <div className="space-y-6">
@@ -461,6 +614,7 @@ export default function ServiceHistory({
                 
                 const paymentStep = getPaymentStep(item);
                 const paymentStepInfo = getPaymentStepText(paymentStep);
+                const processStatus = getProcessStatus(item);
                 const hasPendingAction = status !== "confirmed" && status !== "cancelled";
 
                 return (

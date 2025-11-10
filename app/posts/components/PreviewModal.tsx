@@ -3,7 +3,6 @@
 import { ImageItem } from "../types";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
-import { EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import { supabase } from "@/lib/supabase";
 
 interface PreviewModalProps {
@@ -129,21 +128,23 @@ export default function PreviewModal({
   if (!previewOpen || images.length === 0 || !userProfile) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex justify-center items-center z-50 p-4">
-      <div className="bg-gray-900 rounded-lg max-w-md w-full p-4 space-y-4">
-        {/* Header giống PostCard */}
-        <div className="flex items-center justify-between px-3 mb-3">
-          <div className="flex items-center">
-            <Image
-              src={userProfile.avatar_url}
-              alt={userProfile.username}
-              width={42}
-              height={42}
-              className="rounded-full object-cover border border-gray-700"
-            />
-            <div className="ml-3">
-              <p className="font-semibold text-sm">{userProfile.username}</p>
-              <p className="text-[11px] text-gray-500">
+    <div className="fixed inset-0 bg-black/95 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div className="bg-neutral-950 border border-neutral-800 rounded-xl max-w-md w-full overflow-hidden animate-fadeIn">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-neutral-800">
+              <Image
+                src={userProfile.avatar_url}
+                alt={userProfile.username}
+                width={32}
+                height={32}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-white">{userProfile.username}</p>
+              <p className="text-xs text-neutral-500">
                 {new Date().toLocaleDateString("vi-VN", {
                   day: "2-digit",
                   month: "2-digit",
@@ -151,12 +152,19 @@ export default function PreviewModal({
               </p>
             </div>
           </div>
-          <EllipsisHorizontalIcon className="w-5 h-5 text-gray-400 hover:text-gray-200 transition cursor-pointer" />
+          <button
+            onClick={() => setPreviewOpen(false)}
+            className="text-neutral-400 hover:text-white transition-colors p-1"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Ảnh bài đăng */}
         <div
-          className="relative w-full bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-md"
+          className="relative w-full bg-black"
           style={{
             aspectRatio: aspectRatio ? `${aspectRatio}` : "1 / 1",
           }}
@@ -172,6 +180,7 @@ export default function PreviewModal({
 
           {postImages.length > 1 && (
             <>
+              {/* Previous Button */}
               <button
                 onClick={() =>
                   setCurrentImage(
@@ -179,29 +188,35 @@ export default function PreviewModal({
                   )
                 }
                 aria-label="Previous image"
-                className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-2 rounded-full transition"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full transition-colors backdrop-blur-sm"
               >
-                ‹
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
               </button>
+
+              {/* Next Button */}
               <button
                 onClick={() =>
                   setCurrentImage((prev) => (prev + 1) % postImages.length)
                 }
                 aria-label="Next image"
-                className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-2 rounded-full transition"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full transition-colors backdrop-blur-sm"
               >
-                ›
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </button>
 
-              {/* Dấu chấm chỉ vị trí ảnh */}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
+              {/* Dots indicator */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
                 {postImages.map((img, idx) => (
                   <div
                     key={img.image_url ?? idx}
-                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                    className={`transition-all duration-300 rounded-full ${
                       idx === currentImage
-                        ? "bg-white scale-110"
-                        : "bg-gray-500/50"
+                        ? "w-2 h-2 bg-white"
+                        : "w-1.5 h-1.5 bg-white/40"
                     }`}
                   />
                 ))}
@@ -210,44 +225,59 @@ export default function PreviewModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-3 pt-3">
-          {/* Caption hiển thị như Instagram */}
-          {caption && (
-            <div className="mb-1 text-sm leading-relaxed">
+        {/* Caption Section */}
+        {caption && (
+          <div className="p-4 border-t border-neutral-800">
+            <div className="text-sm leading-relaxed">
               <p
                 ref={captionVisibleRef}
-                className={`whitespace-pre-line transition-all ${
+                className={`whitespace-pre-line text-neutral-300 transition-all ${
                   expanded ? "" : "line-clamp-2"
                 }`}
-                role="article"
               >
-                <span className="font-semibold">{userProfile.username}:</span>{" "}
+                <span className="font-semibold text-white">{userProfile.username}</span>{" "}
                 {caption}
               </p>
 
               {isOverflowing && (
                 <button
                   onClick={() => setExpanded(!expanded)}
-                  className="text-blue-400 text-xs hover:underline mt-1"
+                  className="text-neutral-500 text-sm hover:text-neutral-400 mt-1.5 transition-colors"
                 >
                   {expanded ? "Thu gọn" : "Xem thêm"}
                 </button>
               )}
             </div>
-          )}
-
-          {/* Nút điều khiển của PreviewModal */}
-          <div className="space-y-2 mt-2">
-            <button
-              className="w-full bg-gray-700 py-2 rounded"
-              onClick={() => setPreviewOpen(false)}
-            >
-              Đóng
-            </button>
           </div>
+        )}
+
+        {/* Footer Action */}
+        <div className="p-4 border-t border-neutral-800">
+          <button
+            className="w-full bg-white hover:bg-neutral-200 text-black font-semibold py-3 rounded-lg transition-all duration-200 active:scale-[0.98]"
+            onClick={() => setPreviewOpen(false)}
+          >
+            Đóng
+          </button>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

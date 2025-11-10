@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import ResizableLayout from "@/components/ResizableLayout";
 import ProfileHeader from "./components/ProfileHeader";
 import ProfileForm from "./components/ProfileForm";
-import ServiceHistory from "./components/ServiceHistory";
+import ServiceHistory from "@/app/profile/components/service-history/ServiceHistory";
 import UserPostsTable from "../posts/components/UserPostsTable";
 import { UserPost } from "../posts/types/index";
 
@@ -160,17 +160,17 @@ export default function ProfilePage() {
     console.log("Open post:", post);
   };
 
-  const tabs: { id: TabType; label: string }[] = [
-    { id: "posts", label: "Bài đăng" },
-    { id: "profile", label: "Hồ sơ" },
-    { id: "orders", label: "Đơn hàng" },
+  const tabs: { id: TabType; label: string; icon: string }[] = [
+    { id: "posts", label: "Bài đăng", icon: "" },
+    { id: "profile", label: "Hồ sơ", icon: "👤" },
+    { id: "orders", label: "Dịch vụ của bạn", icon: "" },
   ];
 
   return (
     <ResizableLayout>
       <div className="min-h-screen bg-black text-white">
         <main 
-          className={`max-w-3xl mx-auto px-4 py-6 space-y-8 pt-24 md:pt-6 transition-all duration-1000 ease-out ${
+          className={`max-w-4xl mx-auto px-4 py-6 space-y-6 pt-24 md:pt-8 transition-all duration-1000 ease-out ${
             isInitialLoad 
               ? 'opacity-0 translate-y-8' 
               : 'opacity-100 translate-y-0'
@@ -178,49 +178,60 @@ export default function ProfilePage() {
         >
           {user ? (
             <>
-              {/* Header Profile */}
+              {/* Profile Header Section */}
               <div 
-                className={`transition-all duration-700 ease-out delay-300 ${
+                className={`transition-all duration-700 ease-out delay-200 ${
                   isInitialLoad 
                     ? 'opacity-0 translate-y-6' 
                     : 'opacity-100 translate-y-0'
                 }`}
               >
-                <ProfileHeader
-                  avatarFile={avatarFile}
-                  avatarUrl={avatarUrl}
-                  username={username}
-                  email={email}
-                  setAvatarFile={setAvatarFile}
-                />
+                <div className="bg-neutral-950 border border-neutral-800/50 rounded-xl p-6 backdrop-blur-sm">
+                  <ProfileHeader
+                    avatarFile={avatarFile}
+                    avatarUrl={avatarUrl}
+                    username={username}
+                    email={email}
+                    setAvatarFile={setAvatarFile}
+                  />
+                </div>
               </div>
 
-              {/* Tab Navigation */}
+              {/* Minimalist Tab Navigation */}
               <div 
-                className={`transition-all duration-700 ease-out delay-500 ${
+                className={`transition-all duration-700 ease-out delay-400 ${
                   isInitialLoad 
                     ? 'opacity-0 translate-y-6' 
                     : 'opacity-100 translate-y-0'
                 }`}
               >
-                <div className="bg-neutral-900 rounded-xl shadow overflow-hidden">
-                  <div className="flex border-b border-neutral-800">
-                    {tabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex-1 px-6 py-4 text-center font-semibold transition-all duration-300 ${
-                          activeTab === tab.id
-                            ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                            : "text-gray-400 hover:text-white hover:bg-neutral-800"
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center justify-center gap-1 p-1 bg-neutral-950 border border-neutral-800/50 rounded-full backdrop-blur-sm">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                        activeTab === tab.id
+                          ? "bg-white text-black shadow-lg"
+                          : "text-neutral-400 hover:text-white hover:bg-neutral-900/50"
+                      }`}
+                    >
+                      <span className="text-base">{tab.icon}</span>
+                      <span>{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                  {/* Tab Content */}
+              {/* Tab Content */}
+              <div 
+                className={`transition-all duration-700 ease-out delay-600 ${
+                  isInitialLoad 
+                    ? 'opacity-0 translate-y-6' 
+                    : 'opacity-100 translate-y-0'
+                }`}
+              >
+                <div className="bg-neutral-950 border border-neutral-800/50 rounded-xl overflow-hidden backdrop-blur-sm">
                   <div className="p-6">
                     {/* Bài đăng Tab */}
                     {activeTab === "posts" && (
@@ -262,9 +273,9 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Nút đăng xuất */}
+              {/* Logout Button */}
               <div 
-                className={`pt-6 transition-all duration-700 ease-out delay-700 ${
+                className={`pt-2 transition-all duration-700 ease-out delay-700 ${
                   isInitialLoad 
                     ? 'opacity-0 translate-y-4' 
                     : 'opacity-100 translate-y-0'
@@ -275,22 +286,19 @@ export default function ProfilePage() {
                     await supabase.auth.signOut();
                     window.location.href = "/";
                   }}
-                  className="w-full border border-red-500 text-red-500 py-2 rounded-lg text-sm font-semibold hover:bg-red-500 hover:text-white transition-all duration-300 ease-out"
+                  className="w-full bg-neutral-950 border border-neutral-800/50 text-neutral-400 py-3 rounded-xl text-sm font-medium hover:bg-neutral-900 hover:text-white hover:border-neutral-700 transition-all duration-300 ease-out backdrop-blur-sm"
                 >
                   Đăng xuất
                 </button>
               </div>
             </>
           ) : (
-            <p 
-              className={`text-center text-gray-500 transition-all duration-700 ease-out ${
-                isInitialLoad 
-                  ? 'opacity-0 translate-y-4' 
-                  : 'opacity-100 translate-y-0'
-              }`}
-            >
-              Đang tải dữ liệu...
-            </p>
+            <div className="flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-10 h-10 border-2 border-neutral-700 border-t-white rounded-full animate-spin"></div>
+                <p className="text-neutral-500 text-sm">Đang tải dữ liệu...</p>
+              </div>
+            </div>
           )}
         </main>
       </div>
@@ -309,6 +317,16 @@ export default function ProfilePage() {
         
         .animate-fadeIn {
           animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
         }
       `}</style>
     </ResizableLayout>

@@ -29,16 +29,16 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
     return `${Math.floor(diffInHours / 24)}d`;
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case "approved":
-        return "text-green-500";
+        return { color: "bg-green-500/10 text-green-400 border-green-500/20", label: "Đã duyệt" };
       case "pending":
-        return "text-yellow-500";
+        return { color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20", label: "Chờ duyệt" };
       case "rejected":
-        return "text-red-500";
+        return { color: "bg-red-500/10 text-red-400 border-red-500/20", label: "Từ chối" };
       default:
-        return "text-gray-400";
+        return { color: "bg-neutral-500/10 text-neutral-400 border-neutral-500/20", label: "Không rõ" };
     }
   };
 
@@ -109,134 +109,139 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
   // 🔹 UI Loading
   if (loading) {
     return (
-      <div className="bg-neutral-900 rounded-xl shadow overflow-hidden">
-        <div className="p-6 border-b border-neutral-800">
-          <h2 className="text-lg font-semibold text-white">Bài đăng của bạn</h2>
-        </div>
-        <div className="p-6 space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-black border border-gray-800 rounded-lg p-4 animate-pulse">
-              <div className="flex items-center gap-3">
-                <div className="w-16 h-16 bg-gray-800 rounded-lg"></div>
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-800 rounded w-3/4"></div>
-                  <div className="h-3 bg-gray-800 rounded w-1/2"></div>
-                </div>
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="bg-black border border-neutral-800 rounded-xl p-4 animate-pulse">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 bg-neutral-900 rounded-lg flex-shrink-0"></div>
+              <div className="flex-1 space-y-3">
+                <div className="h-4 bg-neutral-900 rounded w-3/4"></div>
+                <div className="h-3 bg-neutral-900 rounded w-1/2"></div>
+                <div className="h-3 bg-neutral-900 rounded w-1/3"></div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     );
   }
 
   // 🎯 UI chính
   return (
-    <div className="bg-neutral-900 rounded-xl shadow overflow-hidden">
+    <div>
       {/* Header */}
-      <div className="p-6 border-b border-neutral-800">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">
-            Bài đăng của bạn {userPosts.length > 0 && `(${userPosts.length})`}
-          </h2>
-        </div>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
+          {userPosts.length > 0 ? `${userPosts.length} bài đăng` : "Bài đăng"}
+        </h2>
       </div>
 
       {/* Content */}
-      <div className="p-6">
-        {userPosts.length > 0 ? (
-          <div className="space-y-3">
-            {userPosts.map((p) => (
+      {userPosts.length > 0 ? (
+        <div className="space-y-3">
+          {userPosts.map((p) => {
+            const statusBadge = getStatusBadge(p.status ?? "pending");
+            
+            return (
               <div
                 key={p.id}
-                className="bg-black border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors relative"
+                className="bg-black border border-neutral-800 rounded-xl overflow-hidden hover:border-neutral-700 transition-all duration-200 relative group"
               >
                 {/* Nút menu ⋮ */}
                 <button
                   onClick={() => setMenuOpen(menuOpen === p.id ? null : p.id)}
-                  className="absolute top-2 right-2 text-gray-400 hover:text-white p-1"
+                  className="absolute top-3 right-3 text-neutral-600 hover:text-white p-1.5 rounded-full hover:bg-neutral-900 transition-colors z-10"
                 >
-                  <MoreVertical size={18} />
+                  <MoreVertical size={16} />
                 </button>
 
                 {/* Dropdown menu */}
                 {menuOpen === p.id && (
-                  <div className="absolute top-8 right-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-10">
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      className="px-4 py-2 text-red-400 hover:bg-gray-800 rounded-md w-full text-left text-sm"
-                    >
-                      🗑 Xóa bài đăng
-                    </button>
-                  </div>
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 z-20" 
+                      onClick={() => setMenuOpen(null)}
+                    />
+                    
+                    {/* Menu */}
+                    <div className="absolute top-10 right-3 bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-30 min-w-[140px]">
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-red-400 hover:bg-neutral-800 w-full text-left text-sm font-medium transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Xóa bài
+                      </button>
+                    </div>
+                  </>
                 )}
 
                 {/* Nội dung bài */}
                 <div
                   onClick={() => onOpenPost?.(p)}
-                  className="flex items-center justify-between cursor-pointer"
+                  className="flex items-center gap-4 p-4 cursor-pointer"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-800 flex-shrink-0">
-                      {p.image_urls?.[0] ? (
-                        <Image
-                          src={p.image_urls[0]}
-                          alt="post"
-                          width={64}
-                          height={64}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-500">
-                          🖼
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-base font-semibold text-white truncate">
-                          {p.service_title || "Không có tiêu đề"}
-                        </p>
-                        <span className={`text-xs ${getStatusColor(p.status ?? "pending")}`}>●</span>
+                  {/* Thumbnail */}
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-neutral-900 flex-shrink-0 border border-neutral-800">
+                    {p.image_urls?.[0] ? (
+                      <Image
+                        src={p.image_urls[0]}
+                        alt="post"
+                        width={80}
+                        height={80}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-neutral-700">
+                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                       </div>
-                      <p className="text-sm text-gray-400 line-clamp-1">
-                        {p.caption || "Không có mô tả"}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate mt-1">
-                        {formatDate(p.created_at)} •{" "}
-                        <span
-                          className={`${
-                            p.status === "approved"
-                              ? "text-green-400"
-                              : p.status === "pending"
-                              ? "text-yellow-400"
-                              : "text-red-400"
-                          }`}
-                        >
-                          {p.status === "approved"
-                            ? "Đã duyệt"
-                            : p.status === "pending"
-                            ? "Chờ duyệt"
-                            : "Từ chối"}
-                        </span>
-                      </p>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0 pr-8">
+                    {/* Title */}
+                    <h3 className="text-sm font-semibold text-white truncate mb-1">
+                      {p.service_title || "Không có tiêu đề"}
+                    </h3>
+                    
+                    {/* Caption */}
+                    <p className="text-xs text-neutral-500 line-clamp-2 mb-2">
+                      {p.caption || "Không có mô tả"}
+                    </p>
+                    
+                    {/* Meta */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-neutral-600">
+                        {formatDate(p.created_at)}
+                      </span>
+                      <span className="text-neutral-800">•</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${statusBadge.color} font-medium`}>
+                        {statusBadge.label}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-16 px-4">
+          <div className="w-16 h-16 bg-neutral-900 border border-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+            </svg>
           </div>
-        ) : (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              📰
-            </div>
-            <h3 className="text-base font-semibold text-white mb-2">Chưa có bài đăng</h3>
-            <p className="text-gray-400 text-sm">Hãy chia sẻ bài viết đầu tiên của bạn nhé!</p>
-          </div>
-        )}
-      </div>
+          <h3 className="text-sm font-semibold text-white mb-1">Chưa có bài đăng</h3>
+          <p className="text-xs text-neutral-500">Hãy chia sẻ bài viết đầu tiên của bạn nhé!</p>
+        </div>
+      )}
     </div>
   );
 }

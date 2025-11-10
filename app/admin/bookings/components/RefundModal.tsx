@@ -14,8 +14,8 @@ interface RefundModalProps {
 
 export default function RefundModal({ booking, onClose, onUpdateRefund }: RefundModalProps) {
   // Số tiền hoàn trả = tổng số tiền đã thanh toán (readonly)
-  const depositPaid = booking.deposit_status === 'paid' ? (booking.deposit_amount || 0) : 0;
-  const paymentPaid = booking.payment_status === 'paid' ? ((booking.total_price || 0) - depositPaid) : 0;
+  const depositPaid = (booking.deposit_status === 'paid' || booking.deposit_proof_url) ? (booking.deposit_amount || 0) : 0;
+  const paymentPaid = (booking.payment_status === 'paid' || booking.payment_proof_url) ? ((booking.total_price || 0) - depositPaid) : 0;
   const totalPaid = depositPaid + paymentPaid;
   const refundAmount = totalPaid; // READONLY - bằng tổng số tiền đã thanh toán
 
