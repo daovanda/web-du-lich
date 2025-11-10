@@ -25,7 +25,7 @@ export default function HeroSection() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.5 }}
       >
-        Hành Trình Việt Nam 🇻🇳
+        Hành Trình Việt Nam
       </motion.h1>
 
       {/* 💬 Subtitle */}
