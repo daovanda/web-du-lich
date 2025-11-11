@@ -26,29 +26,24 @@ export default function CarServicesPage() {
       try {
         setLoading(true);
         
-        // Build query for cars_view
         let query = supabase
           .from("cars_view")
           .select("*");
 
-        // Apply search filter
         if (filters.searchQuery) {
           query = query.or(
             `title.ilike.%${filters.searchQuery}%,description.ilike.%${filters.searchQuery}%,location.ilike.%${filters.searchQuery}%,address.ilike.%${filters.searchQuery}%,departure_location.ilike.%${filters.searchQuery}%,arrival_location.ilike.%${filters.searchQuery}%`
           );
         }
 
-        // Apply vehicle type filter
         if (filters.vehicleType) {
           query = query.eq("vehicle_type", filters.vehicleType);
         }
 
-        // Apply departure location filter
         if (filters.departureLocation) {
           query = query.eq("departure_location", filters.departureLocation);
         }
 
-        // Apply arrival location filter
         if (filters.arrivalLocation) {
           query = query.eq("arrival_location", filters.arrivalLocation);
         }
@@ -59,12 +54,10 @@ export default function CarServicesPage() {
 
         let filteredData = data || [];
 
-        // Apply departure time filter in memory (based on time column)
         if (filters.departureTime && filteredData.length > 0) {
           filteredData = filteredData.filter((service: any) => {
             if (!service.departure_time) return false;
             
-            // Parse time string (format: "HH:MM:SS" or "HH:MM")
             const timeStr = service.departure_time;
             const [hours] = timeStr.split(':').map(Number);
             
@@ -83,13 +76,11 @@ export default function CarServicesPage() {
           });
         }
 
-        // Apply price range filter in memory (since price is stored as text in services table)
         if (filters.priceRange !== "all" && filteredData.length > 0) {
           filteredData = filteredData.filter((service) => {
             const priceStr = service.price;
             if (!priceStr) return false;
 
-            // Remove all non-digit characters
             const priceNum = parseInt(priceStr.replace(/[^0-9]/g, ""));
             
             if (isNaN(priceNum)) return false;
@@ -128,12 +119,13 @@ export default function CarServicesPage() {
 
   return (
     <ResizableLayout>
-      {/* 🔥 Special Events Section */}
+      {/* Special Events Section */}
       <div className="max-w-6xl mx-auto mt-4 px-4">
         <SpecialEvents isInitialLoad={isInitialLoad} />
       </div>
 
       <div className="text-white mt-0">
+        {/* Hero Description */}
         <div
           className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
             isInitialLoad
@@ -141,13 +133,14 @@ export default function CarServicesPage() {
               : "opacity-100 translate-y-0"
           }`}
         >
-          <p className="text-gray-400 text-sm sm:text-base">
-            Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và
+          <p className="text-neutral-500 text-sm sm:text-base leading-relaxed">
+            Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và 
             gần gũi, nơi bạn có thể ghi dấu từng trải nghiệm trên bản đồ Việt
             Nam.
           </p>
         </div>
 
+        {/* Main Content */}
         <div
           className={`max-w-2xl mx-auto p-4 transition-all duration-1000 ease-out delay-300 ${
             isInitialLoad
@@ -155,14 +148,15 @@ export default function CarServicesPage() {
               : "opacity-100 translate-y-0"
           }`}
         >
-          {/* Car Filters Component */}
+          {/* Filters */}
           <CarFilters 
             onFiltersChange={handleFiltersChange} 
             isInitialLoad={isInitialLoad}
           />
 
+          {/* Page Title */}
           <h2
-            className={`text-xl font-bold mb-4 transition-all duration-700 ease-out delay-700 ${
+            className={`text-lg font-semibold mb-5 text-white transition-all duration-700 ease-out delay-700 ${
               isInitialLoad
                 ? "opacity-0 translate-y-4"
                 : "opacity-100 translate-y-0"
@@ -171,19 +165,20 @@ export default function CarServicesPage() {
             Dịch vụ xe khách
           </h2>
 
-          {/* Nội dung */}
+          {/* Error State */}
           {error && (
             <div
-              className={`text-red-400 text-center mb-4 transition-all duration-500 ease-out ${
+              className={`bg-neutral-900 border border-red-900/50 text-red-400 text-center py-3 px-4 rounded-xl mb-4 transition-all duration-500 ease-out ${
                 error
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 translate-y-2"
               }`}
             >
-              {error}
+              <p className="text-sm">{error}</p>
             </div>
           )}
 
+          {/* Loading State */}
           {loading ? (
             <div
               className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
@@ -193,30 +188,53 @@ export default function CarServicesPage() {
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className={`bg-gray-900 rounded-lg p-4 h-56 transition-all duration-300 ease-out ${
+                  className={`bg-black border border-neutral-800 rounded-xl overflow-hidden transition-all duration-300 ease-out ${
                     loading ? "animate-pulse" : "opacity-0"
                   }`}
                   style={{
                     animationDelay: `${i * 100}ms`,
                   }}
                 >
-                  <div className="w-full h-32 bg-gray-800 rounded mb-3"></div>
-                  <div className="h-4 bg-gray-800 rounded mb-2"></div>
-                  <div className="h-4 bg-gray-800 rounded w-1/2"></div>
+                  {/* Image skeleton */}
+                  <div className="w-full aspect-square bg-neutral-900"></div>
+                  
+                  {/* Content skeleton */}
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-neutral-900 rounded w-3/4"></div>
+                    <div className="h-3 bg-neutral-900 rounded w-1/2"></div>
+                    <div className="h-3 bg-neutral-900 rounded w-full"></div>
+                    <div className="h-3 bg-neutral-900 rounded w-2/3"></div>
+                    
+                    <div className="pt-3 border-t border-neutral-800">
+                      <div className="h-4 bg-neutral-900 rounded w-1/3"></div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           ) : services.length === 0 ? (
-            <p
-              className={`text-gray-400 text-center transition-all duration-700 ease-out delay-900 ${
+            /* Empty State */
+            <div
+              className={`text-center py-16 transition-all duration-700 ease-out delay-900 ${
                 isInitialLoad
                   ? "opacity-0 translate-y-4"
                   : "opacity-100 translate-y-0"
               }`}
             >
-              Không tìm thấy dịch vụ nào.
-            </p>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-900 flex items-center justify-center">
+                <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-neutral-500 text-sm">
+                Không tìm thấy dịch vụ nào phù hợp
+              </p>
+              <p className="text-neutral-600 text-xs mt-2">
+                Thử thay đổi bộ lọc để xem thêm kết quả
+              </p>
+            </div>
           ) : (
+            /* Services Grid */
             <div
               className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
                 !loading ? "opacity-100 scale-100" : "opacity-0 scale-95"

@@ -15,7 +15,7 @@ export interface CarFilterState {
   vehicleType: string;
   departureLocation: string;
   arrivalLocation: string;
-  priceRange: string; // "all" | "under300k" | "300k-600k" | "over600k"
+  priceRange: string;
   departureTime: string;
 }
 
@@ -33,8 +33,8 @@ const DEPARTURE_TIMES = [
   { value: "night", label: "Đêm (0h-6h)" },
 ];
 
-// Vehicle types
 const VEHICLE_TYPES = [
+  { value: "", label: "Tất cả loại xe" },
   { value: "sleeper_bus", label: "Xe khách giường nằm" },
   { value: "limousine_cabin", label: "Limousine cabin riêng" },
   { value: "limousine", label: "Limousine" },
@@ -43,7 +43,7 @@ const VEHICLE_TYPES = [
 ];
 
 const PRICE_RANGES = [
-  { value: "all", label: "Tất cả mức giá" },
+  { value: "all", label: "Tất cả" },
   { value: "under300k", label: "< 300k" },
   { value: "300k-600k", label: "300k - 600k" },
   { value: "over600k", label: "> 600k" },
@@ -65,7 +65,6 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
   const [popularRoutes, setPopularRoutes] = useState<RouteOption[]>([]);
   const [routesByDeparture, setRoutesByDeparture] = useState<Record<string, string[]>>({});
 
-  // Fetch unique locations and popular routes
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
@@ -74,7 +73,6 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
           .select("departure_location, arrival_location");
 
         if (data) {
-          // Filter out null/undefined values
           const validData = data.filter(
             item => item.departure_location && item.arrival_location
           );
@@ -90,7 +88,6 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
           setLocations(allLocations);
           setArrivalOptions(allLocations);
 
-          // Count routes and get top 3 most popular (excluding null values)
           const routeCounts = validData.reduce((acc, item) => {
             const key = `${item.departure_location}|${item.arrival_location}`;
             acc[key] = (acc[key] || 0) + 1;
@@ -102,13 +99,12 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
               const [departure, arrival] = key.split('|');
               return { departure, arrival, count };
             })
-            .filter(route => route.departure && route.arrival) // Extra safety check
+            .filter(route => route.departure && route.arrival)
             .sort((a, b) => b.count - a.count)
             .slice(0, 3);
 
           setPopularRoutes(topRoutes);
 
-          // Group arrivals by departure for smart filtering (excluding null)
           const routeMap = validData.reduce((acc, item) => {
             if (!acc[item.departure_location]) {
               acc[item.departure_location] = [];
@@ -129,20 +125,16 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
     fetchFilterOptions();
   }, []);
 
-  // Update arrival options based on departure - only show routes that exist in DB
   useEffect(() => {
     if (filters.departureLocation && routesByDeparture[filters.departureLocation]) {
       setArrivalOptions(routesByDeparture[filters.departureLocation].sort());
     } else if (filters.departureLocation) {
-      // If departure selected but no routes found, show empty
       setArrivalOptions([]);
     } else {
-      // No departure selected, show all locations
       setArrivalOptions(locations);
     }
   }, [filters.departureLocation, locations, routesByDeparture]);
 
-  // Notify parent of filter changes
   useEffect(() => {
     onFiltersChange(filters);
   }, [filters, onFiltersChange]);
@@ -150,7 +142,6 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
   const handleFilterChange = (key: keyof CarFilterState, value: string) => {
     const newFilters = { ...filters, [key]: value };
     
-    // Reset điểm đến nếu điểm đi thay đổi
     if (key === "departureLocation" && filters.departureLocation !== value) {
       newFilters.arrivalLocation = "";
     }
@@ -186,31 +177,31 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
         isInitialLoad ? "opacity-0 translate-y-8" : "opacity-100 translate-y-0"
       }`}
     >
-      {/* Search Bar */}
+      {/* Search Bar - Instagram Style */}
       <div className="relative mb-4">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neutral-500 w-4 h-4" />
         <input
           type="text"
           placeholder="Tìm kiếm theo nhà xe, điểm đón, mô tả..."
           value={filters.searchQuery}
           onChange={(e) => handleFilterChange("searchQuery", e.target.value)}
-          className="w-full pl-12 pr-12 py-3 rounded-xl bg-gray-900 text-white border border-gray-700 
-                   focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                   transition-all duration-300 ease-out hover:border-gray-600"
+          className="w-full pl-11 pr-11 py-3 rounded-xl bg-black text-white border border-neutral-800 
+                   focus:outline-none focus:border-neutral-700
+                   transition-all duration-300 placeholder:text-neutral-600 text-sm"
         />
         {filters.searchQuery && (
           <button
             onClick={() => handleFilterChange("searchQuery", "")}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-500 hover:text-white transition-colors p-1"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      {/* Quick Route Selection - Dynamic from DB */}
+      {/* Quick Route Selection */}
       {popularRoutes.length > 0 && (
-        <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           {popularRoutes.map((route, index) => {
             const isActive = 
               filters.departureLocation === route.departure && 
@@ -223,13 +214,13 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
                   handleFilterChange("departureLocation", route.departure);
                   handleFilterChange("arrivalLocation", route.arrival);
                 }}
-                className={`px-4 py-2.5 rounded-lg border text-sm transition-all ${
+                className={`flex-shrink-0 px-4 py-2 rounded-full border text-sm font-medium transition-all whitespace-nowrap ${
                   isActive
-                    ? "bg-blue-600 border-blue-500 text-white"
-                    : "bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-blue-500 text-gray-300 hover:text-white"
+                    ? "bg-white text-black border-white"
+                    : "bg-black hover:bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white"
                 }`}
               >
-                🚌 {route.departure} → {route.arrival}
+                {route.departure} → {route.arrival}
               </button>
             );
           })}
@@ -239,19 +230,16 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
       {/* Filter Toggle Button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 
-                  border transition-all duration-300 w-full ${
-                    hasActiveFilters 
-                      ? "border-blue-500 text-blue-400" 
-                      : "border-gray-700 text-gray-300"
-                  }`}
+        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-300 w-full ${
+          hasActiveFilters 
+            ? "bg-white text-black border-white" 
+            : "bg-black hover:bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-400"
+        }`}
       >
-        <SlidersHorizontal className="w-5 h-5" />
-        <span className="font-medium">Bộ lọc nâng cao</span>
+        <SlidersHorizontal className="w-4 h-4" />
+        <span className="text-sm font-semibold">Bộ lọc</span>
         {hasActiveFilters && (
-          <span className="ml-1 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
-            Đang lọc
-          </span>
+          <span className="ml-1 w-2 h-2 bg-black rounded-full"></span>
         )}
       </button>
 
@@ -261,20 +249,20 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
           isExpanded ? "max-h-[1000px] opacity-100 mt-4" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-6">
+        <div className="bg-black rounded-xl border border-neutral-800 p-5 space-y-5">
           {/* Departure & Arrival */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                <MapPin className="w-4 h-4 text-blue-400" />
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+                <MapPin className="w-3.5 h-3.5" />
                 Điểm đi
               </label>
               <select
                 value={filters.departureLocation}
                 onChange={(e) => handleFilterChange("departureLocation", e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-800 text-white border border-gray-700 
-                         focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                         transition-all duration-200 cursor-pointer"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                         focus:outline-none focus:border-neutral-700
+                         transition-all duration-200 cursor-pointer text-sm"
               >
                 <option value="">Chọn điểm đi</option>
                 {Object.keys(routesByDeparture).sort().map((loc) => (
@@ -284,16 +272,16 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
             </div>
 
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                <MapPin className="w-4 h-4 text-green-400" />
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+                <MapPin className="w-3.5 h-3.5" />
                 Điểm đến
               </label>
               <select
                 value={filters.arrivalLocation}
                 onChange={(e) => handleFilterChange("arrivalLocation", e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-800 text-white border border-gray-700 
-                         focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                         transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                         focus:outline-none focus:border-neutral-700
+                         transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 disabled={!filters.departureLocation}
               >
                 <option value="">
@@ -308,16 +296,16 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
 
           {/* Vehicle Type */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-              <Car className="w-4 h-4 text-indigo-400" />
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+              <Car className="w-3.5 h-3.5" />
               Loại xe
             </label>
             <select
               value={filters.vehicleType}
               onChange={(e) => handleFilterChange("vehicleType", e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-gray-800 text-white border border-gray-700 
-                       focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                       transition-all duration-200 cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                       focus:outline-none focus:border-neutral-700
+                       transition-all duration-200 cursor-pointer text-sm"
             >
               {VEHICLE_TYPES.map((type) => (
                 <option key={type.value} value={type.value}>
@@ -329,16 +317,16 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
 
           {/* Departure Time */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-              <Clock className="w-4 h-4 text-yellow-400" />
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+              <Clock className="w-3.5 h-3.5" />
               Giờ khởi hành
             </label>
             <select
               value={filters.departureTime}
               onChange={(e) => handleFilterChange("departureTime", e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-gray-800 text-white border border-gray-700 
-                       focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                       transition-all duration-200 cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                       focus:outline-none focus:border-neutral-700
+                       transition-all duration-200 cursor-pointer text-sm"
             >
               {DEPARTURE_TIMES.map((time) => (
                 <option key={time.value} value={time.value}>{time.label}</option>
@@ -348,18 +336,18 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
 
           {/* Price Range Buttons */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-3">
-              💰 Mức giá vé
+            <label className="text-xs font-semibold text-neutral-400 mb-3 uppercase tracking-wide block">
+              Mức giá vé
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {PRICE_RANGES.map((range) => (
                 <button
                   key={range.value}
                   onClick={() => handleFilterChange("priceRange", range.value)}
-                  className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                  className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-all ${
                     filters.priceRange === range.value
-                      ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30"
-                      : "bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-blue-500 text-gray-300 hover:text-white"
+                      ? "bg-white text-black border-white"
+                      : "bg-neutral-900 hover:bg-neutral-800 border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white"
                   }`}
                 >
                   {range.label}
@@ -372,8 +360,8 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
           {hasActiveFilters && (
             <button
               onClick={handleReset}
-              className="w-full py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 
-                       text-gray-300 hover:text-white transition-all duration-200 font-medium
+              className="w-full py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700
+                       text-neutral-400 hover:text-white transition-all duration-200 text-sm font-semibold
                        flex items-center justify-center gap-2"
             >
               <X className="w-4 h-4" />
@@ -382,6 +370,8 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
           )}
         </div>
       </div>
+
+
     </div>
   );
 }

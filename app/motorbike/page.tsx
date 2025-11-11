@@ -9,7 +9,7 @@ import MotorbikeFilters, { MotorbikeFilterState } from "./components/MotorbikeFi
 
 export default function MotorbikeServices() {
   const [services, setServices] = useState<any[]>([]);
-  const [allServices, setAllServices] = useState<any[]>([]); // Store all services for location calculation
+  const [allServices, setAllServices] = useState<any[]>([]);
   const [availableLocations, setAvailableLocations] = useState<string[]>([]);
   const [topLocations, setTopLocations] = useState<string[]>([]);
   const [filters, setFilters] = useState<MotorbikeFilterState>({
@@ -27,7 +27,6 @@ export default function MotorbikeServices() {
   const [error, setError] = useState<string | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Fetch all services once to calculate locations
   useEffect(() => {
     const fetchAllServices = async () => {
       try {
@@ -40,7 +39,6 @@ export default function MotorbikeServices() {
         if (data) {
           setAllServices(data);
 
-          // Calculate location counts
           const locationCount: { [key: string]: number } = {};
           data.forEach((service) => {
             if (service.location) {
@@ -48,11 +46,9 @@ export default function MotorbikeServices() {
             }
           });
 
-          // Get all unique locations sorted alphabetically
           const uniqueLocations = Object.keys(locationCount).sort();
           setAvailableLocations(uniqueLocations);
 
-          // Get top 4 locations by count
           const top4 = Object.entries(locationCount)
             .sort(([, a], [, b]) => b - a)
             .slice(0, 4)
@@ -67,33 +63,27 @@ export default function MotorbikeServices() {
     fetchAllServices();
   }, []);
 
-  // Fetch filtered services
   useEffect(() => {
     const fetchServices = async () => {
       try {
         setLoading(true);
 
-        // Build query for motorbikes_view
         let query = supabase.from("motorbikes_view").select("*");
 
-        // Apply search filter
         if (filters.searchQuery) {
           query = query.or(
             `title.ilike.%${filters.searchQuery}%,description.ilike.%${filters.searchQuery}%,location.ilike.%${filters.searchQuery}%,address.ilike.%${filters.searchQuery}%,model.ilike.%${filters.searchQuery}%`
           );
         }
 
-        // Apply bike type filter
         if (filters.bikeType) {
           query = query.eq("bike_type", filters.bikeType);
         }
 
-        // Apply location filter
         if (filters.location) {
           query = query.eq("location", filters.location);
         }
 
-        // Apply engine size range filter
         if (filters.minEngineSize && filters.minEngineSize !== "0") {
           query = query.gte("engine_size", parseInt(filters.minEngineSize));
         }
@@ -101,7 +91,6 @@ export default function MotorbikeServices() {
           query = query.lte("engine_size", parseInt(filters.maxEngineSize));
         }
 
-        // Apply year range filter
         if (filters.minYear && filters.minYear !== "2000") {
           query = query.gte("year", parseInt(filters.minYear));
         }
@@ -109,8 +98,6 @@ export default function MotorbikeServices() {
           query = query.lte("year", parseInt(filters.maxYear));
         }
 
-        // Apply price range filter
-        // Use price_per_day if available, otherwise use price
         if (filters.minPrice) {
           query = query.gte("price", parseFloat(filters.minPrice));
         }
@@ -143,12 +130,13 @@ export default function MotorbikeServices() {
 
   return (
     <ResizableLayout>
-      {/* 🔥 Special Events Section */}
+      {/* Special Events Section */}
       <div className="max-w-6xl mx-auto mt-4 px-4">
         <SpecialEvents isInitialLoad={isInitialLoad} />
       </div>
 
       <div className="text-white mt-0">
+        {/* Hero Description */}
         <div
           className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
             isInitialLoad
@@ -156,13 +144,14 @@ export default function MotorbikeServices() {
               : "opacity-100 translate-y-0"
           }`}
         >
-          <p className="text-gray-400 text-sm sm:text-base">
+          <p className="text-neutral-500 text-sm sm:text-base leading-relaxed">
             Chúng tôi mang đến hành trình khám phá du lịch mới mẻ, tối giản và 
             gần gũi, nơi bạn có thể ghi dấu từng trải nghiệm trên bản đồ Việt
             Nam.
           </p>
         </div>
 
+        {/* Main Content */}
         <div
           className={`max-w-2xl mx-auto p-4 transition-all duration-1000 ease-out delay-300 ${
             isInitialLoad
@@ -170,7 +159,7 @@ export default function MotorbikeServices() {
               : "opacity-100 translate-y-0"
           }`}
         >
-          {/* Motorbike Filters Component */}
+          {/* Filters */}
           <MotorbikeFilters
             onFiltersChange={handleFiltersChange}
             isInitialLoad={isInitialLoad}
@@ -178,8 +167,9 @@ export default function MotorbikeServices() {
             topLocations={topLocations}
           />
 
+          {/* Page Title */}
           <h2
-            className={`text-xl font-bold mb-4 transition-all duration-700 ease-out delay-700 ${
+            className={`text-lg font-semibold mb-5 text-white transition-all duration-700 ease-out delay-700 ${
               isInitialLoad
                 ? "opacity-0 translate-y-4"
                 : "opacity-100 translate-y-0"
@@ -188,19 +178,20 @@ export default function MotorbikeServices() {
             Dịch vụ thuê xe máy
           </h2>
 
-          {/* Nội dung */}
+          {/* Error State */}
           {error && (
             <div
-              className={`text-red-400 text-center mb-4 transition-all duration-500 ease-out ${
+              className={`bg-neutral-900 border border-red-900/50 text-red-400 text-center py-3 px-4 rounded-xl mb-4 transition-all duration-500 ease-out ${
                 error
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 translate-y-2"
               }`}
             >
-              {error}
+              <p className="text-sm">{error}</p>
             </div>
           )}
 
+          {/* Loading State */}
           {loading ? (
             <div
               className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
@@ -210,30 +201,53 @@ export default function MotorbikeServices() {
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className={`bg-gray-900 rounded-lg p-4 h-56 transition-all duration-300 ease-out ${
+                  className={`bg-black border border-neutral-800 rounded-xl overflow-hidden transition-all duration-300 ease-out ${
                     loading ? "animate-pulse" : "opacity-0"
                   }`}
                   style={{
                     animationDelay: `${i * 100}ms`,
                   }}
                 >
-                  <div className="w-full h-32 bg-gray-800 rounded mb-3"></div>
-                  <div className="h-4 bg-gray-800 rounded mb-2"></div>
-                  <div className="h-4 bg-gray-800 rounded w-1/2"></div>
+                  {/* Image skeleton */}
+                  <div className="w-full aspect-square bg-neutral-900"></div>
+                  
+                  {/* Content skeleton */}
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-neutral-900 rounded w-3/4"></div>
+                    <div className="h-3 bg-neutral-900 rounded w-1/2"></div>
+                    <div className="h-3 bg-neutral-900 rounded w-full"></div>
+                    <div className="h-3 bg-neutral-900 rounded w-2/3"></div>
+                    
+                    <div className="pt-3 border-t border-neutral-800">
+                      <div className="h-4 bg-neutral-900 rounded w-1/3"></div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           ) : services.length === 0 ? (
-            <p
-              className={`text-gray-400 text-center transition-all duration-700 ease-out delay-900 ${
+            /* Empty State */
+            <div
+              className={`text-center py-16 transition-all duration-700 ease-out delay-900 ${
                 isInitialLoad
                   ? "opacity-0 translate-y-4"
                   : "opacity-100 translate-y-0"
               }`}
             >
-              Không tìm thấy dịch vụ nào.
-            </p>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-900 flex items-center justify-center">
+                <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-neutral-500 text-sm">
+                Không tìm thấy dịch vụ nào phù hợp
+              </p>
+              <p className="text-neutral-600 text-xs mt-2">
+                Thử thay đổi bộ lọc để xem thêm kết quả
+              </p>
+            </div>
           ) : (
+            /* Services Grid */
             <div
               className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
                 !loading ? "opacity-100 scale-100" : "opacity-0 scale-95"

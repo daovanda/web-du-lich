@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import { deletePost } from "@/app/posts/actions/postActions";
 
 type PostImage = { image_url: string; id?: string };
@@ -32,6 +31,7 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [liked, setLiked] = useState(false);
   const captionVisibleRef = useRef<HTMLParagraphElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -59,6 +59,19 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
       });
     }
     setCurrentImage(index);
+  };
+
+  // Format time Instagram-style
+  const formatTime = (dateString?: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 1) return "Vừa xong";
+    if (diffInHours < 24) return `${Math.floor(diffInHours)} giờ trước`;
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} ngày trước`;
+    return `${Math.floor(diffInHours / 168)} tuần trước`;
   };
 
   useEffect(() => {
@@ -114,32 +127,27 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
   }, [post.caption, aspectRatio]);
 
   return (
-    <div className="w-full bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 shadow-lg mb-6 transition-all duration-300 hover:border-neutral-700">
+    <div className="w-full bg-black border-b border-neutral-800 mb-4 pb-4">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+      <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center gap-3">
-          <div className="relative w-11 h-11 rounded-full overflow-hidden ring-2 ring-pink-500/20">
+          <div className="relative w-8 h-8 rounded-full overflow-hidden border border-neutral-800">
             <Image
               src={post.author?.avatar_url || "/default-avatar.png"}
               alt={post.author?.username || "Người dùng"}
-              width={44}
-              height={44}
+              width={32}
+              height={32}
               className="w-full h-full object-cover"
             />
           </div>
 
-          <div>
+          <div className="flex items-center gap-1.5">
             <p className="font-semibold text-sm text-white">
               {post.author?.username || "Người dùng"}
             </p>
-            <p className="text-xs text-gray-500">
-              {post.created_at
-                ? new Date(post.created_at).toLocaleDateString("vi-VN", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                  })
-                : ""}
+            <span className="text-neutral-600">•</span>
+            <p className="text-xs text-neutral-500">
+              {formatTime(post.created_at)}
             </p>
           </div>
         </div>
@@ -148,9 +156,13 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-1.5 hover:bg-neutral-800 rounded-full transition-colors"
+            className="p-2 hover:bg-neutral-900 rounded-full transition-colors -mr-2"
           >
-            <EllipsisHorizontalIcon className="w-5 h-5 text-gray-400" />
+            <svg className="w-5 h-5 text-neutral-400" fill="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="1.5"/>
+              <circle cx="6" cy="12" r="1.5"/>
+              <circle cx="18" cy="12" r="1.5"/>
+            </svg>
           </button>
 
           {showMenu && (
@@ -159,7 +171,7 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
                 className="fixed inset-0 z-40"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute right-0 top-10 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl z-50 py-2 min-w-[140px]">
+              <div className="absolute right-0 top-10 bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-50 min-w-[160px] overflow-hidden">
                 {currentUser?.id === post.author?.id && (
                   <button
                     onClick={async () => {
@@ -177,9 +189,12 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
                         alert((res as any)?.error || "Không xóa được bài");
                       }
                     }}
-                    className="w-full px-4 py-2 text-left text-red-400 hover:bg-neutral-700 transition-colors text-sm font-medium"
+                    className="w-full px-4 py-3 text-left text-red-400 hover:bg-neutral-800 transition-colors text-sm font-medium flex items-center gap-2"
                   >
-                    🗑️ Xóa bài
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Xóa bài
                   </button>
                 )}
               </div>
@@ -211,50 +226,17 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
             ))}
           </div>
 
-          {/* Mũi tên Previous */}
-          {images.length > 1 && currentImage > 0 && (
-            <button
-              onClick={() => scrollToImage(currentImage - 1)}
-              aria-label="Ảnh trước"
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 backdrop-blur-sm text-white w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-          )}
-
-          {/* Mũi tên Next */}
-          {images.length > 1 && currentImage < images.length - 1 && (
-            <button
-              onClick={() => scrollToImage(currentImage + 1)}
-              aria-label="Ảnh sau"
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 backdrop-blur-sm text-white w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          )}
-
-          {/* Image Counter */}
-          {images.length > 1 && (
-            <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded-full">
-              <span className="text-white text-sm font-semibold">
-                {currentImage + 1} / {images.length}
-              </span>
-            </div>
-          )}
-
           {/* Dots Indicator */}
           {images.length > 1 && (
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
               {images.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => scrollToImage(i)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    i === currentImage ? "bg-white w-6" : "bg-gray-500/70 w-2"
+                  className={`rounded-full transition-all duration-300 ${
+                    i === currentImage 
+                      ? "bg-white w-2 h-2" 
+                      : "bg-white/40 w-1.5 h-1.5"
                   }`}
                   aria-label={`Chuyển đến ảnh ${i + 1}`}
                 />
@@ -264,30 +246,71 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
         </div>
       )}
 
+      {/* Action Buttons */}
+      <div className="px-3 pt-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setLiked(!liked)}
+            className="p-1 -ml-1 hover:opacity-60 transition-opacity"
+          >
+            <svg 
+              className="w-6 h-6" 
+              fill={liked ? "currentColor" : "none"}
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={liked ? 0 : 2}
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
+              />
+            </svg>
+          </button>
+          
+          <button className="p-1 hover:opacity-60 transition-opacity">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </button>
+          
+          <button className="p-1 hover:opacity-60 transition-opacity">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+          </button>
+        </div>
+        
+        <button className="p-1 -mr-1 hover:opacity-60 transition-opacity">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+        </button>
+      </div>
+
       {/* Footer */}
-      <div className="px-4 py-4 space-y-3">
+      <div className="px-3 pt-2 space-y-2">
         {/* Caption */}
         {post.caption && (
           <div className="text-sm leading-relaxed">
             <p
               ref={captionVisibleRef}
-              className={`whitespace-pre-line text-gray-200 transition-all ${
+              className={`whitespace-pre-line text-white transition-all ${
                 expanded ? "" : "line-clamp-2"
               }`}
-              role="article"
             >
-              <span className="font-semibold text-white">
+              <span className="font-semibold">
                 {post.author?.username || "Người dùng"}
               </span>{" "}
-              {post.caption}
+              <span className="text-neutral-300">{post.caption}</span>
             </p>
 
             {isOverflowing && (
               <button
                 onClick={() => setExpanded(!expanded)}
-                className="text-pink-400 text-xs font-medium hover:text-pink-300 mt-1 transition-colors"
+                className="text-neutral-500 text-sm mt-0.5 hover:text-neutral-400 transition-colors"
               >
-                {expanded ? "Thu gọn" : "Xem thêm"}
+                {expanded ? "ít hơn" : "thêm"}
               </button>
             )}
           </div>
@@ -297,22 +320,24 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
         {post.custom_service_link ? (
           <Link
             href={post.custom_service_link}
-            className="inline-flex items-center gap-1.5 text-pink-400 text-sm font-medium hover:text-pink-300 transition-colors group"
+            className="flex items-center gap-1.5 text-neutral-400 text-sm hover:text-white transition-colors group"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <span>🔗</span>
-            <span>Xem dịch vụ liên quan</span>
-            <span className="transform group-hover:translate-x-0.5 transition-transform">→</span>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            <span className="truncate">Xem dịch vụ liên quan</span>
           </Link>
         ) : post.service ? (
           <Link
             href={`/services/${post.type}/${post.service.id}`}
-            className="inline-flex items-center gap-1.5 text-pink-400 text-sm font-medium hover:text-pink-300 transition-colors group"
+            className="flex items-center gap-1.5 text-neutral-400 text-sm hover:text-white transition-colors group"
           >
-            <span>🔗</span>
-            <span>Xem dịch vụ: {post.service.title}</span>
-            <span className="transform group-hover:translate-x-0.5 transition-transform">→</span>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            <span className="truncate">Xem: {post.service.title}</span>
           </Link>
         ) : null}
       </div>

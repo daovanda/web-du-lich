@@ -64,41 +64,41 @@ export default function StaySearchBar({
         isInitialLoad ? "opacity-0 translate-y-8" : "opacity-100 translate-y-0"
       }`}
     >
-      {/* Search Bar */}
+      {/* Search Bar - Instagram Style */}
       <div className="relative mb-4">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neutral-500 w-4 h-4" />
         <input
           type="text"
           placeholder="Tìm kiếm theo tên, địa điểm, mô tả..."
           value={filters.searchQuery}
           onChange={(e) => handleFilterChange("searchQuery", e.target.value)}
-          className="w-full pl-12 pr-12 py-3 rounded-xl bg-gray-900 text-white border border-gray-700 
-                   focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                   transition-all duration-300 ease-out hover:border-gray-600"
+          className="w-full pl-11 pr-11 py-3 rounded-xl bg-black text-white border border-neutral-800 
+                   focus:outline-none focus:border-neutral-700
+                   transition-all duration-300 placeholder:text-neutral-600 text-sm"
         />
         {filters.searchQuery && (
           <button
             onClick={() => handleFilterChange("searchQuery", "")}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-500 hover:text-white transition-colors p-1"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
       {/* Quick Location Selection */}
-      <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {locations.slice(0, 4).map((location) => (
           <button
             key={location}
             onClick={() => handleFilterChange("location", location)}
-            className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+            className={`flex-shrink-0 px-4 py-2 rounded-full border text-sm font-medium transition-all whitespace-nowrap ${
               filters.location === location
-                ? "bg-blue-600 border-blue-500 text-white"
-                : "bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-blue-500 text-gray-300 hover:text-white"
+                ? "bg-white text-black border-white"
+                : "bg-black hover:bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white"
             }`}
           >
-            📍 {location}
+            {location}
           </button>
         ))}
       </div>
@@ -106,19 +106,16 @@ export default function StaySearchBar({
       {/* Filter Toggle Button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 
-                  border transition-all duration-300 w-full ${
-                    isActive
-                      ? "border-blue-500 text-blue-400"
-                      : "border-gray-700 text-gray-300"
-                  }`}
+        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-300 w-full ${
+          isActive
+            ? "bg-white text-black border-white"
+            : "bg-black hover:bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-400"
+        }`}
       >
-        <SlidersHorizontal className="w-5 h-5" />
-        <span className="font-medium">Bộ lọc nâng cao</span>
+        <SlidersHorizontal className="w-4 h-4" />
+        <span className="text-sm font-semibold">Bộ lọc</span>
         {isActive && (
-          <span className="ml-1 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
-            Đang lọc
-          </span>
+          <span className="ml-1 w-2 h-2 bg-black rounded-full"></span>
         )}
       </button>
 
@@ -128,19 +125,19 @@ export default function StaySearchBar({
           isExpanded ? "max-h-[1200px] opacity-100 mt-4" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-6">
+        <div className="bg-black rounded-xl border border-neutral-800 p-5 space-y-5">
           {/* Location */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-              <MapPin className="w-4 h-4 text-blue-400" />
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+              <MapPin className="w-3.5 h-3.5" />
               Địa điểm
             </label>
             <select
               value={filters.location}
               onChange={(e) => handleFilterChange("location", e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-gray-800 text-white border border-gray-700 
-                       focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                       transition-all duration-200 cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                       focus:outline-none focus:border-neutral-700
+                       transition-all duration-200 cursor-pointer text-sm"
             >
               <option value="">Tất cả địa điểm</option>
               {locations.map((loc) => (
@@ -154,8 +151,8 @@ export default function StaySearchBar({
           {/* Check-in & Check-out Dates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                <Calendar className="w-4 h-4 text-purple-400" />
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+                <Calendar className="w-3.5 h-3.5" />
                 Ngày nhận phòng
               </label>
               <input
@@ -163,15 +160,15 @@ export default function StaySearchBar({
                 value={filters.checkInDate}
                 onChange={(e) => handleFilterChange("checkInDate", e.target.value)}
                 min={new Date().toISOString().split("T")[0]}
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-800 text-white border border-gray-700 
-                         focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                         transition-all duration-200"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                         focus:outline-none focus:border-neutral-700
+                         transition-all duration-200 text-sm"
               />
             </div>
 
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                <Calendar className="w-4 h-4 text-green-400" />
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+                <Calendar className="w-3.5 h-3.5" />
                 Ngày trả phòng
               </label>
               <input
@@ -180,9 +177,9 @@ export default function StaySearchBar({
                 onChange={(e) => handleFilterChange("checkOutDate", e.target.value)}
                 min={minCheckOutDate}
                 disabled={!filters.checkInDate}
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-800 text-white border border-gray-700 
-                         focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                         transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                         focus:outline-none focus:border-neutral-700
+                         transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               />
             </div>
           </div>
@@ -190,8 +187,8 @@ export default function StaySearchBar({
           {/* Number of People, Rooms & Beds */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                <Users className="w-4 h-4 text-orange-400" />
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+                <Users className="w-3.5 h-3.5" />
                 Số người
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -201,9 +198,9 @@ export default function StaySearchBar({
                   value={filters.minGuests}
                   onChange={(e) => handleFilterChange("minGuests", e.target.value)}
                   min="0"
-                  className="w-full px-3 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 
-                           focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                           transition-all duration-200 placeholder-gray-500 text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                           focus:outline-none focus:border-neutral-700
+                           transition-all duration-200 placeholder:text-neutral-600 text-sm"
                 />
                 <input
                   type="number"
@@ -211,16 +208,16 @@ export default function StaySearchBar({
                   value={filters.maxGuests}
                   onChange={(e) => handleFilterChange("maxGuests", e.target.value)}
                   min="0"
-                  className="w-full px-3 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 
-                           focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                           transition-all duration-200 placeholder-gray-500 text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                           focus:outline-none focus:border-neutral-700
+                           transition-all duration-200 placeholder:text-neutral-600 text-sm"
                 />
               </div>
             </div>
 
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                <DoorOpen className="w-4 h-4 text-cyan-400" />
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+                <DoorOpen className="w-3.5 h-3.5" />
                 Số phòng
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -230,9 +227,9 @@ export default function StaySearchBar({
                   value={filters.minRooms}
                   onChange={(e) => handleFilterChange("minRooms", e.target.value)}
                   min="0"
-                  className="w-full px-3 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 
-                           focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                           transition-all duration-200 placeholder-gray-500 text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                           focus:outline-none focus:border-neutral-700
+                           transition-all duration-200 placeholder:text-neutral-600 text-sm"
                 />
                 <input
                   type="number"
@@ -240,16 +237,16 @@ export default function StaySearchBar({
                   value={filters.maxRooms}
                   onChange={(e) => handleFilterChange("maxRooms", e.target.value)}
                   min="0"
-                  className="w-full px-3 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 
-                           focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                           transition-all duration-200 placeholder-gray-500 text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                           focus:outline-none focus:border-neutral-700
+                           transition-all duration-200 placeholder:text-neutral-600 text-sm"
                 />
               </div>
             </div>
 
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                <Bed className="w-4 h-4 text-pink-400" />
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
+                <Bed className="w-3.5 h-3.5" />
                 Số giường
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -259,9 +256,9 @@ export default function StaySearchBar({
                   value={filters.minBeds}
                   onChange={(e) => handleFilterChange("minBeds", e.target.value)}
                   min="0"
-                  className="w-full px-3 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 
-                           focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                           transition-all duration-200 placeholder-gray-500 text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                           focus:outline-none focus:border-neutral-700
+                           transition-all duration-200 placeholder:text-neutral-600 text-sm"
                 />
                 <input
                   type="number"
@@ -269,9 +266,9 @@ export default function StaySearchBar({
                   value={filters.maxBeds}
                   onChange={(e) => handleFilterChange("maxBeds", e.target.value)}
                   min="0"
-                  className="w-full px-3 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 
-                           focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
-                           transition-all duration-200 placeholder-gray-500 text-sm"
+                  className="w-full px-3 py-2 rounded-lg bg-neutral-900 text-white border border-neutral-800 
+                           focus:outline-none focus:border-neutral-700
+                           transition-all duration-200 placeholder:text-neutral-600 text-sm"
                 />
               </div>
             </div>
@@ -279,18 +276,18 @@ export default function StaySearchBar({
 
           {/* Price Range Buttons */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-3">
-              💰 Mức giá mỗi đêm
+            <label className="text-xs font-semibold text-neutral-400 mb-3 uppercase tracking-wide block">
+              Mức giá mỗi đêm
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {PRICE_RANGES.map((range) => (
                 <button
                   key={range.value}
                   onClick={() => handleFilterChange("priceRange", range.value)}
-                  className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                  className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-all ${
                     filters.priceRange === range.value
-                      ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30"
-                      : "bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-blue-500 text-gray-300 hover:text-white"
+                      ? "bg-white text-black border-white"
+                      : "bg-neutral-900 hover:bg-neutral-800 border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white"
                   }`}
                 >
                   {range.label}
@@ -303,8 +300,8 @@ export default function StaySearchBar({
           {isActive && (
             <button
               onClick={handleReset}
-              className="w-full py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 
-                       text-gray-300 hover:text-white transition-all duration-200 font-medium
+              className="w-full py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700
+                       text-neutral-400 hover:text-white transition-all duration-200 text-sm font-semibold
                        flex items-center justify-center gap-2"
             >
               <X className="w-4 h-4" />
