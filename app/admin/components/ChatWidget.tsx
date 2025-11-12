@@ -252,12 +252,9 @@ export default function ChatWidget() {
     };
   }, [user, privateRoomId, open, selectedRoom, supabase]);
 
-  // Luôn hiển thị phòng Hỗ trợ:
-  // - Nếu đã có privateRoomId: dùng id thật, hiển thị preview + time thật.
-  // - Nếu chưa có (chưa đăng nhập): tạo entry với id giả "__support__" để vẫn cho người dùng bấm vào.
   const SUPPORT_PLACEHOLDER_ID = "__support__";
 
-  // Tạo danh sách phòng chat cho user (có last_message + last_time)
+  // Tạo danh sách phòng chat cho user
   const userRooms = [
     {
       room_id: PUBLIC_ROOM_ID,
@@ -280,95 +277,126 @@ export default function ChatWidget() {
   ];
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-6 right-6 z-50">
       {!open ? (
+        // Floating button - Instagram style
         <button
           onClick={() => setOpen(true)}
-          className="relative bg-indigo-600 hover:bg-indigo-700 p-4 rounded-full shadow-lg"
+          className="relative group"
         >
-          <MessageCircle className="w-6 h-6 text-white" />
+          <div className="bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-[2px] rounded-full shadow-[0_0_30px_rgba(139,92,246,0.4)] hover:shadow-[0_0_40px_rgba(139,92,246,0.6)] transition-all duration-300">
+            <div className="bg-black rounded-full p-4 group-hover:bg-neutral-950 transition-colors">
+              <MessageCircle className="w-6 h-6 text-white" />
+            </div>
+          </div>
           {(unreadPublic > 0 || unreadPrivate > 0) && role !== "admin" && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 bg-gradient-to-br from-red-500 to-pink-500 text-white text-xs font-semibold rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5 shadow-lg animate-pulse">
               {unreadPublic + unreadPrivate}
             </span>
           )}
         </button>
       ) : (
-        <div className="bg-gray-900 text-white rounded-2xl shadow-lg w-80 h-96 flex flex-col overflow-hidden">
+        // Chat window - Instagram dark mode style
+        <div className="bg-black border border-neutral-800 rounded-3xl shadow-2xl w-[380px] h-[600px] flex flex-col overflow-hidden">
           {!selectedRoom ? (
-            // Danh sách phòng chat
-            <div className="flex flex-col h-full bg-gray-900">
-              {/* Header với nút đóng */}
-              <div className="p-3 font-semibold text-sm flex items-center justify-between bg-gray-900 border-b border-gray-800">
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4" />
-                  {role === "admin" ? "Quản trị chat" : "Phòng chat"}
+            // Room list
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="px-5 py-4 flex items-center justify-between border-b border-neutral-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
+                    <MessageCircle className="w-4 h-4 text-white" />
+                  </div>
+                  <h2 className="font-semibold text-white text-base">
+                    {role === "admin" ? "Quản trị chat" : "Tin nhắn"}
+                  </h2>
                 </div>
                 <button
                   onClick={() => {
                     setOpen(false);
                     setSelectedRoom(null);
                   }}
-                  className="p-1 hover:text-indigo-400 transition-colors"
+                  className="w-8 h-8 rounded-full hover:bg-neutral-900 flex items-center justify-center transition-colors text-neutral-400 hover:text-white"
                   aria-label="Đóng"
-                  title="Đóng"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Danh sách phòng */}
-              <div className="flex-1 overflow-y-auto bg-gray-900">
+              {/* Room list */}
+              <div className="flex-1 overflow-y-auto">
                 {role === "admin" ? (
-                  <ChatAdminPanel />
+                  <div className="p-4">
+                    <ChatAdminPanel />
+                  </div>
                 ) : (
-                  userRooms.map((room) => (
-                    <button
-                      key={room.room_id}
-                      onClick={() => setSelectedRoom(room.room_id)}
-                      className="w-full flex items-center px-3 py-2 text-sm text-left hover:bg-gray-800 transition-colors"
-                    >
-                      <img
-                        src={room.avatar_url || "/default-avatar.png"}
-                        alt="avatar"
-                        className="w-8 h-8 rounded-full object-cover mr-3"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{room.display_name}</p>
-                        <p className="text-xs text-gray-400 truncate">
-                          {room.last_message?.trim()
-                            ? room.last_message
-                            : (room.type === "public" ? "Thảo luận chung" : "Hỗ trợ trực tiếp")}
-                        </p>
-                      </div>
-                      <div className="ml-2 flex flex-col items-end shrink-0">
-                        <span className="text-[10px] text-gray-500">
-                          {formatRelativeTime(room.last_time)}
-                        </span>
-                        {room.unread > 0 && (
-                          <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full mt-1">
-                            {room.unread}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))
+                  <div className="py-2">
+                    {userRooms.map((room, idx) => (
+                      <button
+                        key={room.room_id}
+                        onClick={() => setSelectedRoom(room.room_id)}
+                        className="w-full flex items-center gap-3 px-5 py-3 hover:bg-neutral-950 transition-colors group"
+                      >
+                        {/* Avatar with gradient ring if unread */}
+                        <div className="relative flex-shrink-0">
+                          {room.unread > 0 ? (
+                            <div className="p-[2px] rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
+                              <img
+                                src={room.avatar_url || "/default-avatar.png"}
+                                alt="avatar"
+                                className="w-14 h-14 rounded-full object-cover border-2 border-black"
+                              />
+                            </div>
+                          ) : (
+                            <img
+                              src={room.avatar_url || "/default-avatar.png"}
+                              alt="avatar"
+                              className="w-14 h-14 rounded-full object-cover"
+                            />
+                          )}
+                        </div>
+
+                        {/* Message preview */}
+                        <div className="flex-1 min-w-0 text-left">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className={`font-medium text-sm ${room.unread > 0 ? 'text-white' : 'text-neutral-300'}`}>
+                              {room.display_name}
+                            </p>
+                            <span className="text-[11px] text-neutral-500">
+                              {formatRelativeTime(room.last_time)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className={`text-xs truncate ${room.unread > 0 ? 'text-white font-medium' : 'text-neutral-500'}`}>
+                              {room.last_message?.trim()
+                                ? room.last_message
+                                : (room.type === "public" ? "Thảo luận chung" : "Hỗ trợ trực tiếp")}
+                            </p>
+                            {room.unread > 0 && (
+                              <span className="ml-2 bg-gradient-to-br from-blue-500 to-purple-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
+                                {room.unread}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
           ) : (
-            // Giao diện chat
-            <div className="flex flex-col h-full bg-gray-900">
-              {/* Header với nút back + đóng */}
-              <div className="p-2 border-b border-gray-800 flex items-center justify-between bg-gray-900">
-                <div className="flex items-center gap-2">
+            // Chat interface
+            <div className="flex flex-col h-full">
+              {/* Chat header */}
+              <div className="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <button
                     onClick={() => setSelectedRoom(null)}
-                    className="p-1 hover:text-indigo-400 transition-colors"
+                    className="w-8 h-8 rounded-full hover:bg-neutral-900 flex items-center justify-center transition-colors text-neutral-400 hover:text-white"
                     aria-label="Quay lại"
-                    title="Quay lại"
                   >
-                    <ArrowLeft className="w-4 h-4" />
+                    <ArrowLeft className="w-5 h-5" />
                   </button>
                   <img
                     src={
@@ -377,10 +405,15 @@ export default function ChatWidget() {
                         : "/support-avatar.png"
                     }
                     alt="avatar"
-                    className="w-8 h-8 rounded-full object-cover"
+                    className="w-10 h-10 rounded-full object-cover"
                   />
-                  <div className="ml-2 font-medium text-sm truncate">
-                    {selectedRoom === PUBLIC_ROOM_ID ? "Phòng chung" : "Hỗ trợ"}
+                  <div>
+                    <p className="font-semibold text-white text-sm">
+                      {selectedRoom === PUBLIC_ROOM_ID ? "Phòng chung" : "Hỗ trợ"}
+                    </p>
+                    <p className="text-[11px] text-neutral-500">
+                      {selectedRoom === PUBLIC_ROOM_ID ? "Cộng đồng" : "Luôn sẵn sàng"}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -388,15 +421,14 @@ export default function ChatWidget() {
                     setOpen(false);
                     setSelectedRoom(null);
                   }}
-                  className="p-1 hover:text-indigo-400 transition-colors"
+                  className="w-8 h-8 rounded-full hover:bg-neutral-900 flex items-center justify-center transition-colors text-neutral-400 hover:text-white"
                   aria-label="Đóng"
-                  title="Đóng"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Nội dung chat */}
+              {/* Chat messages */}
               <div className="flex-1 min-h-0">
                 <ChatBox 
                   roomId={selectedRoom} 

@@ -3,6 +3,7 @@
 import ServiceCard from "@/components/ServiceCard";
 import { Stay } from "../_types/stay.types";
 import { transformStayToCardData } from "../_utils/stayTransform";
+
 interface StayListProps {
   stays: Stay[];
   isInitialLoad: boolean;
@@ -24,7 +25,7 @@ export default function StayList({ stays, isInitialLoad }: StayListProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
       {stays.map((stay, index) => (
         <div
           key={stay.id}

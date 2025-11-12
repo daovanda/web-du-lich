@@ -23,14 +23,14 @@ export default function TourList({ tours, isInitialLoad }: TourListProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out opacity-100 scale-100">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 transition-all duration-500 ease-out opacity-100 scale-100">
       {tours.map((tour, index) => (
         <div
           key={tour.service_id}
           className={`transition-all duration-600 ease-out ${
             isInitialLoad
               ? "opacity-0 translate-y-6"
-              : "opacity-100 translate-y-0"
+              : "opacity-100 translante-y-0"
           }`}
           style={{
             transitionDelay: `${800 + index * 100}ms`,

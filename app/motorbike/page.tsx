@@ -249,7 +249,7 @@ export default function MotorbikeServices() {
           ) : (
             /* Services Grid */
             <div
-              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
+              className={`grid grid-cols-2 gap-3 sm:gap-4 transition-all duration-500 ease-out ${
                 !loading ? "opacity-100 scale-100" : "opacity-0 scale-95"
               }`}
             >

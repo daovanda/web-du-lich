@@ -6,6 +6,121 @@ import ServiceCard from "@/components/ServiceCard";
 import ResizableLayout from "@/components/ResizableLayout";
 import SpecialEvents from "@/components/SpecialEvents";
 
+// Loading Skeleton Component
+function TourLoadingSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {[...Array(6)].map((_, i) => (
+        <div
+          key={i}
+          className="bg-black border border-neutral-800 rounded-xl overflow-hidden animate-pulse"
+          style={{
+            animationDelay: `${i * 100}ms`,
+          }}
+        >
+          {/* Image skeleton */}
+          <div className="w-full aspect-square bg-neutral-900"></div>
+          
+          {/* Content skeleton */}
+          <div className="p-4 space-y-3">
+            {/* Title */}
+            <div className="h-4 bg-neutral-900 rounded w-3/4"></div>
+            
+            {/* Location */}
+            <div className="h-3 bg-neutral-900 rounded w-1/2"></div>
+            
+            {/* Description lines */}
+            <div className="space-y-2">
+              <div className="h-3 bg-neutral-900 rounded w-full"></div>
+              <div className="h-3 bg-neutral-900 rounded w-2/3"></div>
+            </div>
+            
+            {/* Extra info badges */}
+            <div className="flex gap-2">
+              <div className="h-6 bg-neutral-900 rounded w-16"></div>
+              <div className="h-6 bg-neutral-900 rounded w-20"></div>
+            </div>
+            
+            {/* Price section */}
+            <div className="pt-3 border-t border-neutral-800 flex justify-between items-center">
+              <div className="h-4 bg-neutral-900 rounded w-1/3"></div>
+              <div className="h-3 bg-neutral-900 rounded w-12"></div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Empty State Component
+function EmptyState({ isInitialLoad }: { isInitialLoad: boolean }) {
+  return (
+    <div
+      className={`text-center py-16 transition-all duration-700 ease-out delay-900 ${
+        isInitialLoad
+          ? "opacity-0 translate-y-4"
+          : "opacity-100 translate-y-0"
+      }`}
+    >
+      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-900 flex items-center justify-center">
+        <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <p className="text-neutral-500 text-sm">
+        Không tìm thấy tour nào phù hợp
+      </p>
+      <p className="text-neutral-600 text-xs mt-2">
+        Thử tìm kiếm với từ khóa khác
+      </p>
+    </div>
+  );
+}
+
+// Tours List Component
+function ToursList({ tours, isInitialLoad }: { tours: any[]; isInitialLoad: boolean }) {
+  if (tours.length === 0) {
+    return <EmptyState isInitialLoad={isInitialLoad} />;
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {tours.map((tour, index) => (
+        <div
+          key={tour.service_id}
+          className={`transition-all duration-600 ease-out ${
+            isInitialLoad
+              ? "opacity-0 translate-y-6"
+              : "opacity-100 translate-y-0"
+          }`}
+          style={{
+            transitionDelay: `${800 + index * 100}ms`,
+          }}
+        >
+          <ServiceCard
+            service={{
+              id: tour.service_id,
+              title: tour.title,
+              description: tour.description,
+              image_url: tour.image_url,
+              price: tour.price,
+              location: tour.tour_destination || tour.service_location,
+              type: "tour",
+              average_rating: tour.average_rating,
+              reviews_count: tour.reviews_count,
+              extra: {
+                duration_days: tour.duration_days,
+                guide_name: tour.guide_name,
+              },
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function TourPage() {
   const [tours, setTours] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +185,7 @@ export default function TourPage() {
       </div>
 
       <div className="text-white mt-0">
-        {/* Hero section with animation */}
+        {/* Hero Description */}
         <div
           className={`max-w-3xl mx-auto px-6 text-center py-4 transition-all duration-1000 ease-out ${
             isInitialLoad
@@ -78,12 +193,12 @@ export default function TourPage() {
               : "opacity-100 translate-y-0"
           }`}
         >
-          <p className="text-gray-400 text-sm sm:text-base">
+          <p className="text-neutral-500 text-sm sm:text-base leading-relaxed">
             Trải nghiệm tour du lịch độc đáo — nơi mọi chuyến đi đều là một câu chuyện đáng nhớ.
           </p>
         </div>
 
-        {/* Main content with staggered animations */}
+        {/* Main Content */}
         <div
           className={`max-w-2xl mx-auto p-4 transition-all duration-1000 ease-out delay-300 ${
             isInitialLoad
@@ -91,26 +206,41 @@ export default function TourPage() {
               : "opacity-100 translate-y-0"
           }`}
         >
-          {/* Search bar with animation */}
+          {/* Search Bar */}
           <div
-            className={`my-2 transition-all duration-700 ease-out delay-500 ${
+            className={`mb-6 transition-all duration-700 ease-out delay-500 ${
               isInitialLoad
                 ? "opacity-0 translate-y-4"
                 : "opacity-100 translate-y-0"
             }`}
           >
-            <input
-              type="text"
-              placeholder="Tìm kiếm tour..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-2 rounded-lg bg-gray-900 text-white border border-gray-700 focus:outline-none focus:border-gray-500 transition-all duration-300 ease-out hover:border-gray-600"
-            />
+            <div className="relative">
+              <svg 
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500"
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
+                />
+              </svg>
+              <input
+                type="text"
+                placeholder="Tìm kiếm tour theo tên, điểm đến..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-neutral-900 text-white border border-neutral-800 focus:outline-none focus:border-neutral-700 transition-all duration-300 placeholder:text-neutral-600 text-sm"
+              />
+            </div>
           </div>
 
-          {/* Title with animation */}
+          {/* Page Title */}
           <h2
-            className={`text-xl font-bold mb-4 transition-all duration-700 ease-out delay-700 ${
+            className={`text-lg font-semibold mb-5 text-white transition-all duration-700 ease-out delay-700 ${
               isInitialLoad
                 ? "opacity-0 translate-y-4"
                 : "opacity-100 translate-y-0"
@@ -119,88 +249,18 @@ export default function TourPage() {
             Danh sách tour
           </h2>
 
-          {/* Error message with animation */}
+          {/* Error State */}
           {error && (
-            <div
-              className={`text-red-400 text-center mb-4 transition-all duration-500 ease-out ${
-                error ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-              }`}
-            >
-              {error}
+            <div className="bg-neutral-900 border border-red-900/50 text-red-400 text-center py-3 px-4 rounded-xl mb-4">
+              <p className="text-sm">{error}</p>
             </div>
           )}
 
-          {/* Loading skeleton with staggered animation */}
+          {/* Loading or Content */}
           {loading ? (
-            <div
-              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
-                loading ? "opacity-100 scale-100" : "opacity-0 scale-95"
-              }`}
-            >
-              {[...Array(6)].map((_, i) => (
-                <div
-                  key={i}
-                  className={`bg-gray-900 rounded-lg p-4 h-56 transition-all duration-300 ease-out ${
-                    loading ? "animate-pulse" : "opacity-0"
-                  }`}
-                  style={{
-                    animationDelay: `${i * 100}ms`,
-                  }}
-                >
-                  <div className="w-full h-32 bg-gray-800 rounded mb-3"></div>
-                  <div className="h-4 bg-gray-800 rounded mb-2"></div>
-                  <div className="h-4 bg-gray-800 rounded w-1/2"></div>
-                </div>
-              ))}
-            </div>
-          ) : tours.length === 0 ? (
-            <p
-              className={`text-gray-400 text-center transition-all duration-700 ease-out delay-900 ${
-                isInitialLoad
-                  ? "opacity-0 translate-y-4"
-                  : "opacity-100 translate-y-0"
-              }`}
-            >
-              Không tìm thấy tour nào.
-            </p>
+            <TourLoadingSkeleton />
           ) : (
-            <div
-              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
-                !loading ? "opacity-100 scale-100" : "opacity-0 scale-95"
-              }`}
-            >
-              {tours.map((tour, index) => (
-                <div
-                  key={tour.service_id}
-                  className={`transition-all duration-600 ease-out ${
-                    isInitialLoad
-                      ? "opacity-0 translate-y-6"
-                      : "opacity-100 translate-y-0"
-                  }`}
-                  style={{
-                    transitionDelay: `${800 + index * 100}ms`,
-                  }}
-                >
-                  <ServiceCard
-                    service={{
-                      id: tour.service_id,
-                      title: tour.title,
-                      description: tour.description,
-                      image_url: tour.image_url,
-                      price: tour.price,
-                      location: tour.tour_destination || tour.service_location,
-                      type: "tour",
-                      average_rating: tour.average_rating,
-                      reviews_count: tour.reviews_count,
-                      extra: {
-                        duration_days: tour.duration_days,
-                        guide_name: tour.guide_name,
-                      },
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
+            <ToursList tours={tours} isInitialLoad={isInitialLoad} />
           )}
         </div>
       </div>

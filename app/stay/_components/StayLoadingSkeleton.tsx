@@ -6,7 +6,7 @@ interface StayLoadingSkeletonProps {
 
 export default function StayLoadingSkeleton({ count = 6 }: StayLoadingSkeletonProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
       {[...Array(count)].map((_, i) => (
         <div
           key={i}

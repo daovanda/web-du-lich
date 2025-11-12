@@ -32,12 +32,12 @@ export default function ServiceGallery({ images, title }: Props) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Main Gallery Carousel */}
       <div className="relative">
         <div
           ref={scrollRef}
-          className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
+          className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth rounded-xl"
           onScroll={handleScroll}
         >
           {gallery.map((src, i) => (
@@ -45,20 +45,20 @@ export default function ServiceGallery({ images, title }: Props) {
               <img
                 src={src}
                 alt={`${title} - ${i + 1}`}
-                className="w-full h-72 md:h-[420px] object-cover rounded-2xl"
+                className="w-full h-72 md:h-96 object-cover"
               />
             </div>
           ))}
         </div>
         
         {/* Dots Indicator */}
-        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
           {gallery.map((_, i) => (
             <button
               key={i}
               onClick={() => scrollToImage(i)}
-              className={`h-2 w-2 rounded-full transition-all duration-300 ${
-                i === currentIndex ? "bg-white w-6" : "bg-gray-500"
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i === currentIndex ? "bg-white w-6" : "bg-white/40 w-1.5"
               }`}
               aria-label={`Chuyển đến ảnh ${i + 1}`}
             />
@@ -66,8 +66,8 @@ export default function ServiceGallery({ images, title }: Props) {
         </div>
 
         {/* Image Counter */}
-        <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
-          <span className="text-white text-sm font-medium">
+        <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-full">
+          <span className="text-white text-xs font-semibold">
             {currentIndex + 1} / {gallery.length}
           </span>
         </div>
@@ -76,7 +76,7 @@ export default function ServiceGallery({ images, title }: Props) {
       {/* Thumbnail Gallery */}
       {gallery.length > 1 && (
         <div className="w-full">
-          <h3 className="text-lg font-semibold mb-4 text-gray-200">
+          <h3 className="text-sm font-semibold mb-3 text-white">
             Tất cả hình ảnh ({gallery.length})
           </h3>
           
@@ -87,12 +87,12 @@ export default function ServiceGallery({ images, title }: Props) {
                 onClick={() => scrollToImage(index)}
                 onMouseEnter={() => setHoveredIndex(index)}
                 onMouseLeave={() => setHoveredIndex(null)}
-                className={`relative aspect-square overflow-hidden rounded-lg bg-gray-800 
+                className={`relative aspect-square overflow-hidden rounded-lg bg-neutral-900 
                          transition-all duration-300 ease-out
                          focus:outline-none
                          ${currentIndex === index 
-                           ? 'ring-2 ring-blue-400 scale-105' 
-                           : 'hover:scale-105 hover:shadow-lg hover:shadow-blue-500/30'
+                           ? 'ring-2 ring-white scale-105' 
+                           : 'hover:scale-105 hover:brightness-110'
                          }`}
               >
                 <img
@@ -120,8 +120,8 @@ export default function ServiceGallery({ images, title }: Props) {
                 {/* Active Indicator */}
                 {currentIndex === index && (
                   <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-1.5 right-1.5 bg-blue-500 rounded-full p-1 shadow-lg">
-                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <div className="absolute top-1.5 right-1.5 bg-white rounded-full p-1 shadow-lg">
+                      <svg className="w-2.5 h-2.5 text-black" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     </div>
@@ -131,9 +131,9 @@ export default function ServiceGallery({ images, title }: Props) {
                 {/* Zoom Icon on Hover */}
                 {hoveredIndex === index && currentIndex !== index && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-white/25 backdrop-blur-sm rounded-full p-2">
+                    <div className="bg-white/20 backdrop-blur-sm rounded-full p-1.5">
                       <svg 
-                        className="w-5 h-5 text-white" 
+                        className="w-4 h-4 text-white" 
                         fill="none" 
                         stroke="currentColor" 
                         viewBox="0 0 24 24"

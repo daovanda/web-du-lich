@@ -1,4 +1,3 @@
-// ChatMessageItem.tsx
 export default function ChatMessageItem({ msg, user, isPrivate }: any) {
   const isMine =
     (!isPrivate && msg.sender_id === user?.id) ||
@@ -8,75 +7,92 @@ export default function ChatMessageItem({ msg, user, isPrivate }: any) {
   const senderName = msg.profiles?.username || "Người dùng";
   const avatarUrl = msg.profiles?.avatar_url;
 
-  // --- Sanitization: loại bỏ các ký tự vô hình / đặc biệt có thể gây lỗi hiển thị ---
+  // Sanitization: loại bỏ các ký tự vô hình / đặc biệt
   const sanitizeContent = (s?: string) => {
     if (!s) return "";
-    // Loại các zero-width và BOM, và các ký tự separator kỳ lạ.
-    // Giữ lại \n để user vẫn có thể xuống dòng.
     return s
       .replace(/\u200B|\u200C|\u200D|\uFEFF/g, "") // zero-width spaces, ZWNJ, ZWJ, BOM
       .replace(/\u2028|\u2029/g, "\n") // line/paragraph separator -> chuẩn hoá thành \n
       .replace(/\r\n/g, "\n") // chuẩn hoá CRLF -> LF
-      .replace(/\t/g, "    "); // thay tab bằng 4 spaces (tuỳ ý)
+      .replace(/\t/g, "    "); // thay tab bằng 4 spaces
   };
 
   const content = sanitizeContent(msg.content);
 
-  // --- Debug helper: bật trong dev khi cần để in ra mã ký tự ---
-  if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
-    // Tùy bạn có muốn bật console log hay không
-    console.debug("msg.content raw:", msg.content);
-     console.debug("msg.content sanitized:", content);
-     console.debug("char codes:", Array.from(content).map((c) => c.charCodeAt(0)));
-  }
+  // Format time
+  const formatTime = (isoString: string) => {
+    const date = new Date(isoString);
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
 
   return (
-    <div className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
+    <div
+      className={`flex items-end gap-2 ${
+        isMine ? "flex-row-reverse" : "flex-row"
+      }`}
+    >
+      {/* Avatar - only for others */}
       {!isMine && (
-        <span className="text-xs text-gray-400 mb-1 ml-1">{senderName}</span>
+        <div className="w-7 h-7 flex-shrink-0 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={senderName}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-xs text-neutral-400 font-medium">
+              {senderName.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
       )}
 
-      {/* Hàng chứa avatar + bong bóng */}
+      {/* Message bubble */}
       <div
-        className={`flex items-end ${isMine ? "justify-end" : "justify-start"} gap-2`}
+        className={`flex flex-col max-w-[75%] ${
+          isMine ? "items-end" : "items-start"
+        }`}
       >
-        {/* Bên trái: avatar nếu không phải tin của tôi */}
+        {/* Username + admin badge (only for others) */}
         {!isMine && (
-          <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-white text-sm overflow-hidden">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={senderName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              senderName.charAt(0).toUpperCase()
+          <div className="flex items-center gap-1 mb-1 px-3">
+            <span className="text-[10px] font-medium text-neutral-500">
+              {senderName}
+            </span>
+            {msg.from_admin && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium border border-blue-500/30">
+                Admin
+              </span>
             )}
           </div>
         )}
 
-        {/* Bong bóng */}
-        <div
-          // dùng block + max-w + self-end để giữ alignment, kèm sanitize content
-           className={`block px-4 py-2 rounded-2xl text-sm leading-relaxed not-prose 
-              whitespace-pre-wrap break-words ${
+        {/* Message content with hover time */}
+        <div className="group relative">
+          <div
+            className={`px-4 py-2.5 rounded-2xl ${
               isMine
-                ? "bg-indigo-600 text-white rounded-br-none self-end"
-                : "bg-gray-800 text-gray-100 rounded-bl-none"
+                ? "bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white rounded-br-md shadow-lg shadow-purple-500/20"
+                : "bg-neutral-900 border border-neutral-800 text-white rounded-bl-md"
             }`}
-            style={{
-              maxWidth: "24ch", // ✅ Giới hạn 15 ký tự mỗi dòng
-              writingMode: "horizontal-tb",
-              textOrientation: "mixed",
-              minWidth: 0,
-              WebkitFontSmoothing: "antialiased",
-            }}
-        >
-          {content}
-        </div>
+          >
+            <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
+              {content}
+            </p>
+          </div>
 
-        {/* Nếu là của tôi, avatar (tuỳ bạn muốn hiện hay không) */}
-        {isMine && null}
+          {/* Time tooltip on hover */}
+          <div
+            className={`absolute -bottom-5 text-[10px] text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity ${
+              isMine ? "right-0" : "left-0"
+            }`}
+          >
+            {formatTime(msg.created_at)}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,9 @@
 export const colors = ["#e74c3c", "#3498db", "#27ae60", "#f39c12", "#9b59b6", "#1abc9c", "#e67e22"];
 
+const TOTAL_PROVINCES = 63;
+const TOTAL_ARCHIPELAGOS = 2;
+const TOTAL = TOTAL_PROVINCES + TOTAL_ARCHIPELAGOS;
+
 export const mapIdToName = (id: string) => {
   const mapping: Record<string, string> = {
     "province-1": "Yên Bái",
@@ -71,7 +75,5 @@ export const mapIdToName = (id: string) => {
   return mapping[id] || id;
 };
 
-export const specialProvinceMap: Record<string, string> = {
-  "province-64": "province-57",
-  "province-65": "province-4",
-};
+// No special province mapping - all provinces are independent
+export const specialProvinceMap: Record<string, string> = {};

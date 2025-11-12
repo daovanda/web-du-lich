@@ -16,7 +16,6 @@ type Props = {
   serviceId?: string;
 };
 
-// Mock reviews cho từng loại dịch vụ
 const MOCK_REVIEWS = {
   stay: [
     { rating: 5, comment: "Phòng sạch sẽ, view đẹp. Chủ nhà rất thân thiện và nhiệt tình!", username: "Minh Anh" },
@@ -81,32 +80,21 @@ const MOCK_REVIEWS = {
 };
 
 export default function ServiceReviews({ reviews, serviceType, serviceId }: Props) {
-  // Generate mock reviews dựa trên serviceId để giữ consistency
   const displayReviews = useMemo(() => {
-    // Luôn kiểm tra reviews.length mới nhất
     if (reviews && reviews.length > 0) {
-      return reviews; // Nếu có review thật thì dùng
+      return reviews;
     }
 
-    // Debug: log serviceType để kiểm tra
-    console.log('ServiceReviews - serviceType:', serviceType);
-    console.log('ServiceReviews - serviceId:', serviceId);
-
-    // Lấy mock reviews theo loại dịch vụ với fallback an toàn
-    let mockPool = MOCK_REVIEWS.stay; // Default
+    let mockPool = MOCK_REVIEWS.stay;
     
     if (serviceType) {
       const normalizedType = serviceType.toLowerCase().trim();
       if (normalizedType in MOCK_REVIEWS) {
         mockPool = MOCK_REVIEWS[normalizedType as keyof typeof MOCK_REVIEWS];
-        console.log('Using mockPool for type:', normalizedType);
-      } else {
-        console.warn('Unknown service type:', serviceType, '- using stay as fallback');
       }
     }
     
     if (!serviceId) {
-      // Fallback: random từ 1-3 reviews
       const count = Math.floor(Math.random() * 3) + 1;
       return mockPool.slice(0, count).map((review, index) => ({
         id: `mock-${index}`,
@@ -119,19 +107,10 @@ export default function ServiceReviews({ reviews, serviceType, serviceId }: Prop
       }));
     }
 
-    // Tạo seed từ serviceId để consistent
     const seed = serviceId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    
-    // Random số lượng reviews từ 1-3
     const reviewCount = (seed % 3) + 1;
-    
-    // Random vị trí bắt đầu trong mockPool
     const startIndex = seed % (mockPool.length - reviewCount);
-    
-    // Lấy reviews
     const selectedReviews = mockPool.slice(startIndex, startIndex + reviewCount);
-    
-    console.log('Selected reviews count:', selectedReviews.length, 'from pool:', mockPool.length);
     
     return selectedReviews.map((review, index) => ({
       id: `mock-${serviceId}-${index}`,
@@ -145,10 +124,10 @@ export default function ServiceReviews({ reviews, serviceType, serviceId }: Prop
   }, [reviews, serviceType, serviceId]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Đánh giá từ khách</h3>
-        <button className="rounded-lg border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10">
+    <div className="rounded-xl border border-neutral-800 bg-black p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-white">Đánh giá từ khách</h3>
+        <button className="rounded-lg border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-900 hover:border-neutral-700 hover:text-white transition-all">
           Xem thêm
         </button>
       </div>
@@ -157,23 +136,37 @@ export default function ServiceReviews({ reviews, serviceType, serviceId }: Prop
           displayReviews.map((r) => (
             <div
               key={r.id}
-              className="rounded-xl border border-white/10 bg-black/20 p-3"
+              className="rounded-lg border border-neutral-800 bg-neutral-900 p-4"
             >
-              <div className="text-sm text-gray-300">
-                {r.user?.full_name || r.user?.username || "Khách"} •{" "}
-                <span className="font-semibold">{r.rating}/5</span>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-neutral-400">
+                    {(r.user?.full_name || r.user?.username || "K")[0].toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-white">
+                    {r.user?.full_name || r.user?.username || "Khách"}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <svg className="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <span className="text-xs font-semibold text-white">{r.rating}</span>
+                  </div>
+                </div>
               </div>
-              <p className="mt-1 text-gray-200">
+              <p className="text-sm text-neutral-400 leading-relaxed">
                 {r.comment || "Không có bình luận."}
               </p>
             </div>
           ))
         ) : (
-          <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-            <div className="text-sm text-gray-300">
-              Chưa có đánh giá • <span className="font-semibold">0/5</span>
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <div className="text-sm text-neutral-500 mb-2">
+              Chưa có đánh giá
             </div>
-            <p className="mt-1 text-gray-200">Chưa có bình luận.</p>
+            <p className="text-sm text-neutral-600">Chưa có bình luận.</p>
           </div>
         )}
       </div>

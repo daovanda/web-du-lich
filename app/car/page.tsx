@@ -7,6 +7,89 @@ import ResizableLayout from "@/components/ResizableLayout";
 import SpecialEvents from "@/components/SpecialEvents";
 import CarFilters, { CarFilterState } from "./components/CarFilters";
 
+// Loading Skeleton Component
+function CarLoadingSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {[...Array(6)].map((_, i) => (
+        <div
+          key={i}
+          className="bg-black border border-neutral-800 rounded-xl overflow-hidden animate-pulse"
+          style={{
+            animationDelay: `${i * 100}ms`,
+          }}
+        >
+          <div className="w-full aspect-square bg-neutral-900"></div>
+          <div className="p-4 space-y-3">
+            <div className="h-4 bg-neutral-900 rounded w-3/4"></div>
+            <div className="h-3 bg-neutral-900 rounded w-1/2"></div>
+            <div className="space-y-2">
+              <div className="h-3 bg-neutral-900 rounded w-full"></div>
+              <div className="h-3 bg-neutral-900 rounded w-2/3"></div>
+            </div>
+            <div className="pt-3 border-t border-neutral-800 flex justify-between items-center">
+              <div className="h-4 bg-neutral-900 rounded w-1/3"></div>
+              <div className="h-3 bg-neutral-900 rounded w-12"></div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Empty State Component
+function EmptyState({ isInitialLoad }: { isInitialLoad: boolean }) {
+  return (
+    <div
+      className={`text-center py-16 transition-all duration-700 ease-out delay-900 ${
+        isInitialLoad
+          ? "opacity-0 translate-y-4"
+          : "opacity-100 translate-y-0"
+      }`}
+    >
+      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-900 flex items-center justify-center">
+        <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <p className="text-neutral-500 text-sm">
+        Không tìm thấy dịch vụ nào phù hợp
+      </p>
+      <p className="text-neutral-600 text-xs mt-2">
+        Thử thay đổi bộ lọc để xem thêm kết quả
+      </p>
+    </div>
+  );
+}
+
+// Services List Component
+function ServicesList({ services, isInitialLoad }: { services: any[]; isInitialLoad: boolean }) {
+  if (services.length === 0) {
+    return <EmptyState isInitialLoad={isInitialLoad} />;
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {services.map((service, index) => (
+        <div
+          key={service.id}
+          className={`transition-all duration-600 ease-out ${
+            isInitialLoad
+              ? "opacity-0 translate-y-6"
+              : "opacity-100 translate-y-0"
+          }`}
+          style={{
+            transitionDelay: `${800 + index * 100}ms`,
+          }}
+        >
+          <ServiceCard service={service} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CarServicesPage() {
   const [services, setServices] = useState<any[]>([]);
   const [filters, setFilters] = useState<CarFilterState>({
@@ -167,95 +250,16 @@ export default function CarServicesPage() {
 
           {/* Error State */}
           {error && (
-            <div
-              className={`bg-neutral-900 border border-red-900/50 text-red-400 text-center py-3 px-4 rounded-xl mb-4 transition-all duration-500 ease-out ${
-                error
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-2"
-              }`}
-            >
+            <div className="bg-neutral-900 border border-red-900/50 text-red-400 text-center py-3 px-4 rounded-xl mb-4">
               <p className="text-sm">{error}</p>
             </div>
           )}
 
-          {/* Loading State */}
+          {/* Loading or Content */}
           {loading ? (
-            <div
-              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
-                loading ? "opacity-100 scale-100" : "opacity-0 scale-95"
-              }`}
-            >
-              {[...Array(6)].map((_, i) => (
-                <div
-                  key={i}
-                  className={`bg-black border border-neutral-800 rounded-xl overflow-hidden transition-all duration-300 ease-out ${
-                    loading ? "animate-pulse" : "opacity-0"
-                  }`}
-                  style={{
-                    animationDelay: `${i * 100}ms`,
-                  }}
-                >
-                  {/* Image skeleton */}
-                  <div className="w-full aspect-square bg-neutral-900"></div>
-                  
-                  {/* Content skeleton */}
-                  <div className="p-4 space-y-3">
-                    <div className="h-4 bg-neutral-900 rounded w-3/4"></div>
-                    <div className="h-3 bg-neutral-900 rounded w-1/2"></div>
-                    <div className="h-3 bg-neutral-900 rounded w-full"></div>
-                    <div className="h-3 bg-neutral-900 rounded w-2/3"></div>
-                    
-                    <div className="pt-3 border-t border-neutral-800">
-                      <div className="h-4 bg-neutral-900 rounded w-1/3"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : services.length === 0 ? (
-            /* Empty State */
-            <div
-              className={`text-center py-16 transition-all duration-700 ease-out delay-900 ${
-                isInitialLoad
-                  ? "opacity-0 translate-y-4"
-                  : "opacity-100 translate-y-0"
-              }`}
-            >
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-900 flex items-center justify-center">
-                <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-neutral-500 text-sm">
-                Không tìm thấy dịch vụ nào phù hợp
-              </p>
-              <p className="text-neutral-600 text-xs mt-2">
-                Thử thay đổi bộ lọc để xem thêm kết quả
-              </p>
-            </div>
+            <CarLoadingSkeleton />
           ) : (
-            /* Services Grid */
-            <div
-              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-500 ease-out ${
-                !loading ? "opacity-100 scale-100" : "opacity-0 scale-95"
-              }`}
-            >
-              {services.map((service, index) => (
-                <div
-                  key={service.id}
-                  className={`transition-all duration-600 ease-out ${
-                    isInitialLoad
-                      ? "opacity-0 translate-y-6"
-                      : "opacity-100 translate-y-0"
-                  }`}
-                  style={{
-                    transitionDelay: `${800 + index * 100}ms`,
-                  }}
-                >
-                  <ServiceCard service={service} />
-                </div>
-              ))}
-            </div>
+            <ServicesList services={services} isInitialLoad={isInitialLoad} />
           )}
         </div>
       </div>

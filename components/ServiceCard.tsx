@@ -145,11 +145,6 @@ export default function ServiceCard({ service }: Props) {
                     })()}
                   </span>
                 </p>
-                {service.reviews_count && service.reviews_count > 0 && (
-                  <p className="text-xs text-neutral-600 mt-0.5">
-                    {service.reviews_count} đánh giá
-                  </p>
-                )}
               </div>
 
               {/* View button */}

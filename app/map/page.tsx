@@ -8,10 +8,13 @@ import VietnamMap from "@/app/map/components/VietnamMap";
 
 export default function MapPage() {
   const [visitedCount, setVisitedCount] = useState<number>(0);
+  const [visitedProvinceIds, setVisitedProvinces] = useState<string[]>([]);
   const [isVisible, setIsVisible] = useState(false);
-  const TOTAL_PROVINCES = 63;
+  
+  // Total: 63 provinces + 2 archipelagos = 65
+  const TOTAL_LOCATIONS = 65;
 
-  const percent = ((visitedCount / TOTAL_PROVINCES) * 100).toFixed(1);
+  const percent = ((visitedCount / TOTAL_LOCATIONS) * 100).toFixed(1);
 
   // ✨ Trigger animation khi component mount
   useEffect(() => {
@@ -41,8 +44,9 @@ export default function MapPage() {
           >
             <StatsCard
               visitedCount={visitedCount}
-              total={TOTAL_PROVINCES}
+              total={TOTAL_LOCATIONS}
               percent={percent}
+              visitedProvinceIds={visitedProvinceIds}
             />
           </div>
 
@@ -52,7 +56,10 @@ export default function MapPage() {
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
             }`}
           >
-            <VietnamMap setVisitedCount={setVisitedCount} />
+            <VietnamMap 
+              setVisitedCount={setVisitedCount}
+              setVisitedProvinces={setVisitedProvinces}
+            />
           </div>
 
           {/* 💡 Tips Section */}

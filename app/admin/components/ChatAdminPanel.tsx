@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSupabase } from "@/components/SupabaseProvider";
 import ChatBox from "./ChatBox";
-import { Loader2, MessageCircle, ArrowLeft, Search } from "lucide-react";
+import { Loader2, MessageCircle, ArrowLeft, Search, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function ChatAdminPanel() {
@@ -35,7 +35,6 @@ export default function ChatAdminPanel() {
     if (day === 1) return "Hôm qua";
     if (day < 7) return `${day} ngày`;
 
-    // >= 7 ngày: hiển thị dd/mm
     const d = t.getDate().toString().padStart(2, "0");
     const m = (t.getMonth() + 1).toString().padStart(2, "0");
     return `${d}/${m}`;
@@ -229,20 +228,30 @@ export default function ChatAdminPanel() {
   // ===================== UI =====================
   if (loading)
     return (
-      <div className="flex justify-center items-center h-full">
-        <Loader2 className="animate-spin w-6 h-6 text-gray-400" />
+      <div className="flex flex-col items-center justify-center h-full py-12 bg-black">
+        <div className="flex items-center gap-2 px-4 py-2 bg-neutral-900 rounded-full border border-neutral-800">
+          <Loader2 className="animate-spin w-4 h-4 text-purple-400" />
+          <span className="text-sm text-neutral-400">Đang tải...</span>
+        </div>
       </div>
     );
 
   if (!user || user.role !== "admin")
     return (
-      <div className="p-4 text-gray-400 text-sm">
-        Bạn không có quyền truy cập trang quản trị chat.
+      <div className="flex flex-col items-center justify-center h-full p-6 text-center bg-black">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500/20 to-orange-500/20 border border-red-500/30 flex items-center justify-center mb-4">
+          <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p className="text-sm text-neutral-400">
+          Bạn không có quyền truy cập trang quản trị chat
+        </p>
       </div>
     );
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
+    <div className="flex flex-col h-full bg-black text-white overflow-hidden">
       <AnimatePresence mode="wait">
         {!activeRoom ? (
           <motion.div
@@ -251,54 +260,100 @@ export default function ChatAdminPanel() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 30 }}
             transition={{ duration: 0.25 }}
-            className="flex flex-col h-full bg-gray-900"
+            className="flex flex-col h-full bg-black"
           >
             {/* 🔍 Thanh tìm kiếm */}
-            <div className="p-2 border-b border-gray-800 flex items-center gap-2 bg-gray-900">
-              <Search className="w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm người dùng..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 bg-transparent outline-none text-sm placeholder-gray-500"
-              />
+            <div className="p-3 border-b border-neutral-800 bg-black">
+              <div className="relative flex items-center bg-neutral-950 border border-neutral-800 rounded-2xl px-4 py-2.5 focus-within:border-neutral-700 transition-colors">
+                <Search className="w-4 h-4 text-neutral-500 mr-2 flex-shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm người dùng..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="flex-1 bg-transparent outline-none text-sm placeholder-neutral-600 text-white"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="ml-2 p-1 hover:bg-neutral-800 rounded-full transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5 text-neutral-500" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Danh sách phòng */}
-            <div className="flex-1 overflow-y-auto bg-gray-900">
-              {filteredRooms.map((r) => (
-                <button
-                  key={r.room_id}
-                  onClick={() => {
-                    setActiveRoom(r.room_id);
-                    setActiveUser(r);
-                  }}
-                  className="w-full flex items-center px-3 py-2 text-sm text-left hover:bg-gray-800 transition-colors"
-                >
-                  <img
-                    src={r.avatar_url || "/default-avatar.png"}
-                    alt="avatar"
-                    className="w-8 h-8 rounded-full object-cover mr-3"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{r.display_name}</p>
-                    <p className="text-xs text-gray-400 truncate whitespace-nowrap break-normal">
-                      {r.last_message}
-                    </p>
+            <div className="flex-1 overflow-y-auto bg-black scrollbar-hide">
+              {filteredRooms.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mb-3">
+                    <MessageCircle className="w-6 h-6 text-neutral-600" />
                   </div>
-                  <div className="ml-2 flex flex-col items-end shrink-0">
-                    <span className="text-[10px] text-gray-500">
-                      {formatRelativeTime(r.last_message_time)}
-                    </span>
-                    {r.unread > 0 && (
-                      <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full mt-1">
-                        {r.unread}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
+                  <p className="text-sm text-neutral-500">
+                    {search ? "Không tìm thấy kết quả" : "Chưa có cuộc trò chuyện"}
+                  </p>
+                </div>
+              ) : (
+                <div className="py-2">
+                  {filteredRooms.map((r) => (
+                    <button
+                      key={r.room_id}
+                      onClick={() => {
+                        setActiveRoom(r.room_id);
+                        setActiveUser(r);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-950 transition-colors group"
+                    >
+                      {/* Avatar with gradient ring if unread */}
+                      <div className="relative flex-shrink-0">
+                        {r.unread > 0 ? (
+                          <div className="p-[2px] rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
+                            <img
+                              src={r.avatar_url || "/default-avatar.png"}
+                              alt="avatar"
+                              className="w-12 h-12 rounded-full object-cover border-2 border-black"
+                            />
+                          </div>
+                        ) : (
+                          <img
+                            src={r.avatar_url || "/default-avatar.png"}
+                            alt="avatar"
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        )}
+                        {/* Online indicator for public room */}
+                        {r.room_id === PUBLIC_ROOM_ID && (
+                          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-black"></div>
+                        )}
+                      </div>
+
+                      {/* Message preview */}
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className={`font-medium text-sm ${r.unread > 0 ? 'text-white' : 'text-neutral-300'}`}>
+                            {r.display_name}
+                          </p>
+                          <span className="text-[11px] text-neutral-500">
+                            {formatRelativeTime(r.last_message_time)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className={`text-xs truncate ${r.unread > 0 ? 'text-white font-medium' : 'text-neutral-500'}`}>
+                            {r.last_message || (r.room_id === PUBLIC_ROOM_ID ? "Thảo luận chung" : "Bắt đầu trò chuyện")}
+                          </p>
+                          {r.unread > 0 && (
+                            <span className="ml-2 bg-gradient-to-br from-blue-500 to-purple-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
+                              {r.unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         ) : (
@@ -308,31 +363,39 @@ export default function ChatAdminPanel() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -30 }}
             transition={{ duration: 0.25 }}
-            className="flex flex-col h-full bg-gray-900"
+            className="flex flex-col h-full bg-black"
           >
-            {/* Header với nút back - gọn, không thừa không gian */}
-            <div className="border-b border-gray-800 flex items-center gap-2 bg-gray-900">
-              <button
-                onClick={() => {
-                  setActiveRoom(null);
-                  setActiveUser(null);
-                }}
-                className="p-2 hover:text-indigo-400 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <img
-                src={activeUser?.avatar_url || "/default-avatar.png"}
-                alt="avatar"
-                className="w-8 h-8 rounded-full object-cover"
-              />
-              <div className="ml-2 font-medium text-sm truncate">
-                {activeUser?.display_name}
+            {/* Header với nút back */}
+            <div className="px-4 py-3 border-b border-neutral-800 flex items-center justify-between bg-black">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setActiveRoom(null);
+                    setActiveUser(null);
+                  }}
+                  className="w-8 h-8 rounded-full hover:bg-neutral-900 flex items-center justify-center transition-colors text-neutral-400 hover:text-white"
+                  aria-label="Quay lại"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <img
+                  src={activeUser?.avatar_url || "/default-avatar.png"}
+                  alt="avatar"
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <div>
+                  <p className="font-semibold text-white text-sm">
+                    {activeUser?.display_name}
+                  </p>
+                  <p className="text-[11px] text-neutral-500">
+                    {activeRoom === PUBLIC_ROOM_ID ? "Cộng đồng" : "Hỗ trợ khách hàng"}
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* Nội dung chat */}
-            <div className="flex-1 bg-gray-900 overflow-y-auto">
+            <div className="flex-1 bg-black overflow-hidden">
               <ChatBox
                 key={activeRoom}
                 roomId={activeRoom}

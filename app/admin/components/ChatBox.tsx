@@ -194,17 +194,13 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
     };
   }, [user]);
 
-  // 🧩 Đăng nhập nhanh: chuyển về trang login (bạn có thể đổi sang OAuth nếu muốn)
+  // 🧩 Đăng nhập nhanh
   const handleLogin = async () => {
-    // Nếu bạn có trang đăng nhập riêng:
     window.location.href = "/login";
-
-    // Hoặc dùng OAuth trực tiếp (bật một cái nếu bạn muốn):
-    // await supabase.auth.signInWithOAuth({ provider: "google" });
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-black">
       <ChatMessages
         messages={messages}
         user={user}
@@ -215,17 +211,29 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
       />
 
       {isPrivate && !user ? (
-        // Thanh nhắc đăng nhập thay cho ô nhập khi phòng hỗ trợ và chưa đăng nhập
-        <div className="border-t border-gray-800 p-3 text-sm flex items-center justify-between bg-gray-900">
-          <span className="text-gray-400">
-            Đăng nhập để nhắn hỗ trợ trực tiếp
-          </span>
-          <button
-            onClick={handleLogin}
-            className="px-3 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
-          >
-            Đăng nhập
-          </button>
+        // Login prompt - Instagram style
+        <div className="border-t border-neutral-800 p-4 bg-black">
+          <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 rounded-2xl p-4 text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center">
+              <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-white">
+                Đăng nhập để nhận hỗ trợ
+              </p>
+              <p className="text-xs text-neutral-500">
+                Kết nối với đội ngũ hỗ trợ 24/7
+              </p>
+            </div>
+            <button
+              onClick={handleLogin}
+              className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:shadow-purple-500/50 hover:scale-[1.02] transition-all duration-300"
+            >
+              Đăng nhập ngay
+            </button>
+          </div>
         </div>
       ) : (
         <ChatInput

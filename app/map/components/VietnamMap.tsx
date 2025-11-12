@@ -3,13 +3,158 @@
 import { useEffect, useRef, useState } from "react";
 import { mapIdToName, specialProvinceMap, colors } from "@/lib/mapUtils";
 
-export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: number) => void }) {
+export default function VietnamMap({ 
+  setVisitedCount,
+  setVisitedProvinces 
+}: { 
+  setVisitedCount: (n: number) => void;
+  setVisitedProvinces: (ids: string[]) => void;
+}) {
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const eventsAttachedRef = useRef(false);
   const visitedRef = useRef<Set<string>>(new Set());
+  const pinsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const STROKE_WIDTH_PX = 1;
-  const TOTAL_PROVINCES = 63;
+
+  // 📍 Create animated pin HTML element (overlay approach)
+  const createPin = (path: SVGPathElement, color: string, provinceId: string): HTMLDivElement => {
+    const pinContainer = document.createElement("div");
+    pinContainer.className = "map-pin-overlay";
+    pinContainer.setAttribute("data-province", provinceId);
+    
+    // Get position relative to map container
+    const mapContainer = svgContainerRef.current;
+    if (!mapContainer) throw new Error("Map container not found");
+    
+    const mapRect = mapContainer.getBoundingClientRect();
+    const pathRect = path.getBoundingClientRect();
+    
+    // Calculate position relative to map container
+    const x = pathRect.left - mapRect.left + pathRect.width / 2 + mapContainer.scrollLeft;
+    const y = pathRect.top - mapRect.top + pathRect.height / 2 + mapContainer.scrollTop;
+    
+    pinContainer.style.cssText = `
+      position: absolute;
+      left: ${x}px;
+      top: ${y}px;
+      transform: translate(-50%, -100%);
+      z-index: 100;
+      pointer-events: none;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    `;
+    
+    // Pin HTML structure
+    pinContainer.innerHTML = `
+      <div style="position: relative;">
+        <!-- Shadow -->
+        <div style="
+          position: absolute;
+          bottom: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 16px;
+          height: 6px;
+          background: radial-gradient(ellipse, rgba(0,0,0,0.4), transparent);
+          border-radius: 50%;
+        "></div>
+        
+        <!-- Pin body -->
+        <div style="
+          position: relative;
+          width: 24px;
+          height: 32px;
+          background: ${color};
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          border: 2px solid rgba(255,255,255,0.3);
+          box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        ">
+          <!-- Pin center dot -->
+          <div style="
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+          "></div>
+        </div>
+      </div>
+    `;
+    
+    return pinContainer;
+  };
+
+  // 📌 Add pin with animation
+  const addPin = (path: SVGPathElement, color: string, provinceId: string) => {
+    try {
+      const pin = createPin(path, color, provinceId);
+      
+      // Add to map container instead of body
+      const mapContainer = svgContainerRef.current;
+      if (!mapContainer) throw new Error("Map container not found");
+      
+      mapContainer.appendChild(pin);
+      pinsRef.current.set(provinceId, pin);
+      
+      // Initial state (hidden above)
+      pin.style.opacity = "0";
+      pin.style.transform = "translate(-50%, -120%)";
+      
+      // Trigger animation
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          pin.style.opacity = "1";
+          pin.style.transform = "translate(-50%, -100%)";
+        });
+      });
+
+      console.log(`✅ Pin added for ${provinceId}`);
+    } catch (error) {
+      console.error(`❌ Error adding pin for ${provinceId}:`, error);
+    }
+  };
+
+  // 🗑️ Remove pin with animation
+  const removePin = (provinceId: string) => {
+    const pin = pinsRef.current.get(provinceId);
+    if (!pin) {
+      console.log(`⚠️ No pin found for ${provinceId}`);
+      return;
+    }
+
+    pin.style.opacity = "0";
+    pin.style.transform = "translate(-50%, -120%)";
+    
+    setTimeout(() => {
+      pin.remove();
+      pinsRef.current.delete(provinceId);
+      console.log(`🗑️ Pin removed for ${provinceId}`);
+    }, 400);
+  };
+
+  // 🔄 Update pin positions on scroll/resize
+  const updatePinPositions = () => {
+    const mapContainer = svgContainerRef.current;
+    if (!mapContainer) return;
+    
+    const mapRect = mapContainer.getBoundingClientRect();
+    
+    pinsRef.current.forEach((pin, provinceId) => {
+      const path = mapContainer.querySelector<SVGPathElement>(`#${provinceId}`);
+      if (!path) return;
+
+      const pathRect = path.getBoundingClientRect();
+      const x = pathRect.left - mapRect.left + pathRect.width / 2 + mapContainer.scrollLeft;
+      const y = pathRect.top - mapRect.top + pathRect.height / 2 + mapContainer.scrollTop;
+      
+      pin.style.left = `${x}px`;
+      pin.style.top = `${y}px`;
+    });
+  };
 
   useEffect(() => {
     if (!svgContainerRef.current || eventsAttachedRef.current) return;
@@ -26,6 +171,8 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
           
           const provinces = svgContainerRef.current.querySelectorAll<SVGPathElement>('path[id^="province-"]');
           const provinceIds = Array.from(provinces).map((p) => p.getAttribute("id") || "");
+
+          console.log(`🗺️ Loaded ${provinces.length} provinces`);
 
           const tooltip = document.createElement("div");
           tooltip.id = "map-tooltip";
@@ -61,6 +208,7 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
           const validIds = new Set<string>(provinceIds.filter((id) => id && parseInt(id.replace("province-", "")) <= 65));
           visitedRef.current = new Set([...visitedRef.current].filter((id) => validIds.has(id)));
           setVisitedCount(visitedRef.current.size);
+          setVisitedProvinces(Array.from(visitedRef.current));
 
           provinces.forEach((p) => {
             const id = p.getAttribute("id") || "";
@@ -69,38 +217,38 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
             p.style.stroke = "rgba(255,255,255,0.2)";
             p.style.strokeWidth = `${STROKE_WIDTH_PX}px`;
             p.setAttribute("vector-effect", "non-scaling-stroke");
-            const targetId = specialProvinceMap[id] || id;
+            
+            // Use the ID directly since specialProvinceMap is now empty
+            const targetId = id;
 
             if (visitedRef.current.has(targetId)) {
               const color = colors[Math.floor(Math.random() * colors.length)];
               p.style.fill = color;
               p.classList.add("visited");
+              // Wait for render before adding pin
+              setTimeout(() => addPin(p, color, targetId), 100);
             } else {
               p.style.fill = "rgba(115,115,115,0.3)";
             }
 
             const onClick = () => {
-              const elementsToColor = [p];
-              if (specialProvinceMap[id]) {
-                const mainProvince = svgContainerRef.current?.querySelector<SVGPathElement>(`#${specialProvinceMap[id]}`);
-                if (mainProvince) elementsToColor.push(mainProvince);
-              }
-              
+              // No special province handling - each province is independent
               if (visitedRef.current.has(targetId)) {
+                console.log(`🔴 Removing: ${targetId}`);
                 visitedRef.current.delete(targetId);
-                elementsToColor.forEach((el) => { 
-                  el.classList.remove("visited"); 
-                  el.style.fill = "rgba(115,115,115,0.3)"; 
-                });
+                p.classList.remove("visited");
+                p.style.fill = "rgba(115,115,115,0.3)";
+                removePin(targetId);
               } else {
+                console.log(`🟢 Adding: ${targetId}`);
                 visitedRef.current.add(targetId);
                 const color = colors[Math.floor(Math.random() * colors.length)];
-                elementsToColor.forEach((el) => { 
-                  el.classList.add("visited"); 
-                  el.style.fill = color; 
-                });
+                p.classList.add("visited");
+                p.style.fill = color;
+                addPin(p, color, targetId);
               }
               setVisitedCount(visitedRef.current.size);
+              setVisitedProvinces(Array.from(visitedRef.current));
             };
 
             const onEnter = (e: Event) => { 
@@ -136,6 +284,16 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
           });
 
           eventsAttachedRef.current = true;
+
+          // Update pin positions on window scroll and resize
+          window.addEventListener("scroll", updatePinPositions, { passive: true });
+          window.addEventListener("resize", updatePinPositions);
+          
+          // Update on map scroll
+          const mapContainer = svgContainerRef.current;
+          if (mapContainer) {
+            mapContainer.addEventListener("scroll", updatePinPositions, { passive: true });
+          }
         }
       } catch (error) {
         console.error("Error loading or processing SVG:", error);
@@ -144,7 +302,18 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
     };
 
     loadSvgAndAttachEvents();
-  }, [svgContainerRef.current]);
+
+    // Cleanup
+    return () => {
+      // Remove all pins
+      pinsRef.current.forEach(pin => pin.remove());
+      pinsRef.current.clear();
+      
+      // Remove event listeners
+      window.removeEventListener("scroll", updatePinPositions);
+      window.removeEventListener("resize", updatePinPositions);
+    };
+  }, []);
 
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden">
@@ -193,7 +362,7 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
         <div
           id="vn-map-root"
           ref={svgContainerRef}
-          className="w-full p-4 overflow-auto touch-pan-x touch-pan-y"
+          className="w-full p-4 overflow-auto touch-pan-x touch-pan-y relative"
           style={{
             minHeight: "60vh",
             maxHeight: "75vh",
@@ -257,6 +426,11 @@ export default function VietnamMap({ setVisitedCount }: { setVisitedCount: (n: n
         
         #vn-map-root path:hover {
           filter: brightness(1.2) !important;
+        }
+
+        /* 📍 Pin overlay styles */
+        .map-pin-overlay {
+          will-change: transform, opacity;
         }
         
         #map-tooltip:empty {

@@ -2,10 +2,26 @@ type StatsCardProps = {
   visitedCount: number;
   total: number;
   percent: string;
+  visitedProvinceIds: string[];
 };
 
-export default function StatsCard({ visitedCount, total, percent }: StatsCardProps) {
+export default function StatsCard({ visitedCount, total, percent, visitedProvinceIds }: StatsCardProps) {
   const percentNum = parseFloat(percent);
+  
+  // Constants
+  const TOTAL_PROVINCES = 63;
+  const TOTAL_ARCHIPELAGOS = 2;
+  
+  // Count provinces (1-63) and archipelagos (64-65) separately based on actual IDs
+  const provinceCount = visitedProvinceIds.filter(id => {
+    const num = parseInt(id.replace("province-", ""));
+    return num >= 1 && num <= 63;
+  }).length;
+  
+  const archipelagoCount = visitedProvinceIds.filter(id => {
+    const num = parseInt(id.replace("province-", ""));
+    return num === 64 || num === 65;
+  }).length;
   
   // 🎨 Gradient based on completion percentage
   const getGradient = () => {
@@ -31,15 +47,27 @@ export default function StatsCard({ visitedCount, total, percent }: StatsCardPro
       {/* 📊 Header */}
       <div className="p-6 space-y-4">
         {/* Stats Display */}
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-3">
           <div className="flex items-center justify-center gap-2">
             <span className="text-4xl font-bold text-white">{visitedCount}</span>
             <span className="text-2xl text-neutral-600">/</span>
             <span className="text-2xl text-neutral-500">{total}</span>
           </div>
-          <p className="text-sm text-neutral-500">
-            tỉnh thành đã khám phá
-          </p>
+          
+          {/* Province & Archipelago Breakdown */}
+          <div className="flex items-center justify-center gap-4 text-sm">
+            <div className="text-neutral-400">
+              <span className="font-semibold text-white">{provinceCount}</span>
+              <span className="text-neutral-600"> / {TOTAL_PROVINCES}</span>
+              <span className="text-neutral-500 ml-1">tỉnh thành</span>
+            </div>
+            <div className="w-px h-4 bg-neutral-700"></div>
+            <div className="text-neutral-400">
+              <span className="font-semibold text-white">{archipelagoCount}</span>
+              <span className="text-neutral-600"> / {TOTAL_ARCHIPELAGOS}</span>
+              <span className="text-neutral-500 ml-1">quần đảo</span>
+            </div>
+          </div>
         </div>
 
         {/* Progress Bar */}
@@ -90,10 +118,10 @@ export default function StatsCard({ visitedCount, total, percent }: StatsCardPro
         {/* Region badge */}
         <div className="p-4 text-center">
           <div className="text-2xl font-bold text-white">
-            {visitedCount >= 21 ? "🏆" : visitedCount >= 10 ? "🥈" : visitedCount >= 5 ? "🥉" : "⭐"}
+            {visitedCount >= 33 ? "🏆" : visitedCount >= 16 ? "🥈" : visitedCount >= 8 ? "🥉" : "⭐"}
           </div>
           <div className="text-xs text-neutral-600 mt-1">
-            {visitedCount >= 21 ? "Explorer" : visitedCount >= 10 ? "Traveler" : visitedCount >= 5 ? "Wanderer" : "Starter"}
+            {visitedCount >= 33 ? "Explorer" : visitedCount >= 16 ? "Traveler" : visitedCount >= 8 ? "Wanderer" : "Starter"}
           </div>
         </div>
       </div>
