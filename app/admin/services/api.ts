@@ -672,3 +672,6 @@ export async function removePendingImage(pendingId: string, imageUrl: string) {
     throw error;
   }
 }
+
+
+export async function fetchDetailedStats() {  try {    const { data: servicesData, error: sErr } = await supabase      .from("services")      .select("type, status");    const { data: pendingData, error: pErr } = await supabase      .from("pending_services")      .select("type, status");    if (sErr) throw new Error(`Lỗi khi tải thống kê services: ${sErr.message}`);    if (pErr) throw new Error(`Lỗi khi tải thống kê pending: ${pErr.message}`);    const byType: Record<string, any> = {};    const byStatus: Record<string, number> = {};    [...(servicesData || []), ...(pendingData || [])].forEach((s: any) => {      byType[s.type] = byType[s.type] || { total: 0, active: 0, inactive: 0, pending: 0 };      byType[s.type].total++;      byType[s.type][s.status] = (byType[s.type][s.status] || 0) + 1;      byStatus[s.status] = (byStatus[s.status] || 0) + 1;    });    return { byType, byStatus };  } catch (error) {    console.error('fetchDetailedStats error:', error);    throw error;  }}
