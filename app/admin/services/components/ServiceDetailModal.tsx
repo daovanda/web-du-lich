@@ -26,18 +26,45 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
   const [showMotorbikeEditor, setShowMotorbikeEditor] = useState(false);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
 
-  // Use the hook to fetch service details
+  // Use the hook to fetch service details với refreshKey
   const { data: serviceDetail, loading } = useServiceDetail(
     open ? service?.id || null : null,
-    open ? (service?.type as any) || null : null
+    open ? (service?.type as any) || null : null,
+    refreshKey
   );
 
+  // Reset state khi modal mở/đóng hoặc service thay đổi
+  useEffect(() => {
+    if (open && service) {
+      setExistingImages(service.images || []);
+      setRefreshKey(0);
+      setNotification(null);
+    } else if (!open) {
+      // Reset tất cả state khi đóng modal
+      setShowImageEditor(false);
+      setShowTourEditor(false);
+      setShowStayEditor(false);
+      setShowCarEditor(false);
+      setShowMotorbikeEditor(false);
+    }
+  }, [open, service?.id]);
+
+  // Update existingImages khi service.images thay đổi
   useEffect(() => {
     if (service?.images) {
       setExistingImages(service.images);
     }
   }, [service?.images]);
+
+  // Auto hide notification sau 5s
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   if (!open || !service) return null;
 
@@ -74,30 +101,49 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
     return typeMap[type || ""] || type || "—";
   };
 
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+  };
+
   const handleSaveImages = async ({
     avatarFile,
     additionalFiles,
     existingImages: newExistingImages,
+    removeAvatar,
   }: {
     avatarFile: File | null;
     additionalFiles: File[];
     existingImages: string[];
+    removeAvatar?: boolean;
   }) => {
     if (!service?.id) throw new Error("Không có ID dịch vụ");
 
+    const bucketName = "services_images";
+    const folderPath = service.id;
+    
+    console.log(`📁 Upload destination: ${bucketName}/${folderPath}`);
+    
     let newImageUrl = service.image_url;
     let newImages = [...newExistingImages];
-
+    
+    // Xử lý xóa avatar
+    if (removeAvatar) {
+      newImageUrl = null;
+    }
+    
+    // Upload avatar mới
     if (avatarFile) {
-      const urls = await uploadImagesToBucket([avatarFile], "services_images");
+      const urls = await uploadImagesToBucket([avatarFile], bucketName, folderPath);
       newImageUrl = urls[0] || null;
     }
-
+    
+    // Upload ảnh phụ mới
     if (additionalFiles.length > 0) {
-      const urls = await uploadImagesToBucket(additionalFiles, "services_images");
+      const urls = await uploadImagesToBucket(additionalFiles, bucketName, folderPath);
       newImages = [...newImages, ...urls];
     }
-
+    
+    // Cập nhật database
     const { error: dbError } = await supabase
       .from("services")
       .update({
@@ -106,19 +152,20 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
         updated_at: new Date().toISOString(),
       })
       .eq("id", service.id);
-
+      
     if (dbError) throw dbError;
-
+    
+    // Cập nhật local state
     const updatedService = { ...service, image_url: newImageUrl, images: newImages };
     onUpdate?.(updatedService);
     setExistingImages(newImages);
-
-    alert("Đã cập nhật ảnh thành công!");
+    showNotification('success', "Đã cập nhật ảnh thành công!");
   };
 
   const handleDetailSaved = () => {
     // Trigger re-fetch by changing key
     setRefreshKey(prev => prev + 1);
+    showNotification('success', "Đã lưu thông tin chi tiết thành công!");
   };
 
   const renderDetailButton = () => {
@@ -186,7 +233,19 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
       );
     }
 
-    if (!serviceDetail) return null;
+    if (!serviceDetail) {
+      return (
+        <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700 text-center">
+          <div className="text-gray-400 mb-3">
+            <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-sm">Chưa có thông tin chi tiết cho dịch vụ này</p>
+          </div>
+          <p className="text-xs text-gray-500">Nhấn nút <span className="font-semibold">Thêm...</span> ở trên để thêm thông tin</p>
+        </div>
+      );
+    }
 
     switch (service.type) {
       case "tour":
@@ -359,7 +418,6 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
                 <span className="block text-xs text-gray-400 mb-1">Năm sản xuất</span>
                 <p className="text-white font-medium">{serviceDetail.year}</p>
               </div>
-
             </div>
           </div>
         );
@@ -376,7 +434,7 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
           {/* Header */}
           <div className="flex items-start justify-between p-5 border-b border-gray-800">
             <div className="flex-1">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purpSle-400 bg-clip-text text-transparent mb-2">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
                 {service.title}
               </h2>
               <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -412,6 +470,24 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
               </button>
             </div>
           </div>
+
+          {/* Notification */}
+          {notification && (
+            <div className={`mx-5 mt-4 p-3 rounded-lg border flex items-center gap-3 ${
+              notification.type === 'success' 
+                ? 'bg-green-900/20 border-green-700 text-green-400' 
+                : 'bg-red-900/20 border-red-700 text-red-400'
+            }`}>
+              <span className="text-xl">{notification.type === 'success' ? '✅' : '❌'}</span>
+              <p className="flex-1 text-sm">{notification.message}</p>
+              <button 
+                onClick={() => setNotification(null)}
+                className="hover:opacity-70 transition"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">

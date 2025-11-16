@@ -18,8 +18,6 @@ import PendingForm from "./components/PendingForm";
 import OfficialTable from "./components/OfficialTable";
 import ApproveModal from "./components/ApproveModal";
 import ServiceDetailModal from "./components/ServiceDetailModal";
-import DetailedStats from "./components/DetailedStats";
-
 type TabType = "pending" | "services" | "addNew";
 
 export default function AdminServicesPage() {
@@ -115,7 +113,7 @@ export default function AdminServicesPage() {
     try {
       if (!selectedPending) return;
 
-      await approvePendingAsService(selectedPending, form, avatarFile, additionalFiles);
+      await approvePendingAsService(selectedPending.id, form, avatarFile, additionalFiles);
       alert("✅ Dịch vụ đã được phê duyệt!");
       setApproveModalOpen(false);
       setSelectedPending(null);
@@ -127,7 +125,7 @@ export default function AdminServicesPage() {
 
   const handleReject = async (reason: string) => {
     if (!selectedPending) return;
-    await rejectPendingService(selectedPending, reason);
+    await rejectPendingService(selectedPending.id, reason);
     alert("🚫 Dịch vụ đã bị từ chối");
     setApproveModalOpen(false);
     setSelectedPending(null);
@@ -182,8 +180,6 @@ export default function AdminServicesPage() {
       {/* Stats Overview - Always visible */}
       <StatsOverview {...stats} />
 
-      {/* Detailed Stats - Always visible below overview */}
-      <DetailedStats />
 
       {/* Full-Width Rounded Tabs */}
       <div className="w-full max-w-7xl mx-auto">

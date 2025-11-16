@@ -1,12 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { mapIdToName, specialProvinceMap, colors } from "@/lib/mapUtils";
+import { colors } from "@/lib/mapUtils";
+import { addPin, updatePinPositions } from "../lib/mapPinUtils";
+import { createTooltip, removeTooltip } from "../lib/mapTooltipUtils";
+import {
+  createClickHandler,
+  createMouseEnterHandler,
+  createMouseMoveHandler,
+  createMouseLeaveHandler,
+  createTouchHandler,
+} from "../lib/mapEventHandlers";
 
-export default function VietnamMap({ 
+export default function VietnamMap({
   setVisitedCount,
-  setVisitedProvinces 
-}: { 
+  setVisitedProvinces,
+}: {
   setVisitedCount: (n: number) => void;
   setVisitedProvinces: (ids: string[]) => void;
 }) {
@@ -14,147 +23,10 @@ export default function VietnamMap({
   const eventsAttachedRef = useRef(false);
   const visitedRef = useRef<Set<string>>(new Set());
   const pinsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
   const STROKE_WIDTH_PX = 1;
-
-  // 📍 Create animated pin HTML element (overlay approach)
-  const createPin = (path: SVGPathElement, color: string, provinceId: string): HTMLDivElement => {
-    const pinContainer = document.createElement("div");
-    pinContainer.className = "map-pin-overlay";
-    pinContainer.setAttribute("data-province", provinceId);
-    
-    // Get position relative to map container
-    const mapContainer = svgContainerRef.current;
-    if (!mapContainer) throw new Error("Map container not found");
-    
-    const mapRect = mapContainer.getBoundingClientRect();
-    const pathRect = path.getBoundingClientRect();
-    
-    // Calculate position relative to map container
-    const x = pathRect.left - mapRect.left + pathRect.width / 2 + mapContainer.scrollLeft;
-    const y = pathRect.top - mapRect.top + pathRect.height / 2 + mapContainer.scrollTop;
-    
-    pinContainer.style.cssText = `
-      position: absolute;
-      left: ${x}px;
-      top: ${y}px;
-      transform: translate(-50%, -100%);
-      z-index: 100;
-      pointer-events: none;
-      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    `;
-    
-    // Pin HTML structure
-    pinContainer.innerHTML = `
-      <div style="position: relative;">
-        <!-- Shadow -->
-        <div style="
-          position: absolute;
-          bottom: -8px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 16px;
-          height: 6px;
-          background: radial-gradient(ellipse, rgba(0,0,0,0.4), transparent);
-          border-radius: 50%;
-        "></div>
-        
-        <!-- Pin body -->
-        <div style="
-          position: relative;
-          width: 24px;
-          height: 32px;
-          background: ${color};
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          border: 2px solid rgba(255,255,255,0.3);
-          box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        ">
-          <!-- Pin center dot -->
-          <div style="
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 8px;
-            height: 8px;
-            background: white;
-            border-radius: 50%;
-          "></div>
-        </div>
-      </div>
-    `;
-    
-    return pinContainer;
-  };
-
-  // 📌 Add pin with animation
-  const addPin = (path: SVGPathElement, color: string, provinceId: string) => {
-    try {
-      const pin = createPin(path, color, provinceId);
-      
-      // Add to map container instead of body
-      const mapContainer = svgContainerRef.current;
-      if (!mapContainer) throw new Error("Map container not found");
-      
-      mapContainer.appendChild(pin);
-      pinsRef.current.set(provinceId, pin);
-      
-      // Initial state (hidden above)
-      pin.style.opacity = "0";
-      pin.style.transform = "translate(-50%, -120%)";
-      
-      // Trigger animation
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          pin.style.opacity = "1";
-          pin.style.transform = "translate(-50%, -100%)";
-        });
-      });
-
-      console.log(`✅ Pin added for ${provinceId}`);
-    } catch (error) {
-      console.error(`❌ Error adding pin for ${provinceId}:`, error);
-    }
-  };
-
-  // 🗑️ Remove pin with animation
-  const removePin = (provinceId: string) => {
-    const pin = pinsRef.current.get(provinceId);
-    if (!pin) {
-      console.log(`⚠️ No pin found for ${provinceId}`);
-      return;
-    }
-
-    pin.style.opacity = "0";
-    pin.style.transform = "translate(-50%, -120%)";
-    
-    setTimeout(() => {
-      pin.remove();
-      pinsRef.current.delete(provinceId);
-      console.log(`🗑️ Pin removed for ${provinceId}`);
-    }, 400);
-  };
-
-  // 🔄 Update pin positions on scroll/resize
-  const updatePinPositions = () => {
-    const mapContainer = svgContainerRef.current;
-    if (!mapContainer) return;
-    
-    const mapRect = mapContainer.getBoundingClientRect();
-    
-    pinsRef.current.forEach((pin, provinceId) => {
-      const path = mapContainer.querySelector<SVGPathElement>(`#${provinceId}`);
-      if (!path) return;
-
-      const pathRect = path.getBoundingClientRect();
-      const x = pathRect.left - mapRect.left + pathRect.width / 2 + mapContainer.scrollLeft;
-      const y = pathRect.top - mapRect.top + pathRect.height / 2 + mapContainer.scrollTop;
-      
-      pin.style.left = `${x}px`;
-      pin.style.top = `${y}px`;
-    });
-  };
 
   useEffect(() => {
     if (!svgContainerRef.current || eventsAttachedRef.current) return;
@@ -164,135 +36,89 @@ export default function VietnamMap({
         const response = await fetch("/vietnamese_map_patched.svg");
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const txt = await response.text();
-        
+
         if (svgContainerRef.current) {
           svgContainerRef.current.innerHTML = txt;
           setIsLoading(false);
-          
-          const provinces = svgContainerRef.current.querySelectorAll<SVGPathElement>('path[id^="province-"]');
+
+          const provinces = svgContainerRef.current.querySelectorAll<SVGPathElement>(
+            'path[id^="province-"]'
+          );
           const provinceIds = Array.from(provinces).map((p) => p.getAttribute("id") || "");
 
           console.log(`🗺️ Loaded ${provinces.length} provinces`);
 
-          const tooltip = document.createElement("div");
-          tooltip.id = "map-tooltip";
-          Object.assign(tooltip.style, {
-            position: "fixed",
-            zIndex: "9999",
-            pointerEvents: "none",
-            background: "rgba(0,0,0,0.95)",
-            color: "#fff",
-            padding: "8px 14px",
-            borderRadius: "8px",
-            fontWeight: "600",
-            fontSize: "13px",
-            whiteSpace: "nowrap",
-            opacity: "0",
-            transition: "opacity .15s ease",
-            border: "1px solid rgba(255,255,255,0.1)",
-            backdropFilter: "blur(10px)",
-          });
-          document.body.appendChild(tooltip);
+          // Create tooltip
+          tooltipRef.current = createTooltip();
 
-          const showTooltip = (text: string) => { 
-            tooltip.textContent = text; 
-            tooltip.style.opacity = "1"; 
-          };
-          const moveTooltip = (x: number, y: number) => { 
-            tooltip.style.left = `${x + 16}px`; 
-            tooltip.style.top = `${y + 16}px`; 
-          };
-          const hideTooltip = () => (tooltip.style.opacity = "0");
-          const getProvinceName = (el: Element) => mapIdToName(el.getAttribute("id") || "");
-
-          const validIds = new Set<string>(provinceIds.filter((id) => id && parseInt(id.replace("province-", "")) <= 65));
+          // Filter valid IDs (1-65)
+          const validIds = new Set<string>(
+            provinceIds.filter((id) => id && parseInt(id.replace("province-", "")) <= 65)
+          );
+          
           visitedRef.current = new Set([...visitedRef.current].filter((id) => validIds.has(id)));
           setVisitedCount(visitedRef.current.size);
           setVisitedProvinces(Array.from(visitedRef.current));
 
+          const mapContainer = svgContainerRef.current;
+
           provinces.forEach((p) => {
             const id = p.getAttribute("id") || "";
             if (!id || !validIds.has(id)) return;
-            
+
+            // Set basic styles
             p.style.stroke = "rgba(255,255,255,0.2)";
             p.style.strokeWidth = `${STROKE_WIDTH_PX}px`;
             p.setAttribute("vector-effect", "non-scaling-stroke");
-            
-            // Use the ID directly since specialProvinceMap is now empty
+
             const targetId = id;
 
+            // Initialize visited state
             if (visitedRef.current.has(targetId)) {
               const color = colors[Math.floor(Math.random() * colors.length)];
               p.style.fill = color;
               p.classList.add("visited");
-              // Wait for render before adding pin
-              setTimeout(() => addPin(p, color, targetId), 100);
+              setTimeout(() => addPin(p, color, targetId, mapContainer, pinsRef.current), 100);
             } else {
               p.style.fill = "rgba(115,115,115,0.3)";
             }
 
-            const onClick = () => {
-              // No special province handling - each province is independent
-              if (visitedRef.current.has(targetId)) {
-                console.log(`🔴 Removing: ${targetId}`);
-                visitedRef.current.delete(targetId);
-                p.classList.remove("visited");
-                p.style.fill = "rgba(115,115,115,0.3)";
-                removePin(targetId);
-              } else {
-                console.log(`🟢 Adding: ${targetId}`);
-                visitedRef.current.add(targetId);
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                p.classList.add("visited");
-                p.style.fill = color;
-                addPin(p, color, targetId);
-              }
-              setVisitedCount(visitedRef.current.size);
-              setVisitedProvinces(Array.from(visitedRef.current));
+            // Create event handler parameters
+            const handlerParams = {
+              path: p,
+              targetId,
+              visitedSet: visitedRef.current,
+              pinsMap: pinsRef.current,
+              mapContainer,
+              tooltip: tooltipRef.current!,
+              setVisitedCount,
+              setVisitedProvinces,
             };
 
-            const onEnter = (e: Event) => { 
-              const me = e as MouseEvent; 
-              showTooltip(getProvinceName(p)); 
-              moveTooltip(me.clientX, me.clientY);
-              p.style.filter = "brightness(1.2)";
-            };
-            
-            const onMove = (e: Event) => { 
-              const me = e as MouseEvent; 
-              moveTooltip(me.clientX, me.clientY); 
-            };
-            
-            const onLeave = () => {
-              hideTooltip();
-              p.style.filter = "brightness(1)";
-            };
-            
-            const onTouch = (e: Event) => {
-              const t = (e as TouchEvent).touches[0];
-              if (!t) return;
-              showTooltip(getProvinceName(p));
-              moveTooltip(t.clientX, t.clientY);
-              setTimeout(hideTooltip, 1500);
-            };
-
-            p.addEventListener("click", onClick);
-            p.addEventListener("mouseenter", onEnter);
-            p.addEventListener("mousemove", onMove);
-            p.addEventListener("mouseleave", onLeave);
-            p.addEventListener("touchstart", onTouch, { passive: true });
+            // Attach event listeners
+            p.addEventListener("click", createClickHandler(handlerParams));
+            p.addEventListener("mouseenter", createMouseEnterHandler(handlerParams));
+            p.addEventListener("mousemove", createMouseMoveHandler(handlerParams));
+            p.addEventListener("mouseleave", createMouseLeaveHandler(handlerParams));
+            p.addEventListener("touchstart", createTouchHandler(handlerParams), { passive: true });
           });
 
           eventsAttachedRef.current = true;
 
+          // Pin position update handler
+          const handlePinUpdate = () => {
+            if (mapContainer) {
+              updatePinPositions(mapContainer, pinsRef.current);
+            }
+          };
+
           // Update pin positions on window scroll and resize
-          window.addEventListener("scroll", updatePinPositions, { passive: true });
-          window.addEventListener("resize", updatePinPositions);
-          
+          window.addEventListener("scroll", handlePinUpdate, { passive: true });
+          window.addEventListener("resize", handlePinUpdate);
+
           // Update on map scroll
-          const mapContainer = svgContainerRef.current;
           if (mapContainer) {
-            mapContainer.addEventListener("scroll", updatePinPositions, { passive: true });
+            mapContainer.addEventListener("scroll", handlePinUpdate, { passive: true });
           }
         }
       } catch (error) {
@@ -306,14 +132,24 @@ export default function VietnamMap({
     // Cleanup
     return () => {
       // Remove all pins
-      pinsRef.current.forEach(pin => pin.remove());
+      pinsRef.current.forEach((pin) => pin.remove());
       pinsRef.current.clear();
-      
+
+      // Remove tooltip
+      if (tooltipRef.current) {
+        removeTooltip(tooltipRef.current);
+      }
+
       // Remove event listeners
-      window.removeEventListener("scroll", updatePinPositions);
-      window.removeEventListener("resize", updatePinPositions);
+      const handlePinUpdate = () => {
+        if (svgContainerRef.current) {
+          updatePinPositions(svgContainerRef.current, pinsRef.current);
+        }
+      };
+      window.removeEventListener("scroll", handlePinUpdate);
+      window.removeEventListener("resize", handlePinUpdate);
     };
-  }, []);
+  }, [setVisitedCount, setVisitedProvinces]);
 
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden">
@@ -321,9 +157,24 @@ export default function VietnamMap({
       <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg
+              className="w-5 h-5 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+              />
             </svg>
           </div>
           <div>
@@ -351,8 +202,20 @@ export default function VietnamMap({
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <div className="flex flex-col items-center gap-3">
               <svg className="animate-spin h-8 w-8 text-white" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
               </svg>
               <p className="text-sm text-neutral-500">Đang tải bản đồ...</p>
             </div>
@@ -373,8 +236,18 @@ export default function VietnamMap({
       {/* ✨ Footer Tips */}
       <div className="px-6 py-4 border-t border-neutral-800 bg-neutral-950/50">
         <div className="flex items-center gap-2 text-xs text-neutral-600">
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-4 h-4 flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           <span>Di chuột hoặc chạm vào tỉnh để xem tên. Nhấn để đánh dấu đã ghé thăm.</span>
         </div>
@@ -385,27 +258,27 @@ export default function VietnamMap({
         #vn-map-root {
           position: relative;
           scrollbar-width: thin;
-          scrollbar-color: rgba(115,115,115,0.3) transparent;
+          scrollbar-color: rgba(115, 115, 115, 0.3) transparent;
         }
-        
+
         #vn-map-root::-webkit-scrollbar {
           width: 8px;
           height: 8px;
         }
-        
+
         #vn-map-root::-webkit-scrollbar-track {
           background: transparent;
         }
-        
+
         #vn-map-root::-webkit-scrollbar-thumb {
-          background: rgba(115,115,115,0.3);
+          background: rgba(115, 115, 115, 0.3);
           border-radius: 4px;
         }
-        
+
         #vn-map-root::-webkit-scrollbar-thumb:hover {
-          background: rgba(115,115,115,0.5);
+          background: rgba(115, 115, 115, 0.5);
         }
-        
+
         #vn-map-root svg {
           display: block;
           width: 100%;
@@ -413,9 +286,9 @@ export default function VietnamMap({
           max-width: 100%;
           aspect-ratio: 3/4;
         }
-        
+
         #vn-map-root path {
-          stroke: rgba(255,255,255,0.2);
+          stroke: rgba(255, 255, 255, 0.2);
           stroke-width: ${STROKE_WIDTH_PX}px;
           stroke-linejoin: round;
           stroke-linecap: round;
@@ -423,7 +296,7 @@ export default function VietnamMap({
           cursor: pointer;
           transition: fill 0.3s ease, filter 0.2s ease;
         }
-        
+
         #vn-map-root path:hover {
           filter: brightness(1.2) !important;
         }
@@ -432,15 +305,17 @@ export default function VietnamMap({
         .map-pin-overlay {
           will-change: transform, opacity;
         }
-        
+
         #map-tooltip:empty {
           opacity: 0 !important;
         }
 
         @keyframes spin {
-          to { transform: rotate(360deg); }
+          to {
+            transform: rotate(360deg);
+          }
         }
-        
+
         .animate-spin {
           animation: spin 1s linear infinite;
         }

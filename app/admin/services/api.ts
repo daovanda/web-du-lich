@@ -1,57 +1,14 @@
 import { supabase } from "@/lib/supabase";
 import { PendingService, Service } from "./types";
-
-// Helper function để upload ảnh
-async function uploadImagesToBucket(files: File[], bucketName: string): Promise<string[]> {
-  try {
-    const uploadPromises = files.map(async (file, index) => {
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${index}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      // Upload file to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from(bucketName)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (error) {
-        console.error(`Error uploading file ${file.name}:`, error);
-        throw new Error(`Lỗi khi upload file ${file.name}: ${error.message}`);
-      }
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-
-      if (!urlData?.publicUrl) {
-        throw new Error(`Không thể lấy URL công khai cho file ${file.name}`);
-      }
-
-      return urlData.publicUrl;
-    });
-
-    const uploadedUrls = await Promise.all(uploadPromises);
-    console.log(`Successfully uploaded ${uploadedUrls.length} images to bucket ${bucketName}`);
-    
-    return uploadedUrls;
-  } catch (error) {
-    console.error('uploadImagesToBucket error:', error);
-    throw error;
-  }
-}
-
+import { uploadImagesToBucket } from "./helpers";
 /* ----------------------------- FETCHERS ----------------------------- */
 
 export async function fetchPendingServices(): Promise<PendingService[]> {
   try {
     const { data, error } = await supabase
-      .from("pending_services")
+      .from("services")
       .select("*")
+      .in("status", ["draft", "pending", "approved", "rejected"])
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -71,7 +28,11 @@ export async function fetchServices(
   statusFilter: string
 ): Promise<Service[]> {
   try {
-    let query = supabase.from("services").select("*").order("created_at", { ascending: false });
+    let query = supabase
+    .from("services")
+    .select("*")
+    .in("status", ["active", "inactive", "archived"])
+    .order("created_at", { ascending: false });
 
     if (typeFilter !== "all") query = query.eq("type", typeFilter);
     if (statusFilter !== "all") query = query.eq("status", statusFilter);
@@ -95,25 +56,62 @@ export async function fetchServices(
 
 export async function fetchStats() {
   try {
-    const { data: sData, error: sError } = await supabase.from("services").select("id, type, status");
-    const { data: pData, error: pError } = await supabase.from("pending_services").select("id, status");
+    // 🔥 Chỉ query 1 bảng services
+    const { data: sData, error: sError } = await supabase
+      .from("services")
+      .select("id, type, status");
 
-    if (sError) throw new Error(`Lỗi khi tải thống kê services: ${sError.message}`);
-    if (pError) throw new Error(`Lỗi khi tải thống kê pending: ${pError.message}`);
+    if (sError) {
+      throw new Error(`Lỗi khi tải thống kê services: ${sError.message}`);
+    }
 
+    // 📊 Tổng số services (tất cả status)
     const totalServices = sData?.length || 0;
-    const totalPending = pData?.filter((p: any) => p.status === "new" || p.status === "pending").length || 0;
-    const totalConfirmed = sData?.filter((s: any) => s.status === "active").length || 0;
 
+    // 📋 totalPending: draft + pending + rejected + approved
+    const totalPending = sData?.filter((s: any) => 
+      s.status === "draft" || 
+      s.status === "pending" || 
+      s.status === "approved" ||
+      s.status === "rejected"
+    ).length || 0;
+
+    const totalConfirmed = sData?.filter((s: any) => 
+      s.status === "active" || 
+      s.status === "inactive" || 
+      s.status === "archived"
+    ).length || 0;
+
+    // 📈 Thống kê theo type (stay, car, motorbike, tour)
     const byType: Record<string, number> = {};
     sData?.forEach((s: any) => {
-      byType[s.type] = (byType[s.type] || 0) + 1;
+      if (s.type) {
+        byType[s.type] = (byType[s.type] || 0) + 1;
+      }
     });
 
-    return { totalServices, totalPending, totalConfirmed, byType };
+
+    console.log('📊 Stats:', {
+      totalServices,
+      totalPending,
+      totalConfirmed,
+      byType
+    });
+
+    return { 
+      totalServices, 
+      totalPending, 
+      totalConfirmed, 
+      byType
+    };
   } catch (error) {
     console.error("fetchStats error:", error);
-    return { totalServices: 0, totalPending: 0, totalConfirmed: 0, byType: {} };
+    return { 
+      totalServices: 0, 
+      totalPending: 0, 
+      totalConfirmed: 0, 
+      byType: {},
+    };
   }
 }
 
@@ -121,38 +119,78 @@ export async function fetchStats() {
 
 export async function updatePendingStatus(id: string, newStatus?: string) {
   try {
+    // 1️⃣ Lấy thông tin hiện tại
     const { data: currentData, error: fetchError } = await supabase
-      .from("pending_services")
-      .select("status, rejected_reason")
+      .from("services") // 🔄 Đổi từ "pending_services" → "services"
+      .select("status, rejected_reason, rejected_by, approved_by")
       .eq("id", id)
       .single();
 
-    if (fetchError) throw new Error(`Không thể lấy trạng thái hiện tại: ${fetchError.message}`);
-    if (!currentData) throw new Error("Không tìm thấy dịch vụ cần cập nhật.");
+    if (fetchError) {
+      throw new Error(`Không thể lấy trạng thái hiện tại: ${fetchError.message}`);
+    }
+    if (!currentData) {
+      throw new Error("Không tìm thấy dịch vụ cần cập nhật.");
+    }
 
-    // Nếu không truyền newStatus → tự xoay vòng
+    // 2️⃣ Xác định status tiếp theo
     let nextStatus = newStatus;
     if (!newStatus) {
-      const order = ["new", "pending", "approved", "rejected"];
+      // 🔄 Xoay vòng: draft → pending → approved → rejected → draft
+      const order = ["draft", "pending", "approved", "rejected"];
       const currentIndex = order.indexOf(currentData.status);
       nextStatus = order[(currentIndex + 1) % order.length];
     }
 
-    const updates: any = { status: nextStatus };
+    // 3️⃣ Chuẩn bị dữ liệu update
+    const updates: any = { 
+      status: nextStatus,
+      updated_at: new Date().toISOString()
+    };
 
-    // Nếu đang từ rejected mà chuyển đi → reset lý do
-    if (currentData.status === "rejected" && nextStatus !== "rejected") {
-      updates.rejected_reason = "";
+    // 4️⃣ Logic xử lý theo status mới
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+
+    if (nextStatus === "approved") {
+      // ✅ Approve: set approved_by và approved_at
+      updates.approved_by = userId;
+      updates.approved_at = new Date().toISOString();
+      
+      // Reset rejection info nếu có
+      if (currentData.rejected_by) {
+        updates.rejected_by = null;
+        updates.rejected_at = null;
+        updates.rejected_reason = null;
+      }
+    } 
+    else if (nextStatus === "rejected") {
+      // ❌ Reject: giữ nguyên rejected_reason (sẽ set ở hàm rejectService)
+      // Chỉ set rejected_by và rejected_at nếu chưa có
+      if (!currentData.rejected_by) {
+        updates.rejected_by = userId;
+        updates.rejected_at = new Date().toISOString();
+      }
+    }
+    else if (currentData.status === "rejected" && nextStatus !== "rejected") {
+      // 🔄 Chuyển từ rejected sang status khác → reset rejection info
+      updates.rejected_reason = null;
+      updates.rejected_by = null;
+      updates.rejected_at = null;
     }
 
+    // 5️⃣ Update database
     const { error: updateError } = await supabase
-      .from("pending_services")
+      .from("services") // 🔄 Đổi từ "pending_services" → "services"
       .update(updates)
       .eq("id", id);
 
-    if (updateError) throw new Error(`Lỗi khi cập nhật trạng thái: ${updateError.message}`);
+    if (updateError) {
+      throw new Error(`Lỗi khi cập nhật trạng thái: ${updateError.message}`);
+    }
+
+    console.log(`✅ Updated service ${id}: ${currentData.status} → ${nextStatus}`);
   } catch (error) {
-    console.error("updatePendingStatus error:", error);
+    console.error("updateServiceStatus error:", error);
     throw error;
   }
 }
@@ -160,65 +198,55 @@ export async function updatePendingStatus(id: string, newStatus?: string) {
 
 
 export async function addPendingService(
-  pendingForm: any, 
+  serviceForm: any, 
   avatarFile: File | null, 
   additionalFiles: File[]
 ) {
   try {
-    // Upload ảnh đại diện và ảnh phụ
-    let imageUrl: string | null = null; // Ảnh đại diện
-    let additionalImageUrls: string[] = []; // Chỉ các ảnh phụ
-
-    // Upload avatar trước (sẽ làm ảnh đại diện)
-    if (avatarFile) {
-      const avatarUrls = await uploadImagesToBucket([avatarFile], "pending_services_images");
-      imageUrl = avatarUrls[0] || null; // Lưu ảnh đầu tiên làm ảnh đại diện
-    }
-
-    // Upload các ảnh bổ sung
-    if (additionalFiles && additionalFiles.length > 0) {
-      const additionalUrls = await uploadImagesToBucket(additionalFiles, "pending_services_images");
-      additionalImageUrls = [...additionalImageUrls, ...additionalUrls];
-    }
-
-    // Lấy thông tin user hiện tại
+    // 1️⃣ Lấy thông tin user hiện tại
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError) throw new Error(`Lỗi xác thực: ${authError.message}`);
     
     const userId = userData?.user?.id ?? null;
 
-    // Xử lý amenities an toàn
-    const amenitiesArray = pendingForm.amenities && pendingForm.amenities.trim()
-      ? pendingForm.amenities
+    // 2️⃣ Xử lý amenities an toàn
+    const amenitiesArray = serviceForm.amenities && serviceForm.amenities.trim()
+      ? serviceForm.amenities
           .split(",")
           .map((s: string) => s.trim())
           .filter(Boolean)
           .map((name: string) => ({ name }))
       : [];
 
-    // Chuẩn bị dữ liệu để insert
+    // 3️⃣ Chuẩn bị dữ liệu để insert (CHƯA CÓ ảnh)
     const insertData = {
-      title: pendingForm.title.trim(),
-      type: pendingForm.type,
-      description: pendingForm.description?.trim() || null,
-      location: pendingForm.location?.trim() || null,
-      price: pendingForm.price?.trim() || null,
-      image_url: imageUrl, // Ảnh đại diện (chỉ 1 URL)
-      images: additionalImageUrls, // Chỉ các ảnh phụ (không bao gồm ảnh đại diện)
+      title: serviceForm.title.trim(),
+      type: serviceForm.type,
+      description: serviceForm.description?.trim() || null,
+      location: serviceForm.location?.trim() || null,
+      price: serviceForm.price?.trim() || null,
+      image_url: null, // 🔹 Tạm thời null
+      images: [],      // 🔹 Tạm thời empty array
       amenities: amenitiesArray,
-      owner_name: pendingForm.owner_name?.trim() || null,
-      phone: pendingForm.phone?.trim() || null,
-      email: pendingForm.email?.trim() || null,
-      facebook: pendingForm.facebook?.trim() || null,
-      zalo: pendingForm.zalo?.trim() || null,
-      tiktok: pendingForm.tiktok?.trim() || null,
-      instagram: pendingForm.instagram?.trim() || null,
-      status: "new",
-      source: pendingForm.source || "form",
-      admin_id: userId,
+      owner_name: serviceForm.owner_name?.trim() || null,
+      phone: serviceForm.phone?.trim() || null,
+      email: serviceForm.email?.trim() || null,
+      facebook: serviceForm.facebook?.trim() || null,
+      zalo: serviceForm.zalo?.trim() || null,
+      tiktok: serviceForm.tiktok?.trim() || null,
+      instagram: serviceForm.instagram?.trim() || null,
+      
+      // 🆕 Status mới: 'pending' thay vì 'new'
+      status: "pending",
+      
+      // 🆕 Source tracking
+      source: serviceForm.source || "form",
+      
+      // 🆕 owner_id thay vì admin_id
+      owner_id: userId,
     };
 
-    // Validate required fields
+    // 4️⃣ Validate required fields
     if (!insertData.title) throw new Error("Tiêu đề dịch vụ là bắt buộc");
     if (!insertData.description) throw new Error("Mô tả dịch vụ là bắt buộc");
     if (!insertData.location) throw new Error("Địa điểm là bắt buộc");
@@ -227,18 +255,75 @@ export async function addPendingService(
     if (!insertData.phone) throw new Error("Số điện thoại là bắt buộc");
     if (!insertData.email) throw new Error("Email là bắt buộc");
 
-    const { error } = await supabase.from("pending_services").insert([insertData]);
+    // 5️⃣ Insert record TRƯỚC để lấy ID
+    const { data: insertedData, error: insertError } = await supabase
+      .from("services") // 🔄 Đổi từ "pending_services" → "services"
+      .insert([insertData])
+      .select()
+      .single();
 
-    if (error) {
-      console.error('Supabase insert error:', error);
-      throw new Error(`Lỗi khi thêm dịch vụ: ${error.message}`);
+    if (insertError) {
+      console.error('Supabase insert error:', insertError);
+      throw new Error(`Lỗi khi thêm dịch vụ: ${insertError.message}`);
     }
+
+    if (!insertedData) {
+      throw new Error('Không thể lấy ID của dịch vụ vừa tạo');
+    }
+
+    const serviceId = insertedData.id;
+    console.log('✅ Created service with ID:', serviceId, '| Status: pending');
+
+    // 6️⃣ Upload ảnh vào folder theo ID
+    // 🎯 Bucket vẫn giữ tên cũ hoặc đổi thành "services_images"
+    const bucketName = "services_images"; // Hoặc "services_images"
+    let imageUrl: string | null = null;
+    let additionalImageUrls: string[] = [];
+
+    // Upload ảnh đại diện vào folder services/[id]/
+    if (avatarFile) {
+      const avatarUrls = await uploadImagesToBucket(
+        [avatarFile], 
+        bucketName,
+        serviceId // 🎯 Folder path = ID của service
+      );
+      imageUrl = avatarUrls[0] || null;
+    }
+
+    // Upload các ảnh bổ sung vào cùng folder
+    if (additionalFiles && additionalFiles.length > 0) {
+      additionalImageUrls = await uploadImagesToBucket(
+        additionalFiles, 
+        bucketName,
+        serviceId // 🎯 Folder path = ID của service
+      );
+    }
+
+    // 7️⃣ Update lại record với URLs của ảnh
+    if (imageUrl || additionalImageUrls.length > 0) {
+      const { error: updateError } = await supabase
+        .from("services") // 🔄 Đổi từ "pending_services" → "services"
+        .update({
+          image_url: imageUrl,
+          images: additionalImageUrls
+        })
+        .eq("id", serviceId);
+
+      if (updateError) {
+        console.error('Update images error:', updateError);
+        // Không throw error ở đây vì record đã được tạo
+        console.warn('⚠️ Dịch vụ đã được tạo nhưng không thể cập nhật ảnh');
+      } else {
+        console.log('✅ Updated images for service:', serviceId);
+      }
+    }
+
+    return insertedData;
   } catch (error) {
-    console.error('addPendingService error:', error);
+    console.error('addService error:', error);
     throw error;
   }
 }
-
 
 /* --------------------------------  PendingModal Avtions  ---------------------------------*/
 
@@ -329,68 +414,6 @@ export const handleRemoveExistingImageAPI = (
 
 /* ----------------------------- OFFICIAL ACTIONS ----------------------------- */
 
-export async function addOfficialService(
-  officialForm: any, 
-  avatarFile: File | null, 
-  additionalFiles: File[]
-) {
-  try {
-    // Upload ảnh đại diện và ảnh phụ
-    let imageUrl: string | null = null;
-    let additionalUrls: string[] = [];
-
-    // Upload avatar trước (sẽ làm ảnh đại diện)
-    if (avatarFile) {
-      const avatarUrls = await uploadImagesToBucket([avatarFile], "services_images");
-      imageUrl = avatarUrls[0] || null;
-    }
-
-    // Upload các ảnh bổ sung
-    if (additionalFiles && additionalFiles.length > 0) {
-      additionalUrls = await uploadImagesToBucket(additionalFiles, "services_images");
-    }
-
-    const amenitiesArray = officialForm.amenities && officialForm.amenities.trim()
-      ? officialForm.amenities
-          .split(",")
-          .map((s: string) => s.trim())
-          .filter(Boolean)
-          .map((name: string) => ({ name }))
-      : [];
-
-    const { data: userData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw new Error(`Lỗi xác thực: ${authError.message}`);
-    
-    const userId = userData?.user?.id ?? null;
-
-    const insertData = {
-      title: officialForm.title.trim(),
-      description: officialForm.description?.trim() || null,
-      type: officialForm.type,
-      location: officialForm.location?.trim() || null,
-      price: officialForm.price?.trim() || null,
-      image_url: imageUrl, // Ảnh đại diện
-      images: additionalUrls, // Các ảnh phụ
-      amenities: amenitiesArray,
-      owner_id: userId,
-      status: "active",
-      approved_by: userId,
-      approved_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase.from("services").insert([insertData]);
-
-    if (error) {
-      console.error('Supabase insert error:', error);
-      throw new Error(`Lỗi khi thêm dịch vụ chính thức: ${error.message}`);
-    }
-  } catch (error) {
-    console.error('addOfficialService error:', error);
-    throw error;
-  }
-}
-
-
 export async function toggleServiceStatus(svc: Service, targetStatus: string) {
   try {
     const { error } = await supabase
@@ -410,144 +433,181 @@ export async function toggleServiceStatus(svc: Service, targetStatus: string) {
 /* ----------------------------- APPROVE / REJECT ----------------------------- */
 
 export async function approvePendingAsService(
-  selectedPending: PendingService,
+  serviceId: string,
   approveForm: any,
   avatarFile: File | null,
   additionalFiles: File[]
 ) {
   try {
-    // 1️⃣ Upload ảnh mới được chọn thêm khi duyệt
+    // 1️⃣ Lấy thông tin service hiện tại
+    const { data: currentService, error: fetchError } = await supabase
+      .from("services")
+      .select("*")
+      .eq("id", serviceId)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Không thể lấy thông tin service: ${fetchError.message}`);
+    }
+    if (!currentService) {
+      throw new Error("Không tìm thấy service");
+    }
+
+    // 2️⃣ Upload ảnh mới (nếu có) vào CÙNG folder
+    const bucketName = "services_images"; // hoặc "services_images"
     let newImageUrl: string | null = null;
     let newAdditionalUrls: string[] = [];
 
     // Upload avatar mới
     if (avatarFile) {
-      const avatarUrls = await uploadImagesToBucket([avatarFile], "services_images");
+      const avatarUrls = await uploadImagesToBucket(
+        [avatarFile], 
+        bucketName,
+        serviceId // 🎯 Folder không đổi vì ID không đổi
+      );
       newImageUrl = avatarUrls[0] || null;
     }
 
-    // Upload các ảnh bổ sung mới
+    // Upload ảnh phụ mới
     if (additionalFiles && additionalFiles.length > 0) {
-      newAdditionalUrls = await uploadImagesToBucket(additionalFiles, "services_images");
+      newAdditionalUrls = await uploadImagesToBucket(
+        additionalFiles, 
+        bucketName,
+        serviceId
+      );
     }
 
-    // 2️⃣ Xử lý ảnh từ pending_services
-    const pendingImageUrl = selectedPending.image_url; // Ảnh đại diện từ pending
-    const pendingImages = selectedPending.images || []; // Các ảnh phụ từ pending
+    // 3️⃣ Xử lý ảnh: Ưu tiên ảnh mới, không có thì giữ ảnh cũ
+    const finalImageUrl = newImageUrl || currentService.image_url;
     
-    // Ảnh đại diện: ưu tiên ảnh mới upload, nếu không có thì lấy từ pending
-    const finalImageUrl = newImageUrl || pendingImageUrl;
-    
-    // Các ảnh phụ: gộp ảnh từ pending + ảnh mới upload
-    const combinedImages = [...pendingImages, ...newAdditionalUrls];
+    // Gộp ảnh cũ + ảnh mới (loại bỏ ảnh đại diện khỏi danh sách phụ)
+    const existingImages = (currentService.images || []).filter(
+      (img: string) => img !== finalImageUrl
+    );
+    const combinedImages = [...existingImages, ...newAdditionalUrls];
 
-    // 3️⃣ Chuẩn hóa tiện ích thành dạng JSON
+    // 4️⃣ Chuẩn hóa amenities
     const amenitiesArray = approveForm.amenities && approveForm.amenities.trim()
       ? approveForm.amenities
           .split(",")
           .map((s: string) => s.trim())
           .filter(Boolean)
           .map((name: string) => ({ name }))
-      : [];
+      : currentService.amenities || [];
 
-    // 4️⃣ Lấy thông tin người phê duyệt
+    // 5️⃣ Lấy thông tin người phê duyệt
     const { data: userData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw new Error(`Lỗi xác thực: ${authError.message}`);
-    
+    if (authError) {
+      throw new Error(`Lỗi xác thực: ${authError.message}`);
+    }
     const userId = userData?.user?.id ?? null;
 
-    // 5️⃣ Insert vào bảng services
-    const insertData = {
+    // 6️⃣ UPDATE service: đổi status + cập nhật thông tin
+    const updateData = {
+      // Thông tin cơ bản
       title: approveForm.title.trim(),
       description: approveForm.description?.trim() || null,
       type: approveForm.type,
       location: approveForm.location?.trim() || null,
       price: approveForm.price?.trim() || null,
-      image_url: finalImageUrl, // Ảnh đại diện (chỉ 1 URL)
-      images: combinedImages, // Các ảnh phụ (không bao gồm ảnh đại diện)
+      
+      // Ảnh
+      image_url: finalImageUrl,
+      images: combinedImages,
+      
+      // Tiện ích
       amenities: amenitiesArray,
 
-      // 🧑‍💻 Liên hệ & chủ dịch vụ
-      owner_name: selectedPending.owner_name || null,
-      phone: selectedPending.phone || null,
-      email: selectedPending.email || null,
-      facebook: selectedPending.facebook || null,
-      zalo: selectedPending.zalo || null,
-      tiktok: selectedPending.tiktok || null,
-      instagram: selectedPending.instagram || null,
+      // Thông tin liên hệ (giữ nguyên từ service hiện tại)
+      owner_name: currentService.owner_name,
+      phone: currentService.phone,
+      email: currentService.email,
+      facebook: currentService.facebook,
+      zalo: currentService.zalo,
+      tiktok: currentService.tiktok,
+      instagram: currentService.instagram,
 
-      // 👤 Ai phê duyệt và ai là chủ
-      owner_id: selectedPending.admin_id ?? userId,
+      // 🎯 Đổi status thành approved (hoặc active)
+      status: "active", // Hoặc "active" tùy workflow của bạn
+      
+      // Thông tin phê duyệt
       approved_by: userId,
       approved_at: new Date().toISOString(),
-
-      // 📡 Trạng thái
-      status: "active",
+      
+      // Reset rejection info nếu có
+      rejected_by: null,
+      rejected_at: null,
+      rejected_reason: null,
+      
+      // Timestamp
+      updated_at: new Date().toISOString()
     };
 
-    const { error: insertErr } = await supabase.from("services").insert([insertData]);
+    const { error: updateError } = await supabase
+      .from("services")
+      .update(updateData)
+      .eq("id", serviceId);
 
-    if (insertErr) {
-      console.error('Insert service error:', insertErr);
-      throw new Error(`Lỗi khi tạo dịch vụ: ${insertErr.message}`);
+    if (updateError) {
+      console.error('Update service error:', updateError);
+      throw new Error(`Lỗi khi phê duyệt service: ${updateError.message}`);
     }
 
-    // 6️⃣ Xóa khỏi pending sau khi chuyển thành công
-    const { error: deleteErr } = await supabase
-      .from("pending_services")
-      .delete()
-      .eq("id", selectedPending.id);
-
-    if (deleteErr) {
-      console.error('Delete pending error:', deleteErr);
-      throw new Error(`Lỗi khi xóa dịch vụ chờ duyệt: ${deleteErr.message}`);
-    }
+    console.log(`✅ Approved service ${serviceId} - Status: approved - Images in ${bucketName}/${serviceId}/`);
   } catch (error) {
-    console.error('approvePendingAsService error:', error);
+    console.error('approveServiceAsActive error:', error);
     throw error;
   }
 }
 
-export async function rejectPendingService(selectedPending: PendingService, reason: string) {
+export async function rejectPendingService(id: string, reason: string) {
   try {
     // 1️⃣ Lấy thông tin user hiện tại
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError) throw new Error(`Lỗi xác thực: ${authError.message}`);
     
-    const userId = userData?.user?.id ?? null;
+    const userId = userData?.user?.id;
+    if (!userId) throw new Error("Not authenticated");
 
     // 2️⃣ Kiểm tra lý do từ chối
-    if (!reason.trim()) {
+    if (!reason || reason.trim() === "") {
       throw new Error("Lý do từ chối không được để trống");
     }
 
-    // 3️⃣ Cập nhật lại record trong pending_services
+    // 3️⃣ Update service với rejected status
     const { error } = await supabase
-      .from("pending_services")
+      .from("services") // 🔄 Đổi từ "pending_services" → "services"
       .update({
-        status: "rejected", // ✅ đổi trạng thái đúng
+        status: "rejected",
+        rejected_by: userId,
+        rejected_at: new Date().toISOString(),
         rejected_reason: reason.trim(),
-        reviewed_by: userId,
-        reviewed_at: new Date().toISOString(),
+        // Reset approval info nếu có
+        approved_by: null,
+        approved_at: null,
+        updated_at: new Date().toISOString()
       })
-      .eq("id", selectedPending.id);
+      .eq("id", id);
 
     if (error) {
-      console.error("Reject pending error:", error);
+      console.error("Reject service error:", error);
       throw new Error(`Lỗi khi từ chối dịch vụ: ${error.message}`);
     }
+
+    console.log(`❌ Rejected service ${id}: ${reason}`);
   } catch (error) {
-    console.error("rejectPendingService error:", error);
+    console.error("rejectService error:", error);
     throw error;
   }
 }
+
 
 
 /* ----------------------------- UPDATE PENDING SERVICE ----------------------------- */
 export async function updatePendingService(id: string, updatedData: Partial<PendingService>) {
   try {
     const { error } = await supabase
-      .from("pending_services")
+      .from("services")
       .update(updatedData)
       .eq("id", id);
 
@@ -564,7 +624,7 @@ export async function updatePendingService(id: string, updatedData: Partial<Pend
 export async function removePendingImage(pendingId: string, imageUrl: string) {
   try {
     const { data: current, error: getErr } = await supabase
-      .from("pending_services")
+      .from("services")
       .select("image_url, images")
       .eq("id", pendingId)
       .single();
@@ -582,7 +642,7 @@ export async function removePendingImage(pendingId: string, imageUrl: string) {
       const finalImages = updatedImages.slice(1); // Bỏ ảnh đầu tiên khỏi images
 
       const { error: updateErr } = await supabase
-        .from("pending_services")
+        .from("services")
         .update({ 
           image_url: newImageUrl,
           images: finalImages 
@@ -598,7 +658,7 @@ export async function removePendingImage(pendingId: string, imageUrl: string) {
       const updatedImages = (current.images || []).filter((img: string) => img !== imageUrl);
 
       const { error: updateErr } = await supabase
-        .from("pending_services")
+        .from("services")
         .update({ images: updatedImages })
         .eq("id", pendingId);
 
@@ -609,37 +669,6 @@ export async function removePendingImage(pendingId: string, imageUrl: string) {
     }
   } catch (error) {
     console.error('removePendingImage error:', error);
-    throw error;
-  }
-}
-
-export async function fetchDetailedStats() {
-  try {
-    const { data: servicesData, error: sErr } = await supabase
-      .from("services")
-      .select("type, status");
-
-    const { data: pendingData, error: pErr } = await supabase
-      .from("pending_services")
-      .select("type, status");
-
-    if (sErr) throw new Error(`Lỗi khi tải thống kê services: ${sErr.message}`);
-    if (pErr) throw new Error(`Lỗi khi tải thống kê pending: ${pErr.message}`);
-
-    const byType: Record<string, any> = {};
-    const byStatus: Record<string, number> = {};
-
-    [...(servicesData || []), ...(pendingData || [])].forEach((s: any) => {
-      byType[s.type] = byType[s.type] || { total: 0, active: 0, inactive: 0, pending: 0 };
-      byType[s.type].total++;
-      byType[s.type][s.status] = (byType[s.type][s.status] || 0) + 1;
-
-      byStatus[s.status] = (byStatus[s.status] || 0) + 1;
-    });
-
-    return { byType, byStatus };
-  } catch (error) {
-    console.error('fetchDetailedStats error:', error);
     throw error;
   }
 }

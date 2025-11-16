@@ -36,13 +36,13 @@ export default function PendingTable({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "confirmed":
+      case "approved":
         return "text-green-400";
       case "pending":
         return "text-yellow-400";
       case "rejected":
         return "text-red-400";
-      case "new":
+      case "draft":
       default:
         return "text-blue-400";
     }
@@ -50,13 +50,13 @@ export default function PendingTable({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "confirmed":
+      case "approved":
         return { bg: "bg-green-500/20 border-green-500/30", text: "text-green-400", icon: "✓" };
       case "pending":
         return { bg: "bg-yellow-500/20 border-yellow-500/30", text: "text-yellow-400", icon: "⏳" };
       case "rejected":
         return { bg: "bg-red-500/20 border-red-500/30", text: "text-red-400", icon: "✕" };
-      case "new":
+      case "draft":
       default:
         return { bg: "bg-blue-500/20 border-blue-500/30", text: "text-blue-400", icon: "🆕" };
     }
@@ -149,7 +149,7 @@ export default function PendingTable({
 
       {/* Filter */}
       <div className="flex gap-2 flex-wrap">
-        {["all", "new", "pending", "confirmed", "rejected"].map((status) => {
+        {["all", "draft", "pending", "approved", "rejected"].map((status) => {
           const badge = getStatusBadge(status);
           return (
             <button
@@ -191,7 +191,7 @@ export default function PendingTable({
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-800 ring-2 ring-gray-700 group-hover:ring-purple-500 transition-all">
                       {p.images?.[0] ? (
                         <img
-                          src={p.images[0]}
+                          src={p.image_url || p.images[0]}
                           alt="service"
                           className="w-full h-full object-cover"
                         />
@@ -204,13 +204,13 @@ export default function PendingTable({
                     
                     {/* Status badge on avatar */}
                     <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${
-                      p.status === 'confirmed' ? 'bg-green-500' : 
+                      p.status === 'approved' ? 'bg-green-500' : 
                       p.status === 'pending' ? 'bg-yellow-500' : 
                       p.status === 'rejected' ? 'bg-red-500' : 'bg-blue-500'
                     }`}></div>
                     
                     {/* New indicator pulse */}
-                    {p.status === 'new' && (
+                    {p.status === 'draft' && (
                       <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-gray-900 animate-pulse"></div>
                     )}
                   </div>
@@ -279,7 +279,7 @@ export default function PendingTable({
                           () =>
                             onToggle(
                               p.id,
-                              p.status === "new" ? "pending" : "new"
+                              p.status === "draft" ? "pending" : "draft"
                             ),
                           `${p.id}-toggle`
                         )
@@ -336,8 +336,8 @@ export default function PendingTable({
           <div className="flex items-center gap-4 text-xs flex-wrap">
             <span className="flex items-center gap-1.5 text-gray-400">
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="font-semibold text-white">{pendingServices.filter((s) => s.status === "new").length}</span>
-              New
+              <span className="font-semibold text-white">{pendingServices.filter((s) => s.status === "draft").length}</span>
+              draft
             </span>
             <span className="flex items-center gap-1.5 text-gray-400">
               <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
@@ -346,8 +346,8 @@ export default function PendingTable({
             </span>
             <span className="flex items-center gap-1.5 text-gray-400">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="font-semibold text-white">{pendingServices.filter((s) => s.status === "confirmed").length}</span>
-              Confirmed
+              <span className="font-semibold text-white">{pendingServices.filter((s) => s.status === "approved").length}</span>
+              approved
             </span>
             <span className="flex items-center gap-1.5 text-gray-400">
               <div className="w-2 h-2 bg-red-500 rounded-full"></div>

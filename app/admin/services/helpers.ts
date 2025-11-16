@@ -4,9 +4,10 @@ import { supabase } from "@/lib/supabase";
 /** 
  * Upload danh sách ảnh lên Supabase Storage và trả về URL công khai 
  */
-export async function uploadImagesToBucket(
-  files: File[],
-  bucket: string
+  export async function uploadImagesToBucket(
+  files: File[], 
+  bucketName: string, 
+  folderPath: string = ""
 ): Promise<string[]> {
   if (!files || files.length === 0) return [];
 
@@ -14,31 +15,47 @@ export async function uploadImagesToBucket(
 
   for (const file of files) {
     try {
-      const fileExt = file.name.split(".").pop();
-      const safeName = file.name.replace(/\s+/g, "-");
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const safeName = file.name.replace(/\s+/g, '-'); // Loại bỏ khoảng trắng
       const fileName = `${Date.now()}-${Math.random()
         .toString(36)
         .substring(2)}-${safeName}`;
+      
+      // Thêm folderPath vào filePath
+      const filePath = folderPath 
+        ? `${folderPath}/${fileName}` 
+        : fileName;
 
+      // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file, {
-          cacheControl: "3600",
-          upsert: false,
+        .from(bucketName)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
         });
 
       if (uploadError) {
-        console.error("Upload error:", uploadError.message);
-        continue;
+        console.error(`Error uploading file ${file.name}:`, uploadError.message);
+        continue; // Tiếp tục upload file khác thay vì throw error
       }
 
-      const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-      if (data?.publicUrl) urls.push(data.publicUrl);
+      // Get public URL
+      const { data } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+
+      if (data?.publicUrl) {
+        urls.push(data.publicUrl);
+      }
     } catch (err) {
-      console.error("Upload exception:", err);
+      console.error(`Upload exception for ${file.name}:`, err);
+      // Không throw, tiếp tục với file tiếp theo
     }
   }
 
+  console.log(`✅ Successfully uploaded ${urls.length}/${files.length} images to ${bucketName}${folderPath ? '/' + folderPath : ''}`);
+  
   return urls;
 }
 

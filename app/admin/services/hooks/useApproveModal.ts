@@ -164,64 +164,77 @@ export function useApproveModal(
   };
 
   // Save changes
-  const handleSaveChanges = async () => {
-    if (!pending?.id) return;
-    if (!validateForm()) {
-      alert("Vui lòng kiểm tra lại các trường bắt buộc");
-      return;
+ const handleSaveChanges = async () => {
+  if (!pending?.id) return;
+  if (!validateForm()) {
+    alert("Vui lòng kiểm tra lại các trường bắt buộc");
+    return;
+  }
+
+  setSaving(true);
+  setUploadingFiles(true);
+
+  try {
+    const bucketName = "services_images";
+    const folderPath = pending.id; // 🆕 Thêm folder path
+    
+    const uploaded: string[] = [];
+
+    // Upload avatar vào folder của service
+    if (avatarFile) {
+      const aUrls = await uploadImagesToBucket(
+        [avatarFile], 
+        bucketName, 
+        folderPath // 🆕 Truyền folderPath
+      );
+      uploaded.push(...aUrls);
     }
 
-    setSaving(true);
-    setUploadingFiles(true);
-
-    try {
-      const uploaded: string[] = [];
-
-      if (avatarFile) {
-        const aUrls = await uploadImagesToBucket([avatarFile], "pending_services_images");
-        uploaded.push(...aUrls);
-      }
-
-      if (additionalFiles.length > 0) {
-        const more = await uploadImagesToBucket(additionalFiles, "pending_services_images");
-        uploaded.push(...more);
-      }
-
-      const allImages = [...form.images, ...uploaded];
-      const avatarUrl = avatarFile ? uploaded[0] : (pending as any).image_url || "";
-
-      await updatePendingService(pending.id, {
-        title: form.title.trim(),
-        description: form.description.trim(),
-        type: form.type,
-        location: form.location.trim(),
-        price: form.price.trim(),
-        image_url: avatarUrl,
-        images: allImages,
-        amenities: form.amenities.trim(),
-        owner_name: form.owner_name.trim(),
-        phone: formatPhoneNumber(form.phone.trim()),
-        email: form.email.trim(),
-        facebook: form.facebook.trim(),
-        zalo: form.zalo.trim(),
-        tiktok: form.tiktok.trim(),
-        instagram: form.instagram.trim(),
-      } as any);
-
-      alert("✅ Đã lưu thay đổi thành công!");
-      refresh();
-      setAvatarFile(null);
-      setAdditionalFiles([]);
-      setErrors({});
-    } catch (err: any) {
-      console.error("Save changes error:", err);
-      alert("❌ Lỗi khi lưu: " + (err?.message ?? err));
-    } finally {
-      setSaving(false);
-      setUploadingFiles(false);
+    // Upload ảnh phụ vào folder của service
+    if (additionalFiles.length > 0) {
+      const more = await uploadImagesToBucket(
+        additionalFiles, 
+        bucketName, 
+        folderPath // 🆕 Truyền folderPath
+      );
+      uploaded.push(...more);
     }
-  };
 
+    const allImages = [...form.images, ...uploaded];
+    const avatarUrl = avatarFile ? uploaded[0] : (pending as any).image_url || "";
+
+    await updatePendingService(pending.id, {
+      title: form.title.trim(),
+      description: form.description.trim(),
+      type: form.type,
+      location: form.location.trim(),
+      price: form.price.trim(),
+      image_url: avatarUrl,
+      images: allImages,
+      amenities: form.amenities.trim(),
+      owner_name: form.owner_name.trim(),
+      phone: formatPhoneNumber(form.phone.trim()),
+      email: form.email.trim(),
+      facebook: form.facebook.trim(),
+      zalo: form.zalo.trim(),
+      tiktok: form.tiktok.trim(),
+      instagram: form.instagram.trim(),
+    } as any);
+
+    console.log(`✅ Saved to: ${bucketName}/${folderPath}`); // 🆕 Log để debug
+    alert("✅ Đã lưu thay đổi thành công!");
+    refresh();
+    setAvatarFile(null);
+    setAdditionalFiles([]);
+    setErrors({});
+  } catch (err: any) {
+    console.error("Save changes error:", err);
+    alert("❌ Lỗi khi lưu: " + (err?.message ?? err));
+  } finally {
+    setSaving(false);
+    setUploadingFiles(false);
+  }
+};
   // Approve
   const handleApprove = async () => {
     if (!validateForm()) {

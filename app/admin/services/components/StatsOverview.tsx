@@ -3,7 +3,7 @@ export default function StatsOverview({ totalServices, totalPending, totalConfir
   const items = [
     { label: "Tổng dịch vụ", value: totalServices },
     { label: "Pending", value: totalPending },
-    { label: "Confirmed", value: totalConfirmed },
+    { label: "Active", value: totalConfirmed },
   ];
 
   return (

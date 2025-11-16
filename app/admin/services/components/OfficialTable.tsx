@@ -252,7 +252,7 @@ export default function OfficialTable({
                         />
                       ) : svc.images?.length ? (
                         <img
-                          src={svc.images[0]}
+                          src={svc.image_url || svc.images[0]}
                           alt={svc.title}
                           className="w-full h-full object-cover"
                         />

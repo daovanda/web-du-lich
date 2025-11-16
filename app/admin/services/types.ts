@@ -205,14 +205,21 @@ export const SERVICE_SOURCES = [
 ];
 
 export const SERVICE_STATUSES = [
+  { value: "draft", label: "Mới" },
+  { value: "pending", label: "Đang xem xét" },
+  { value: "rejeted", label: "Bị từ chối" },
+  { value: "approved", label: "Đã xác nhận" },
   { value: "active", label: "Hoạt động" },
   { value: "inactive", label: "Tạm dừng" },
   { value: "archived", label: "Lưu trữ" },
 ];
 
 export const PENDING_STATUSES = [
-  { value: "new", label: "Mới" },
+  { value: "draft", label: "Mới" },
   { value: "pending", label: "Đang xem xét" },
-  { value: "rejected", label: "Bị từ chối" },
-  { value: "confirmed", label: "Đã xác nhận" },
+  { value: "rejeted", label: "Bị từ chối" },
+  { value: "approved", label: "Đã xác nhận" },
+  { value: "active", label: "Hoạt động" },
+  { value: "inactive", label: "Tạm dừng" },
+  { value: "archived", label: "Lưu trữ" },
 ];
