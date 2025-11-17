@@ -8,8 +8,6 @@ import VietnamMap from "@/app/map/components/VietnamMap";
 import ProvinceDetailModal from "@/app/map/components/ProvinceDetailModal";
 import ProvinceHoverPreview from "@/app/map/components/ProvinceHoverPreview";
 import { mapIdToName } from "@/app/map/lib/mapUtils";
-import Footer from "@/components/Footer";
-
 
 export default function MapPage() {
   const [visitedCount, setVisitedCount] = useState<number>(0);
@@ -80,7 +78,20 @@ export default function MapPage() {
 
   // Handle province leave - hide preview
   const handleProvinceLeave = () => {
-    setHoverPreview(null);
+    // Only hide if not hovering preview
+    if (!isHoveringPreview) {
+      setHoverPreview(null);
+    }
+  };
+
+  // Handle preview hover change
+  const handlePreviewHoverChange = (isHovering: boolean) => {
+    setIsHoveringPreview(isHovering);
+    
+    // If leaving preview, hide it
+    if (!isHovering) {
+      setHoverPreview(null);
+    }
   };
 
   return (
@@ -201,8 +212,6 @@ export default function MapPage() {
           provinceName={selectedProvince.name}
         />
       )}
-      {/* Footer Note */}
-        <Footer />
     </ResizableLayout>
   );
 }

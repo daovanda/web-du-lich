@@ -9,7 +9,8 @@ type ProvinceHoverPreviewProps = {
   provinceName: string;
   position: { x: number; y: number };
   onOpenFull: () => void;
-  isVisited: boolean; // Thêm flag để biết đã ghé chưa
+  isVisited: boolean;
+  onHoverChange: (isHovering: boolean) => void;
 };
 
 export default function ProvinceHoverPreview({
@@ -18,10 +19,10 @@ export default function ProvinceHoverPreview({
   position,
   onOpenFull,
   isVisited,
+  onHoverChange,
 }: ProvinceHoverPreviewProps) {
   const [photos, setPhotos] = useState<ProvincePhoto[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isHoveringPreview, setIsHoveringPreview] = useState(false);
 
   console.log("🎨 ProvinceHoverPreview render:", { 
     visitedProvinceId, 
@@ -61,13 +62,22 @@ export default function ProvinceHoverPreview({
 
   return (
     <div
-      className="fixed z-40 pointer-events-none"
+      className="fixed z-40"
       style={{
         left: `${position.x + 20}px`,
         top: `${position.y - 100}px`,
+        pointerEvents: 'auto',
+      }}
+      onMouseEnter={() => {
+        console.log("🖱️ Mouse enter preview - keeping it visible");
+        onHoverChange(true);
+      }}
+      onMouseLeave={() => {
+        console.log("🖱️ Mouse leave preview - hiding it");
+        onHoverChange(false);
       }}
     >
-      <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden w-72 pointer-events-auto">
+      <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden w-72 transition-all duration-200 hover:border-emerald-600 hover:shadow-emerald-500/30">
         {/* Header */}
         <div className="px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 flex items-center gap-2">
           <svg className="w-4 h-4 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

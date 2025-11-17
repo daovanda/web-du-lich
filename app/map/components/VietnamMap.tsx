@@ -22,6 +22,7 @@ export default function VietnamMap({
   onProvinceHover,
   onProvinceLeave,
   onProvinceClick,
+  isHoveringPreview,
 }: VietnamMapProps) {
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const eventsAttachedRef = useRef(false);
@@ -175,60 +176,53 @@ export default function VietnamMap({
 
             // Hover handlers with modal preview
             let isHovering = false;
+            let hoverTimeout: NodeJS.Timeout | null = null;
             
             p.addEventListener("mouseenter", (e) => {
               isHovering = true;
               p.style.filter = "brightness(1.2)";
+              
+              // Clear any existing timeout
+              if (hoverTimeout) {
+                clearTimeout(hoverTimeout);
+                hoverTimeout = null;
+              }
               
               const visitedProvinceId = visitedRef.current.get(id);
               const provinceName = mapIdToName(id);
               
               console.log("🖱️ Mouse enter:", id, "Visited:", !!visitedProvinceId, "Callback:", !!onProvinceHover);
               
-              // Small delay to ensure smooth transition
-              setTimeout(() => {
-                if (!isHovering) return;
-                
-                // Ensure tooltip exists
-                if (!tooltipRef.current || !document.body.contains(tooltipRef.current)) {
-                  tooltipRef.current = createTooltip();
-                  console.log("🔄 Tooltip recreated in mouseenter");
-                }
-                
-                // Always hide tooltip when showing preview
-                hideTooltip(tooltipRef.current);
-                
-                // Show preview for ALL provinces (visited or not)
-                if (onProvinceHover) {
-                  console.log("✅ Showing preview for province:", id);
-                  onProvinceHover(id, visitedProvinceId || '', { x: e.clientX, y: e.clientY });
-                }
-              }, 50);
-            });
-
-            p.addEventListener("mousemove", (e) => {
-              if (!isHovering) return;
-              
               // Ensure tooltip exists
               if (!tooltipRef.current || !document.body.contains(tooltipRef.current)) {
                 tooltipRef.current = createTooltip();
+                console.log("🔄 Tooltip recreated in mouseenter");
               }
               
-              const visitedProvinceId = visitedRef.current.get(id);
+              // Always hide tooltip when showing preview
+              hideTooltip(tooltipRef.current);
               
-              // Update preview position
+              // Show preview for ALL provinces at FIXED position
               if (onProvinceHover) {
+                console.log("✅ Showing preview for province:", id);
                 onProvinceHover(id, visitedProvinceId || '', { x: e.clientX, y: e.clientY });
               }
             });
 
+            // Remove mousemove - we don't want to update position
+            
             p.addEventListener("mouseleave", () => {
               isHovering = false;
               p.style.filter = "";
               
-              if (onProvinceLeave) {
-                onProvinceLeave();
-              }
+              // Delay hiding to allow moving to preview
+              hoverTimeout = setTimeout(() => {
+                if (!isHoveringPreview) {
+                  if (onProvinceLeave) {
+                    onProvinceLeave();
+                  }
+                }
+              }, 100); // 100ms delay
               
               if (tooltipRef.current && document.body.contains(tooltipRef.current)) {
                 hideTooltip(tooltipRef.current);
