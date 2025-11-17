@@ -1,10 +1,11 @@
 // helpers.ts
 import { supabase } from "@/lib/supabase";
+import type { PendingFormData } from "./types";
 
 /** 
  * Upload danh sách ảnh lên Supabase Storage và trả về URL công khai 
  */
-  export async function uploadImagesToBucket(
+export async function uploadImagesToBucket(
   files: File[], 
   bucketName: string, 
   folderPath: string = ""
@@ -142,4 +143,106 @@ export function formatPrice(value: string): string {
   
   // Format with dots as thousand separators
   return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+// ===== THÊM MỚI: Validation cho PendingForm =====
+
+/**
+ * Validate toàn bộ form data của PendingForm
+ * @returns Object chứa các lỗi validation (nếu có)
+ */
+export function validatePendingForm(
+  form: PendingFormData,
+  avatarFile: File | null,
+  additionalFiles: File[]
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  // Validate title
+  if (!form.title.trim()) {
+    errors.title = "Tiêu đề dịch vụ là bắt buộc";
+  } else if (form.title.trim().length < 3) {
+    errors.title = "Tiêu đề phải có ít nhất 3 ký tự";
+  } else if (form.title.trim().length > 200) {
+    errors.title = "Tiêu đề không được quá 200 ký tự";
+  }
+
+  // Validate description
+  if (!form.description.trim()) {
+    errors.description = "Mô tả dịch vụ là bắt buộc";
+  } else if (form.description.trim().length < 10) {
+    errors.description = "Mô tả phải có ít nhất 10 ký tự";
+  } else if (form.description.trim().length > 1000) {
+    errors.description = "Mô tả không được quá 1000 ký tự";
+  }
+
+  // Validate location
+  if (!form.location.trim()) {
+    errors.location = "Địa điểm là bắt buộc";
+  }
+
+  // Validate price
+  if (!form.price.trim()) {
+    errors.price = "Giá dịch vụ là bắt buộc";
+  }
+
+  // Validate owner_name
+  if (!form.owner_name.trim()) {
+    errors.owner_name = "Tên chủ sở hữu là bắt buộc";
+  } else if (form.owner_name.trim().length < 2) {
+    errors.owner_name = "Tên chủ sở hữu phải có ít nhất 2 ký tự";
+  }
+
+  // Validate phone
+  if (!form.phone.trim()) {
+    errors.phone = "Số điện thoại là bắt buộc";
+  } else if (!validatePhone(form.phone)) {
+    errors.phone = "Số điện thoại không hợp lệ (ví dụ: +84123456789, 0123456789)";
+  }
+
+  // Validate email
+  if (!form.email.trim()) {
+    errors.email = "Email là bắt buộc";
+  } else if (!validateEmail(form.email)) {
+    errors.email = "Email không hợp lệ";
+  }
+
+  // Validate files
+  const allFiles = [...(avatarFile ? [avatarFile] : []), ...additionalFiles];
+  const fileError = validateFiles(allFiles);
+  if (fileError) {
+    errors.files = fileError;
+  }
+
+  return errors;
+}
+
+/**
+ * Tạo initial state cho PendingForm
+ */
+export function createInitialPendingFormData(): PendingFormData {
+  return {
+    title: "",
+    type: "stay",
+    description: "",
+    location: "",
+    price: "",
+    images: [],
+    owner_name: "",
+    phone: "",
+    email: "",
+    facebook: "",
+    zalo: "",
+    tiktok: "",
+    instagram: "",
+    amenities: "",
+    source: "form",
+  };
+}
+
+/**
+ * Reset form về trạng thái ban đầu
+ */
+export function resetPendingForm(): PendingFormData {
+  return createInitialPendingFormData();
 }

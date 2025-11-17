@@ -277,7 +277,9 @@ export default function ChatWidget() {
   ];
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    // ✅ Responsive positioning: bottom-20 on mobile, bottom-6 on desktop
+    // ✅ Desktop: right-[220px] to avoid overlapping with right sidebar
+    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-[70px] z-40">
       {!open ? (
         // Floating button - Instagram style
         <button
@@ -297,7 +299,8 @@ export default function ChatWidget() {
         </button>
       ) : (
         // Chat window - Instagram dark mode style
-        <div className="bg-black border border-neutral-800 rounded-3xl shadow-2xl w-[380px] h-[600px] flex flex-col overflow-hidden">
+        // ✅ Responsive width: full width on small mobile, 380px on larger screens
+        <div className="bg-black border border-neutral-800 rounded-3xl shadow-2xl w-[calc(100vw-2rem)] max-w-[380px] h-[600px] max-h-[calc(100vh-10rem)] flex flex-col overflow-hidden">
           {!selectedRoom ? (
             // Room list
             <div className="flex flex-col h-full">

@@ -5,29 +5,90 @@ import ResizableLayout from "@/components/ResizableLayout";
 import HeroSection from "@/app/map/components/HeroSection";
 import StatsCard from "@/app/map/components/StatsCard";
 import VietnamMap from "@/app/map/components/VietnamMap";
+import ProvinceDetailModal from "@/app/map/components/ProvinceDetailModal";
+import ProvinceHoverPreview from "@/app/map/components/ProvinceHoverPreview";
+import { mapIdToName } from "@/app/map/lib/mapUtils";
+import Footer from "@/components/Footer";
+
 
 export default function MapPage() {
   const [visitedCount, setVisitedCount] = useState<number>(0);
   const [visitedProvinceIds, setVisitedProvinces] = useState<string[]>([]);
   const [isVisible, setIsVisible] = useState(false);
   
-  // Total: 63 provinces + 2 archipelagos = 65
-  const TOTAL_LOCATIONS = 65;
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedProvince, setSelectedProvince] = useState<{
+    provinceId: string;
+    visitedProvinceId: string;
+    name: string;
+  } | null>(null);
 
+  // Hover preview state
+  const [hoverPreview, setHoverPreview] = useState<{
+    provinceId: string;
+    visitedProvinceId: string;
+    name: string;
+    position: { x: number; y: number };
+    isVisited: boolean;
+  } | null>(null);
+  
+  const [isHoveringPreview, setIsHoveringPreview] = useState(false);
+  
+  const TOTAL_LOCATIONS = 65;
   const percent = ((visitedCount / TOTAL_LOCATIONS) * 100).toFixed(1);
 
-  // ✨ Trigger animation khi component mount
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 50);
     return () => clearTimeout(timer);
   }, []);
+
+  // Handle province click from map - open full modal hoặc đánh dấu
+  const handleProvinceClick = (provinceId: string, visitedProvinceId?: string) => {
+    if (visitedProvinceId) {
+      // Tỉnh đã ghé - mở modal
+      setSelectedProvince({
+        provinceId,
+        visitedProvinceId,
+        name: mapIdToName(provinceId),
+      });
+      setModalOpen(true);
+      setHoverPreview(null); // Close hover preview
+    } else {
+      // Tỉnh chưa ghé - không làm gì (để user click vào bản đồ)
+      setHoverPreview(null);
+    }
+  };
+
+  // Handle province hover - show mini preview
+  const handleProvinceHover = (
+    provinceId: string,
+    visitedProvinceId: string,
+    position: { x: number; y: number }
+  ) => {
+    const isVisited = !!visitedProvinceId;
+    console.log("🖱️ Hover:", { provinceId, visitedProvinceId, isVisited, position }); // Debug log
+    
+    setHoverPreview({
+      provinceId,
+      visitedProvinceId: visitedProvinceId || '', // Ensure it's not null
+      name: mapIdToName(provinceId),
+      position,
+      isVisited,
+    });
+  };
+
+  // Handle province leave - hide preview
+  const handleProvinceLeave = () => {
+    setHoverPreview(null);
+  };
 
   return (
     <ResizableLayout>
       <div className="min-h-screen bg-black text-white">
         <div className="max-w-5xl mx-auto px-4 py-8 pt-24 md:pt-8 space-y-8">
           
-          {/* ✨ Hero Section */}
+          {/* Hero Section */}
           <div 
             className={`transition-all duration-700 ease-out ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
@@ -36,7 +97,7 @@ export default function MapPage() {
             <HeroSection />
           </div>
 
-          {/* 📊 Stats Card */}
+          {/* Stats Card */}
           <div 
             className={`transition-all duration-700 ease-out delay-200 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
@@ -50,7 +111,7 @@ export default function MapPage() {
             />
           </div>
 
-          {/* 🗺️ Vietnam Map */}
+          {/* Vietnam Map */}
           <div 
             className={`transition-all duration-700 ease-out delay-400 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
@@ -59,10 +120,14 @@ export default function MapPage() {
             <VietnamMap 
               setVisitedCount={setVisitedCount}
               setVisitedProvinces={setVisitedProvinces}
+              onProvinceClick={handleProvinceClick}
+              onProvinceHover={handleProvinceHover}
+              onProvinceLeave={handleProvinceLeave}
+              isHoveringPreview={isHoveringPreview}
             />
           </div>
 
-          {/* 💡 Tips Section */}
+          {/* Tips Section */}
           <div 
             className={`transition-all duration-700 ease-out delay-600 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
@@ -84,7 +149,7 @@ export default function MapPage() {
                     <span className="text-xs font-semibold text-neutral-400">1</span>
                   </div>
                   <p className="text-sm text-neutral-400">
-                    <span className="text-white font-medium">Nhấn vào tỉnh/thành</span> trên bản đồ để đánh dấu nơi bạn đã ghé thăm
+                    <span className="text-white font-medium">Nhấn vào tỉnh/thành</span> để đánh dấu và mở modal thêm ảnh, ghi chú
                   </p>
                 </div>
                 
@@ -93,7 +158,7 @@ export default function MapPage() {
                     <span className="text-xs font-semibold text-neutral-400">2</span>
                   </div>
                   <p className="text-sm text-neutral-400">
-                    <span className="text-white font-medium">Di chuột qua</span> để xem tên tỉnh thành
+                    <span className="text-white font-medium">Upload ảnh</span> và viết ghi chú về chuyến đi
                   </p>
                 </div>
                 
@@ -102,7 +167,7 @@ export default function MapPage() {
                     <span className="text-xs font-semibold text-neutral-400">3</span>
                   </div>
                   <p className="text-sm text-neutral-400">
-                    <span className="text-white font-medium">Nhấn lại</span> để bỏ đánh dấu
+                    <span className="text-white font-medium">Nhấn lại</span> tỉnh đã đánh dấu để bỏ đánh dấu
                   </p>
                 </div>
               </div>
@@ -110,6 +175,34 @@ export default function MapPage() {
           </div>
         </div>
       </div>
+
+      {/* Hover Preview */}
+      {hoverPreview && (
+        <>
+          {console.log("🎨 Rendering HoverPreview:", hoverPreview)}
+          <ProvinceHoverPreview
+            visitedProvinceId={hoverPreview.visitedProvinceId}
+            provinceName={hoverPreview.name}
+            position={hoverPreview.position}
+            isVisited={hoverPreview.isVisited}
+            onOpenFull={() => handleProvinceClick(hoverPreview.provinceId, hoverPreview.visitedProvinceId)}
+            onHoverChange={setIsHoveringPreview}
+          />
+        </>
+      )}
+
+      {/* Province Detail Modal */}
+      {selectedProvince && (
+        <ProvinceDetailModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          provinceId={selectedProvince.provinceId}
+          visitedProvinceId={selectedProvince.visitedProvinceId}
+          provinceName={selectedProvince.name}
+        />
+      )}
+      {/* Footer Note */}
+        <Footer />
     </ResizableLayout>
   );
 }

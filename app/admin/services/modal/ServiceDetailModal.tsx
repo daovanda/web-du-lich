@@ -6,10 +6,10 @@ import { uploadImagesToBucket } from "../helpers";
 import { supabase } from "@/lib/supabase";
 import { useServiceDetail } from "../hooks/useServiceDetails";
 import ImageEditorModal from "./ImageEditorModal";
-import TourDetailEditor from "./TourDetailEditor";
-import StayDetailEditor from "./StayDetailEditor";
-import CarDetailEditor from "./CarDetailEditor";
-import MotorbikeDetailEditor from "./MotorbikeDetailEditor";
+import TourDetailEditor from "../components/TourDetailEditor";
+import StayDetailEditor from "../components/StayDetailEditor";
+import CarDetailEditor from "../components/CarDetailEditor";
+import MotorbikeDetailEditor from "../components/MotorbikeDetailEditor";
 
 type Props = {
   open: boolean;

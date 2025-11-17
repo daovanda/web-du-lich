@@ -13,11 +13,12 @@ import {
 } from "./api";
 import { PendingService, Service } from "./types";
 import StatsOverview from "./components/StatsOverview";
-import PendingTable from "./components/PendingTable";
+import PendingTable from "./table/PendingTable";
 import PendingForm from "./components/PendingForm";
-import OfficialTable from "./components/OfficialTable";
-import ApproveModal from "./components/ApproveModal";
-import ServiceDetailModal from "./components/ServiceDetailModal";
+import OfficialTable from "./table/OfficialTable";
+import ApproveModal from "./modal/ApproveModal";
+import ServiceDetailModal from "./modal/ServiceDetailModal";
+
 type TabType = "pending" | "services" | "addNew";
 
 export default function AdminServicesPage() {
@@ -26,6 +27,9 @@ export default function AdminServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
   const [loadingServices, setLoadingServices] = useState(false);
+  
+  // ✅ THÊM: State loading cho form add new
+  const [submittingNewService, setSubmittingNewService] = useState(false);
 
   const [stats, setStats] = useState({
     totalServices: 0,
@@ -82,13 +86,20 @@ export default function AdminServicesPage() {
 
   /* ---------------------- Pending actions ---------------------- */
   const handleAddPending = async (form: any, avatarFile: File | null, additionalFiles: File[]) => {
+    // ✅ THÊM: Set loading state trước khi submit
+    setSubmittingNewService(true);
+    
     try {
       await addPendingService(form, avatarFile, additionalFiles);
       alert("✅ Đã thêm dịch vụ chờ duyệt!");
-      refreshPending();
+      await refreshPending(); // ✅ Đợi refresh xong
       setActiveTab("pending");
     } catch (err: any) {
+      console.error('Error adding pending service:', err);
       alert(err.message || "❌ Lỗi khi thêm dịch vụ chờ duyệt!");
+    } finally {
+      // ✅ THÊM: Luôn reset loading state
+      setSubmittingNewService(false);
     }
   };
 
@@ -179,7 +190,6 @@ export default function AdminServicesPage() {
 
       {/* Stats Overview - Always visible */}
       <StatsOverview {...stats} />
-
 
       {/* Full-Width Rounded Tabs */}
       <div className="w-full max-w-7xl mx-auto">
@@ -306,7 +316,11 @@ export default function AdminServicesPage() {
                   ← Quay lại
                 </button>
               </div>
-              <PendingForm onSubmit={handleAddPending} loading={false} />
+              {/* ✅ SỬA: Truyền loading state từ parent */}
+              <PendingForm 
+                onSubmit={handleAddPending} 
+                loading={submittingNewService} 
+              />
             </div>
           )}
         </div>

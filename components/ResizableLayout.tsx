@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import DefaultLeftSidebar from "@/components/LeftSidebar";
 import DefaultMainContent from "@/components/MainContent";
 import DefaultRightSidebar from "@/components/RightSidebar";
+import BottomNavBar from "@/components/BottomNavBar";
 import { ChevronDown, Search } from "lucide-react";
 
 type ResizableLayoutProps = {
@@ -92,8 +93,8 @@ export default function ResizableLayout({
         />
       )}
 
-      {/* Main content - ✅ THÊM pt-16 (hoặc pt-20) cho mobile */}
-      <main className="flex-1 flex flex-col pt-14 md:pt-0 md:ml-[260px] md:mr-[200px] overflow-y-auto">
+      {/* Main content - với padding top cho header và bottom cho nav bar trên mobile */}
+      <main className="flex-1 flex flex-col pt-14 pb-16 md:pt-0 md:pb-0 md:ml-[260px] md:mr-[200px] overflow-y-auto">
         <div className="flex justify-center items-start w-full">
           {MainContent || <DefaultMainContent>{children}</DefaultMainContent>}
         </div>
@@ -106,6 +107,9 @@ export default function ResizableLayout({
       >
         {RightSidebar || <DefaultRightSidebar width={200} />}
       </aside>
+
+      {/* Bottom Navigation Bar (mobile only) */}
+      <BottomNavBar />
     </div>
   );
 }

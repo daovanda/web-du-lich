@@ -1,124 +1,22 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthContext";
 import Link from "next/link";
 import Suggestions from "@/components/Suggestions";
-
-type Profile = {
-  full_name?: string;
-  username?: string;
-  avatar_url?: string;
-};
+import Footer from "@/components/Footer";
 
 export default function RightSidebar({ width }: { width: number }) {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, profile, isLoading } = useAuth(); // ✅ Dùng global auth state
   const [showSuggestions, setShowSuggestions] = useState(false);
-  
-  // ✅ Prevent duplicate fetches
-  const isFetchingRef = useRef(false);
-  const lastUserIdRef = useRef<string | null>(null);
-
-  const fetchProfile = async (userId: string) => {
-    // ✅ Debounce: Skip if already fetching same user
-    if (isFetchingRef.current || lastUserIdRef.current === userId) {
-      return;
-    }
-
-    isFetchingRef.current = true;
-    lastUserIdRef.current = userId;
-
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("full_name, username, avatar_url")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Lỗi khi lấy profile:", error.message);
-        setProfile(null);
-      } else {
-        setProfile(data);
-      }
-    } catch (err) {
-      console.error("Error fetching profile:", err);
-      setProfile(null);
-    } finally {
-      isFetchingRef.current = false;
-    }
-  };
 
   useEffect(() => {
-    let mounted = true; // ✅ Prevent state updates after unmount
-
-    const initializeAuth = async () => {
-      try {
-        setIsLoading(true);
-        
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        
-        if (!mounted) return; // ✅ Component unmounted, skip
-
-        const currentUser = session?.user || null;
-        setUser(currentUser);
-
-        if (currentUser) {
-          await fetchProfile(currentUser.id);
-        } else {
-          setProfile(null);
-          lastUserIdRef.current = null;
-        }
-      } catch (err) {
-        console.error("Auth initialization error:", err);
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-          // Trigger suggestions animation
-          setTimeout(() => {
-            if (mounted) setShowSuggestions(true);
-          }, 100);
-        }
-      }
-    };
-
-    initializeAuth();
-
-    // ✅ Auth listener with safeguards
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      console.log("Auth event:", event); // Debug
-
-      const currentUser = session?.user || null;
-      const previousUserId = lastUserIdRef.current;
-
-      // ✅ Only update if user actually changed
-      if (currentUser?.id !== previousUserId) {
-        setUser(currentUser);
-
-        if (currentUser) {
-          await fetchProfile(currentUser.id);
-        } else {
-          setProfile(null);
-          lastUserIdRef.current = null;
-          isFetchingRef.current = false;
-        }
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      isFetchingRef.current = false;
-    };
-  }, []); // ✅ Run only once
+    if (!isLoading) {
+      // Trigger suggestions animation khi load xong
+      const timer = setTimeout(() => setShowSuggestions(true), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading]);
 
   return (
     <aside className="hidden lg:flex flex-col space-y-6 border-l border-gray-800 p-4 bg-black h-screen sticky top-0 overflow-y-auto">
@@ -186,10 +84,8 @@ export default function RightSidebar({ width }: { width: number }) {
         <Suggestions />
       </div>
 
-      <div className="px-3 py-2 text-xs text-gray-500 space-y-1">
-        <p>© 2025 chagmihaydi</p>
-        <p>Thông tin • Liên hệ • Chính sách</p>
-      </div>
+      {/* Footer Component */}
+      <Footer />
     </aside>
   );
 }

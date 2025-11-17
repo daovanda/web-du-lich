@@ -4,7 +4,7 @@
 
 import { addPin, removePin } from "./mapPinUtils";
 import { showTooltip, moveTooltip, hideTooltip } from "./mapTooltipUtils";
-import { mapIdToName, specialProvinceMap, colors } from "@/lib/mapUtils";
+import { mapIdToName, specialProvinceMap, colors } from "@/app/map/lib/mapUtils";
 
 interface EventHandlerParams {
   path: SVGPathElement;

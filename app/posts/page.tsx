@@ -13,6 +13,8 @@ import { supabase } from "@/lib/supabase";
 import ServiceSelector from "./components/ServiceSelector";
 import toast from "react-hot-toast";
 import UserPostsTable from "./components/UserPostsTable";
+import Footer from "@/components/Footer";
+
 
 
 export default function CreatePostPage() {
@@ -408,6 +410,7 @@ export default function CreatePostPage() {
         />
       )}
 
+
       {/* ✨ Custom CSS */}
       <style jsx>{`
         @keyframes fadeIn {
@@ -443,6 +446,10 @@ export default function CreatePostPage() {
           animation: spin 1s linear infinite;
         }
       `}</style>
+
+       {/* Footer Note */}
+          <Footer />
+
     </ResizableLayout>
   );
 }

@@ -1,92 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { PENDING_SERVICE_TYPES, SERVICE_SOURCES } from "../types";
-import { validatePhone, validateEmail, validateFiles, formatPhoneNumber, formatPrice, parsePrice } from "../helpers";
-
-type PendingFormData = {
-  title: string;
-  type: string;
-  description: string;
-  location: string;
-  price: string;
-  images: string[];
-  owner_name: string;
-  phone: string;
-  email: string;
-  facebook: string;
-  zalo: string;
-  tiktok: string;
-  instagram: string;
-  amenities: string;
-  source: string;
-};
-
-type PendingFormProps = {
-  onSubmit: (form: PendingFormData, avatarFile: File | null, additionalFiles: File[]) => Promise<void>;
-  loading: boolean;
-};
+import { 
+  PENDING_SERVICE_TYPES, 
+  SERVICE_SOURCES,
+  type PendingFormData,
+  type PendingFormProps 
+} from "../types";
+import { 
+  validateFiles,
+  formatPhoneNumber, 
+  formatPrice, 
+  parsePrice,
+  validatePendingForm,
+  createInitialPendingFormData,
+  resetPendingForm
+} from "../helpers";
 
 export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
-  const [form, setForm] = useState<PendingFormData>({
-    title: "",
-    type: "stay",
-    description: "",
-    location: "",
-    price: "",
-    images: [],
-    owner_name: "",
-    phone: "",
-    email: "",
-    facebook: "",
-    zalo: "",
-    tiktok: "",
-    instagram: "",
-    amenities: "",
-    source: "form",
-  });
-
+  const [form, setForm] = useState<PendingFormData>(createInitialPendingFormData());
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadingFiles, setUploadingFiles] = useState(false);
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!form.title.trim()) newErrors.title = "Tiêu đề dịch vụ là bắt buộc";
-    if (form.title.trim().length < 3) newErrors.title = "Tiêu đề phải có ít nhất 3 ký tự";
-    if (form.title.trim().length > 200) newErrors.title = "Tiêu đề không được quá 200 ký tự";
-    
-    if (!form.description.trim()) newErrors.description = "Mô tả dịch vụ là bắt buộc";
-    if (form.description.trim().length < 10) newErrors.description = "Mô tả phải có ít nhất 10 ký tự";
-    if (form.description.trim().length > 1000) newErrors.description = "Mô tả không được quá 1000 ký tự";
-    
-    if (!form.location.trim()) newErrors.location = "Địa điểm là bắt buộc";
-    if (!form.price.trim()) newErrors.price = "Giá dịch vụ là bắt buộc";
-    
-    if (!form.owner_name.trim()) newErrors.owner_name = "Tên chủ sở hữu là bắt buộc";
-    if (form.owner_name.trim().length < 2) newErrors.owner_name = "Tên chủ sở hữu phải có ít nhất 2 ký tự";
-    
-    if (!form.phone.trim()) newErrors.phone = "Số điện thoại là bắt buộc";
-    if (form.phone && !validatePhone(form.phone)) {
-      newErrors.phone = "Số điện thoại không hợp lệ (ví dụ: +84123456789, 0123456789)";
-    }
-    
-    if (!form.email.trim()) newErrors.email = "Email là bắt buộc";
-    if (form.email && !validateEmail(form.email)) {
-      newErrors.email = "Email không hợp lệ";
-    }
-
-    const allFiles = [...(avatarFile ? [avatarFile] : []), ...additionalFiles];
-    const fileError = validateFiles(allFiles);
-    if (fileError) {
-      newErrors.files = fileError;
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -126,35 +62,29 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    // ✅ Prevent submit khi đang loading
+    if (loading || uploadingFiles) return;
+    
+    const validationErrors = validatePendingForm(form, avatarFile, additionalFiles);
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      // ✅ Scroll to first error
+      const firstErrorElement = document.querySelector('[class*="border-red-500"]');
+      firstErrorElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     
     try {
       await onSubmit(form, avatarFile, additionalFiles);
-      alert("✅ Dịch vụ đã được thêm vào danh sách chờ duyệt!");
-      
-      setForm({
-        title: "",
-        type: "stay",
-        description: "",
-        location: "",
-        price: "",
-        images: [],
-        owner_name: "",
-        phone: "",
-        email: "",
-        facebook: "",
-        zalo: "",
-        tiktok: "",
-        instagram: "",
-        amenities: "",
-        source: "form",
-      });
+      // ✅ Reset form chỉ khi submit thành công (được handle ở parent)
+      setForm(resetPendingForm());
       setAvatarFile(null);
       setAdditionalFiles([]);
       setErrors({});
     } catch (error) {
       console.error('Submit error:', error);
-      alert("❌ Có lỗi xảy ra khi gửi dịch vụ. Vui lòng thử lại!");
+      // Error được handle ở parent
     }
   };
 
@@ -171,6 +101,9 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
       setErrors({ ...errors, files: "" });
     }
   };
+
+  // ✅ Tính toán trạng thái disable
+  const isDisabled = loading || uploadingFiles;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -206,9 +139,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="Nhập tên dịch vụ..."
                 maxLength={200}
+                disabled={isDisabled}
                 className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
                   errors.title ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
-                } outline-none`}
+                } outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
               />
               <div className="flex justify-between mt-2">
                 {errors.title && <p className="text-red-400 text-xs flex items-center gap-1">⚠️ {errors.title}</p>}
@@ -224,7 +158,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 <select
                   value={form.type}
                   onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white focus:border-blue-500 focus:bg-gray-800 outline-none transition-all appearance-none cursor-pointer"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white focus:border-blue-500 focus:bg-gray-800 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem'}}
                 >
                   {PENDING_SERVICE_TYPES.map((opt) => (
@@ -238,7 +173,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 <select
                   value={form.source}
                   onChange={(e) => setForm({ ...form, source: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white focus:border-blue-500 focus:bg-gray-800 outline-none transition-all appearance-none cursor-pointer"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white focus:border-blue-500 focus:bg-gray-800 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem'}}
                 >
                   {SERVICE_SOURCES.map((opt) => (
@@ -257,9 +193,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Mô tả chi tiết về dịch vụ..."
                 maxLength={1000}
+                disabled={isDisabled}
                 className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all h-32 resize-none focus:bg-gray-800 ${
                   errors.description ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
-                } outline-none`}
+                } outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
               />
               <div className="flex justify-between mt-2">
                 {errors.description && <p className="text-red-400 text-xs flex items-center gap-1">⚠️ {errors.description}</p>}
@@ -276,9 +213,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                   value={form.location}
                   onChange={(e) => setForm({ ...form, location: e.target.value })}
                   placeholder="Ví dụ: Hà Nội, TP.HCM..."
+                  disabled={isDisabled}
                   className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
                     errors.location ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
-                  } outline-none`}
+                  } outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
                 />
                 {errors.location && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.location}</p>}
               </div>
@@ -292,9 +230,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                     value={form.price}
                     onChange={handlePriceChange}
                     placeholder="500.000"
+                    disabled={isDisabled}
                     className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
                       errors.price ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
-                    } outline-none pr-16`}
+                    } outline-none pr-16 disabled:opacity-50 disabled:cursor-not-allowed`}
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">VND</span>
                 </div>
@@ -308,7 +247,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 value={form.amenities}
                 onChange={(e) => setForm({ ...form, amenities: e.target.value })}
                 placeholder="wifi, hồ bơi, gym, parking (cách nhau bằng dấu phẩy)"
-                className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                disabled={isDisabled}
+                className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -327,7 +267,7 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
               <button
                 type="button"
                 onClick={() => document.getElementById("avatar-file")?.click()}
-                disabled={uploadingFiles}
+                disabled={isDisabled}
                 className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 {uploadingFiles ? (
@@ -349,7 +289,7 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 accept="image/*"
                 className="hidden"
                 onChange={handleAvatarChange}
-                disabled={uploadingFiles}
+                disabled={isDisabled}
               />
 
               {avatarFile && (
@@ -365,7 +305,7 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                   </div>
                   <button
                     onClick={removeAvatar}
-                    disabled={uploadingFiles}
+                    disabled={isDisabled}
                     className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center"
                   >
                     ✕
@@ -381,7 +321,7 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
               <button
                 type="button"
                 onClick={() => document.getElementById("additional-files")?.click()}
-                disabled={uploadingFiles}
+                disabled={isDisabled}
                 className="w-full py-4 rounded-xl bg-gray-800/50 border-2 border-gray-700 hover:bg-gray-800 hover:border-gray-600 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {uploadingFiles ? (
@@ -404,7 +344,7 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 accept="image/*"
                 className="hidden"
                 onChange={handleAdditionalFilesChange}
-                disabled={uploadingFiles}
+                disabled={isDisabled}
               />
 
               {errors.files && (
@@ -425,7 +365,7 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                       />
                       <button
                         onClick={() => removeAdditionalImage(i)}
-                        disabled={uploadingFiles}
+                        disabled={isDisabled}
                         className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm hover:bg-red-600 transition-all disabled:opacity-50 shadow-lg"
                       >
                         ×
@@ -455,9 +395,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                   value={form.owner_name}
                   onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
                   placeholder="Nhập tên đầy đủ..."
+                  disabled={isDisabled}
                   className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
                     errors.owner_name ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
-                  } outline-none`}
+                  } outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
                 />
                 {errors.owner_name && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.owner_name}</p>}
               </div>
@@ -473,9 +414,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                     setForm({ ...form, phone: formatted });
                   }}
                   placeholder="+84xxxxxxxxx"
+                  disabled={isDisabled}
                   className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
                     errors.phone ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
-                  } outline-none`}
+                  } outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
                 />
                 {errors.phone && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.phone}</p>}
               </div>
@@ -490,9 +432,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="example@email.com"
+                disabled={isDisabled}
                 className={`w-full px-4 py-3 bg-gray-800/50 border-2 rounded-xl text-white placeholder-gray-500 transition-all focus:bg-gray-800 ${
                   errors.email ? 'border-red-500 focus:border-red-400' : 'border-gray-700 focus:border-blue-500'
-                } outline-none`}
+                } outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
               />
               {errors.email && <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.email}</p>}
             </div>
@@ -508,7 +451,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                   value={form.facebook}
                   onChange={(e) => setForm({ ...form, facebook: e.target.value })}
                   placeholder="https://facebook.com/..."
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -522,7 +466,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                   value={form.zalo}
                   onChange={(e) => setForm({ ...form, zalo: e.target.value })}
                   placeholder="Số điện thoại Zalo"
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -538,7 +483,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                   value={form.tiktok}
                   onChange={(e) => setForm({ ...form, tiktok: e.target.value })}
                   placeholder="@username"
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -552,7 +498,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                   value={form.instagram}
                   onChange={(e) => setForm({ ...form, instagram: e.target.value })}
                   placeholder="@username"
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-blue-500 focus:bg-gray-800 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -562,8 +509,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
           <div className="pt-6">
             <button
               onClick={handleSubmit}
-              disabled={loading || uploadingFiles}
-              className="w-full py-5 rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5"
+              disabled={isDisabled}
+              className="w-full py-5 rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5 active:scale-95"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-3">

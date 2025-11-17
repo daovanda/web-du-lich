@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ResizableLayout from "@/components/ResizableLayout";
+import Footer from "@/components/Footer";
 
 // HeroSection Component
 function HeroSection() {
@@ -249,9 +250,7 @@ export default function AboutPage() {
           </section>
 
           {/* Footer Note */}
-          <div className="text-center text-xs text-neutral-600 pb-8">
-            © 2025 Chagmihaydi - All rights reserved.
-          </div>
+          <Footer />
         </main>
       </div>
     </ResizableLayout>

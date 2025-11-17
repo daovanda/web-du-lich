@@ -4,10 +4,10 @@ import { useState, useMemo } from "react";
 import { Service } from "../types";
 import { formatAmenities } from "../helpers";
 import { fetchServiceDetail, useServicesDetailStatus } from "../hooks/useServiceDetails";
-import StayDetailEditor from "./StayDetailEditor";
-import CarDetailEditor from "./CarDetailEditor";
-import MotorbikeDetailEditor from "./MotorbikeDetailEditor";
-import TourDetailEditor from "./TourDetailEditor";
+import StayDetailEditor from "../components/StayDetailEditor";
+import CarDetailEditor from "../components/CarDetailEditor";
+import MotorbikeDetailEditor from "../components/MotorbikeDetailEditor";
+import TourDetailEditor from "../components/TourDetailEditor";
 
 type OfficialTableProps = {
   services: Service[];

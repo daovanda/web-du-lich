@@ -143,11 +143,11 @@ export type MotorbikeDetail = {
 // Bike types
 export const BIKE_TYPES = [
   { value: "", label: "Tất cả loại" },
-  { value: "scooter", label: "Xe tay ga" },  // Vision, Lead, SH Mode: Dễ đi, đi phố
-  { value: "manual", label: "Xe số" }, // Wave, Sirius: Giá rẻ, đi đèo khỏe
-  { value: "clutch", label: "Xe côn tay" }, // Exciter, Winner X: Trẻ, thích mạnh
-  { value: "adventure", label: "Xe chuyên đi phượt xa" }, // CB500X, GSX, ADV: Đi phượt xa
-  { value: "electric", label: "Xe điện" }, // VinFast Evo, Yadea: Nội đô, rẻ nhiên liệu
+  { value: "scooter", label: "Xe tay ga" },
+  { value: "manual", label: "Xe số" },
+  { value: "clutch", label: "Xe côn tay" },
+  { value: "adventure", label: "Xe chuyên đi phượt xa" },
+  { value: "electric", label: "Xe điện" },
 ];
 
 // Popular brands
@@ -180,6 +180,37 @@ export type ApproveForm = {
   zalo: string;
   tiktok: string;
   instagram: string;
+};
+
+// ===== THÊM MỚI: Types cho PendingForm =====
+
+/**
+ * Form data cho việc thêm dịch vụ mới (chờ duyệt)
+ */
+export type PendingFormData = {
+  title: string;
+  type: string;
+  description: string;
+  location: string;
+  price: string;
+  images: string[];
+  owner_name: string;
+  phone: string;
+  email: string;
+  facebook: string;
+  zalo: string;
+  tiktok: string;
+  instagram: string;
+  amenities: string;
+  source: string;
+};
+
+/**
+ * Props cho PendingForm component
+ */
+export type PendingFormProps = {
+  onSubmit: (form: PendingFormData, avatarFile: File | null, additionalFiles: File[]) => Promise<void>;
+  loading: boolean;
 };
 
 // Pending services chỉ hỗ trợ 3 loại dịch vụ
