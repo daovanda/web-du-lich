@@ -32,6 +32,29 @@ export function filterStaysByPrice(
   });
 }
 
+// THÊM MỚI - Hàm sắp xếp theo giá
+export function sortStaysByPrice(
+  stays: Stay[],
+  sortBy: StayFilterState["sortBy"]
+): Stay[] {
+  if (sortBy === "default") {
+    return stays;
+  }
+
+  return [...stays].sort((a, b) => {
+    const priceA = parseInt(a.price?.replace(/[^0-9]/g, "") || "0");
+    const priceB = parseInt(b.price?.replace(/[^0-9]/g, "") || "0");
+
+    if (sortBy === "price-asc") {
+      return priceA - priceB; // Tăng dần
+    } else if (sortBy === "price-desc") {
+      return priceB - priceA; // Giảm dần
+    }
+
+    return 0;
+  });
+}
+
 export function hasActiveFilters(filters: StayFilterState): boolean {
   return !!(
     filters.searchQuery ||
@@ -44,7 +67,8 @@ export function hasActiveFilters(filters: StayFilterState): boolean {
     filters.maxBeds ||
     filters.priceRange !== "all" ||
     filters.checkInDate ||
-    filters.checkOutDate
+    filters.checkOutDate ||
+    filters.sortBy !== "default" // THÊM MỚI
   );
 }
 

@@ -65,13 +65,22 @@ export default function ResizableLayout({
         </div>
       </header>
 
-      {/* Left Sidebar (overlay mobile, fixed desktop) */}
+      {/* Overlay background (mobile) - ✅ Đặt TRƯỚC sidebar để có z-index thấp hơn */}
+      {isMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] md:hidden"
+          onClick={() => setIsMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Left Sidebar (overlay mobile, fixed desktop) - ✅ z-[70] để che cả overlay và bottom nav */}
       <aside
         className={`${
           isMenuOpen
             ? "fixed top-0 left-0 translate-x-0"
             : "fixed top-0 left-0 -translate-x-full"
-        } md:translate-x-0 md:fixed md:top-0 md:left-0 h-full bg-black border-r border-gray-800 z-40 transition-transform duration-300 md:block`}
+        } md:translate-x-0 md:fixed md:top-0 md:left-0 h-full bg-black border-r border-gray-800 z-[70] transition-transform duration-300 md:block`}
         style={{
           width: "260px",
           overflow: "hidden",
@@ -79,19 +88,10 @@ export default function ResizableLayout({
         role="navigation"
         aria-label="Main navigation"
       >
-        <div className="pt-16 md:pt-0 h-full">
+        <div className="pt-16 md:pt-0 h-full overflow-y-auto">
           {LeftSidebar || <DefaultLeftSidebar width={260} overlay={isMenuOpen} />}
         </div>
       </aside>
-
-      {/* Overlay background (mobile) */}
-      {isMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden"
-          onClick={() => setIsMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
 
       {/* Main content - với padding top cho header và bottom cho nav bar trên mobile */}
       <main className="flex-1 flex flex-col pt-14 pb-16 md:pt-0 md:pb-0 md:ml-[260px] md:mr-[200px] overflow-y-auto">

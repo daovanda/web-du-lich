@@ -99,6 +99,7 @@ export default function CarServicesPage() {
     arrivalLocation: "",
     priceRange: "all",
     departureTime: "",
+    sortBy: "default", // THÊM MỚI
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +179,21 @@ export default function CarServicesPage() {
               default:
                 return true;
             }
+          });
+        }
+
+        // SẮP XẾP THEO GIÁ - THÊM MỚI
+        if (filters.sortBy !== "default" && filteredData.length > 0) {
+          filteredData = [...filteredData].sort((a, b) => {
+            const priceA = parseInt(a.price?.replace(/[^0-9]/g, "") || "0");
+            const priceB = parseInt(b.price?.replace(/[^0-9]/g, "") || "0");
+            
+            if (filters.sortBy === "price-asc") {
+              return priceA - priceB; // Tăng dần
+            } else if (filters.sortBy === "price-desc") {
+              return priceB - priceA; // Giảm dần
+            }
+            return 0;
           });
         }
 

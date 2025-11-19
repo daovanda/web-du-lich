@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { colors, mapIdToName } from "@/app/map/lib/mapUtils";
 import { addPin, updatePinPositions } from "@/app/map/lib/mapPinUtils";
 import { createTooltip, showTooltip, moveTooltip, hideTooltip, removeTooltip } from "@/app/map/lib/mapTooltipUtils";
@@ -13,8 +13,12 @@ type VietnamMapProps = {
   onProvinceHover?: (provinceId: string, visitedProvinceId: string, position: { x: number; y: number }) => void;
   onProvinceLeave?: () => void;
   onProvinceClick?: (provinceId: string, visitedProvinceId?: string) => void;
-  isHoveringPreview?: boolean; // Thêm flag để biết đang hover preview
+  isHoveringPreview?: boolean;
 };
+
+interface MapContainerElement extends HTMLDivElement {
+  _mutationObserver?: MutationObserver;
+}
 
 export default function VietnamMap({
   setVisitedCount,
@@ -24,28 +28,43 @@ export default function VietnamMap({
   onProvinceClick,
   isHoveringPreview,
 }: VietnamMapProps) {
-  const svgContainerRef = useRef<HTMLDivElement>(null);
+  const svgContainerRef = useRef<MapContainerElement>(null);
   const eventsAttachedRef = useRef(false);
-  const visitedRef = useRef<Map<string, string>>(new Map()); // provinceId -> visitedProvinceId
+  const visitedRef = useRef<Map<string, string>>(new Map());
   const pinsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const updateControllerRef = useRef<AbortController | null>(null);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const STROKE_WIDTH_PX = 1;
+  const HOVER_DELAY = 400; // ✅ Tăng delay lên 400ms
 
-  console.log("🗺️ VietnamMap props:", {
-    hasHoverCallback: !!onProvinceHover,
-    hasLeaveCallback: !!onProvinceLeave,
-    hasClickCallback: !!onProvinceClick,
-  });
+  // ✅ Memoized update pin positions với throttle
+  const handlePinUpdate = useCallback(() => {
+    const mapContainer = svgContainerRef.current;
+    if (mapContainer) {
+      updatePinPositions(mapContainer, pinsRef.current);
+    }
+  }, []);
+
+  // ✅ Throttled version cho scroll
+  const throttledPinUpdate = useCallback(() => {
+    let timeout: NodeJS.Timeout;
+    return () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(handlePinUpdate, 100);
+    };
+  }, [handlePinUpdate])();
 
   // Initialize tooltip once on mount
   useEffect(() => {
     if (!tooltipRef.current) {
       tooltipRef.current = createTooltip();
-      console.log("✅ Tooltip initialized on mount");
     }
 
     return () => {
@@ -54,14 +73,20 @@ export default function VietnamMap({
         tooltipRef.current = null;
       }
     };
-  }, []); // Only run once
+  }, []);
 
   // Load user session
   useEffect(() => {
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUserId(session.user.id);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (session?.user) {
+          setUserId(session.user.id);
+        }
+      } catch (err) {
+        console.error("Failed to get session:", err);
+        setError("Không thể tải phiên đăng nhập");
       }
     };
     getSession();
@@ -72,20 +97,107 @@ export default function VietnamMap({
     if (!userId) return;
 
     const loadVisitedProvinces = async () => {
-      const data = await getUserVisitedProvinces(userId);
-      if (data) {
-        const newVisited = new Map<string, string>();
-        data.forEach((item) => {
-          newVisited.set(item.province_id, item.id);
-        });
-        visitedRef.current = newVisited;
-        setVisitedCount(newVisited.size);
-        setVisitedProvinces(Array.from(newVisited.keys()));
-        setDataLoaded(true); // Mark data as loaded
+      try {
+        const data = await getUserVisitedProvinces(userId);
+        if (data) {
+          const newVisited = new Map<string, string>();
+          data.forEach((item) => {
+            newVisited.set(item.province_id, item.id);
+          });
+          visitedRef.current = newVisited;
+          setVisitedCount(newVisited.size);
+          setVisitedProvinces(Array.from(newVisited.keys()));
+          setDataLoaded(true);
+        }
+      } catch (err) {
+        console.error("Failed to load visited provinces:", err);
+        setError("Không thể tải dữ liệu tỉnh thành");
       }
     };
 
     loadVisitedProvinces();
+  }, [userId, setVisitedCount, setVisitedProvinces]);
+
+  // ✅ Optimistic toggle với rollback
+  const handleProvinceToggle = useCallback(async (id: string, pathElement: SVGPathElement, mapContainer: HTMLDivElement) => {
+    if (!userId) return;
+    
+    // Cancel any pending update
+    if (updateControllerRef.current) {
+      updateControllerRef.current.abort();
+    }
+    updateControllerRef.current = new AbortController();
+
+    // Store previous state for rollback
+    const wasVisited = visitedRef.current.has(id);
+    const previousVisitedId = visitedRef.current.get(id);
+    const previousColor = pathElement.style.fill;
+    
+    // ✅ Optimistic update
+    if (wasVisited) {
+      // Remove optimistically
+      pathElement.style.fill = "rgba(115,115,115,0.3)";
+      pathElement.classList.remove("visited");
+      visitedRef.current.delete(id);
+      const pin = pinsRef.current.get(id);
+      if (pin) {
+        pin.remove();
+        pinsRef.current.delete(id);
+      }
+    } else {
+      // Add optimistically
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      pathElement.style.fill = color;
+      pathElement.classList.add("visited");
+      pathElement.dataset.pinColor = color;
+      visitedRef.current.set(id, "temp");
+      addPin(pathElement, color, id, mapContainer, pinsRef.current);
+    }
+
+    setVisitedCount(visitedRef.current.size);
+    setVisitedProvinces(Array.from(visitedRef.current.keys()));
+
+    try {
+      const result = await toggleProvince(userId, id);
+      
+      if (!result.success) {
+        throw new Error("Toggle failed");
+      }
+
+      if (result.action === "added") {
+        visitedRef.current.set(id, result.data.id);
+      }
+      
+      setVisitedCount(visitedRef.current.size);
+      setVisitedProvinces(Array.from(visitedRef.current.keys()));
+      
+    } catch (err) {
+      console.error("Failed to toggle province:", err);
+      
+      // ✅ Rollback on error
+      if (wasVisited && previousVisitedId) {
+        pathElement.style.fill = previousColor;
+        pathElement.classList.add("visited");
+        visitedRef.current.set(id, previousVisitedId);
+        const color = pathElement.dataset.pinColor || colors[0];
+        addPin(pathElement, color, id, mapContainer, pinsRef.current);
+      } else {
+        pathElement.style.fill = "rgba(115,115,115,0.3)";
+        pathElement.classList.remove("visited");
+        visitedRef.current.delete(id);
+        const pin = pinsRef.current.get(id);
+        if (pin) {
+          pin.remove();
+          pinsRef.current.delete(id);
+        }
+      }
+      
+      setVisitedCount(visitedRef.current.size);
+      setVisitedProvinces(Array.from(visitedRef.current.keys()));
+      setError("Không thể cập nhật. Vui lòng thử lại.");
+      
+      setTimeout(() => setError(null), 3000);
+    }
   }, [userId, setVisitedCount, setVisitedProvinces]);
 
   useEffect(() => {
@@ -97,237 +209,174 @@ export default function VietnamMap({
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const txt = await response.text();
 
-        if (svgContainerRef.current) {
-          svgContainerRef.current.innerHTML = txt;
-          setIsLoading(false);
+        const container = svgContainerRef.current;
+        if (!container) return;
 
-          const provinces = svgContainerRef.current.querySelectorAll<SVGPathElement>(
-            'path[id^="province-"]'
-          );
+        container.innerHTML = txt;
+        setIsLoading(false);
 
-          // Ensure tooltip exists
-          if (!tooltipRef.current) {
-            tooltipRef.current = createTooltip();
-            console.log("✅ Tooltip created in SVG load");
+        const provinces = container.querySelectorAll<SVGPathElement>('path[id^="province-"]');
+
+        if (!tooltipRef.current) {
+          tooltipRef.current = createTooltip();
+        }
+
+        const validIds = new Set<string>(
+          Array.from(provinces)
+            .map((p) => p.getAttribute("id") || "")
+            .filter((id) => id && parseInt(id.replace("province-", "")) <= 65)
+        );
+
+        provinces.forEach((p) => {
+          const id = p.getAttribute("id") || "";
+          if (!id || !validIds.has(id)) return;
+
+          p.style.stroke = "rgba(255,255,255,0.2)";
+          p.style.strokeWidth = `${STROKE_WIDTH_PX}px`;
+          p.setAttribute("vector-effect", "non-scaling-stroke");
+
+          // Initialize color based on visited state
+          if (visitedRef.current.has(id)) {
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            p.style.fill = color;
+            p.classList.add("visited");
+            p.dataset.pinColor = color;
+            setTimeout(() => addPin(p, color, id, container, pinsRef.current), 100);
+          } else {
+            p.style.fill = "rgba(115,115,115,0.3)";
           }
 
-          const validIds = new Set<string>(
-            Array.from(provinces)
-              .map((p) => p.getAttribute("id") || "")
-              .filter((id) => id && parseInt(id.replace("province-", "")) <= 65)
-          );
-
-          const mapContainer = svgContainerRef.current;
-
-          provinces.forEach((p) => {
-            const id = p.getAttribute("id") || "";
-            if (!id || !validIds.has(id)) return;
-
-            p.style.stroke = "rgba(255,255,255,0.2)";
-            p.style.strokeWidth = `${STROKE_WIDTH_PX}px`;
-            p.setAttribute("vector-effect", "non-scaling-stroke");
-
-            // Initialize color based on visited state
-            if (visitedRef.current.has(id)) {
-              const color = colors[Math.floor(Math.random() * colors.length)];
-              p.style.fill = color;
-              p.classList.add("visited");
-              p.dataset.pinColor = color; // Store color for later use
-              setTimeout(() => addPin(p, color, id, mapContainer, pinsRef.current), 100);
-            } else {
-              p.style.fill = "rgba(115,115,115,0.3)";
-            }
-
-            // Click handler with DB sync
-            p.addEventListener("click", async (e) => {
-              e.stopPropagation();
-
-              // Toggle in database
-              const result = await toggleProvince(userId!, id);
-              
-              if (!result.success) {
-                console.error("Failed to toggle province");
-                return;
-              }
-
-              if (result.action === "added") {
-                // Add to map
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                p.style.fill = color;
-                p.classList.add("visited");
-                p.dataset.pinColor = color; // Store color
-                visitedRef.current.set(id, result.data.id);
-                addPin(p, color, id, mapContainer, pinsRef.current);
-              } else {
-                // Remove from map
-                p.style.fill = "rgba(115,115,115,0.3)";
-                p.classList.remove("visited");
-                visitedRef.current.delete(id);
-                const pin = pinsRef.current.get(id);
-                if (pin) {
-                  pin.remove();
-                  pinsRef.current.delete(id);
-                }
-              }
-
-              setVisitedCount(visitedRef.current.size);
-              setVisitedProvinces(Array.from(visitedRef.current.keys()));
-            });
-
-            // Hover handlers with modal preview
-            let isHovering = false;
-            let hoverTimeout: NodeJS.Timeout | null = null;
+          // ✅ Click handler với debounce
+          let clickTimeout: NodeJS.Timeout | null = null;
+          p.addEventListener("click", (e) => {
+            e.stopPropagation();
             
-            p.addEventListener("mouseenter", (e) => {
-              isHovering = true;
-              p.style.filter = "brightness(1.2)";
-              
-              // Clear any existing timeout
-              if (hoverTimeout) {
-                clearTimeout(hoverTimeout);
-                hoverTimeout = null;
-              }
-              
-              const visitedProvinceId = visitedRef.current.get(id);
-              const provinceName = mapIdToName(id);
-              
-              console.log("🖱️ Mouse enter:", id, "Visited:", !!visitedProvinceId, "Callback:", !!onProvinceHover);
-              
-              // Ensure tooltip exists
-              if (!tooltipRef.current || !document.body.contains(tooltipRef.current)) {
-                tooltipRef.current = createTooltip();
-                console.log("🔄 Tooltip recreated in mouseenter");
-              }
-              
-              // Always hide tooltip when showing preview
-              hideTooltip(tooltipRef.current);
-              
-              // Show preview for ALL provinces at FIXED position
-              if (onProvinceHover) {
-                console.log("✅ Showing preview for province:", id);
-                onProvinceHover(id, visitedProvinceId || '', { x: e.clientX, y: e.clientY });
-              }
-            });
-
-            // Remove mousemove - we don't want to update position
+            if (clickTimeout) return;
             
-            p.addEventListener("mouseleave", () => {
-              isHovering = false;
-              p.style.filter = "";
-              
-              // Delay hiding to allow moving to preview
-              hoverTimeout = setTimeout(() => {
-                if (!isHoveringPreview) {
-                  if (onProvinceLeave) {
-                    onProvinceLeave();
-                  }
-                }
-              }, 100); // 100ms delay
-              
-              if (tooltipRef.current && document.body.contains(tooltipRef.current)) {
-                hideTooltip(tooltipRef.current);
-              }
-            });
-
-            // Touch handler for mobile
-            p.addEventListener("touchstart", async (e) => {
-              const touch = e.touches[0];
-              if (!touch) return;
-              
-              // Show tooltip briefly
-              const provinceName = mapIdToName(id);
-              showTooltip(tooltipRef.current!, provinceName);
-              moveTooltip(tooltipRef.current!, touch.clientX, touch.clientY);
-              setTimeout(() => hideTooltip(tooltipRef.current!), 1500);
-
-              // Toggle in database
-              const result = await toggleProvince(userId!, id);
-              
-              if (!result.success) {
-                console.error("Failed to toggle province");
-                return;
-              }
-
-              if (result.action === "added") {
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                p.style.fill = color;
-                p.classList.add("visited");
-                visitedRef.current.set(id, result.data.id);
-                addPin(p, color, id, mapContainer, pinsRef.current);
-                
-                if (onProvinceClick) {
-                  onProvinceClick(id, result.data.id);
-                }
-              } else {
-                p.style.fill = "rgba(115,115,115,0.3)";
-                p.classList.remove("visited");
-                visitedRef.current.delete(id);
-                const pin = pinsRef.current.get(id);
-                if (pin) {
-                  pin.remove();
-                  pinsRef.current.delete(id);
-                }
-              }
-
-              setVisitedCount(visitedRef.current.size);
-              setVisitedProvinces(Array.from(visitedRef.current.keys()));
-            }, { passive: true });
+            clickTimeout = setTimeout(() => {
+              clickTimeout = null;
+            }, 300);
+            
+            handleProvinceToggle(id, p, container);
           });
 
-          eventsAttachedRef.current = true;
+          // ✅ IMPROVED: Hover handlers with longer delay
+          p.addEventListener("mouseenter", (e) => {
+            p.style.filter = "brightness(1.2)";
+            
+            // Clear any existing timeout
+            if (hoverTimeoutRef.current) {
+              clearTimeout(hoverTimeoutRef.current);
+              hoverTimeoutRef.current = null;
+            }
+            
+            const visitedProvinceId = visitedRef.current.get(id);
+            
+            if (!tooltipRef.current || !document.body.contains(tooltipRef.current)) {
+              tooltipRef.current = createTooltip();
+            }
+            
+            hideTooltip(tooltipRef.current);
+            
+            if (onProvinceHover) {
+              onProvinceHover(id, visitedProvinceId || '', { x: e.clientX, y: e.clientY });
+            }
+          });
+            
+          p.addEventListener("mouseleave", () => {
+            p.style.filter = "";
+            
+            // ✅ Luôn set timeout, không check isHoveringPreview ở đây
+            // Vì isHoveringPreview có thể chưa update (closure issue)
+            hoverTimeoutRef.current = setTimeout(() => {
+              // onProvinceLeave sẽ tự check isHoveringPreview bên trong
+              if (onProvinceLeave) {
+                onProvinceLeave();
+              }
+            }, HOVER_DELAY);
+            
+            if (tooltipRef.current && document.body.contains(tooltipRef.current)) {
+              hideTooltip(tooltipRef.current);
+            }
+          });
 
-          // Update pins on scroll/resize
-          const handlePinUpdate = () => {
-            if (mapContainer) {
-              updatePinPositions(mapContainer, pinsRef.current);
-              
-              // Re-create pins if they're missing
-              provinces.forEach((p) => {
-                const id = p.getAttribute("id") || "";
-                if (!id) return;
-                
-                const visitedProvinceId = visitedRef.current.get(id);
-                if (visitedProvinceId && !pinsRef.current.has(id)) {
-                  // Pin is missing, recreate it
-                  const color = p.dataset.pinColor || colors[0];
-                  addPin(p, color, id, mapContainer, pinsRef.current);
+          // Touch handler for mobile
+          p.addEventListener("touchstart", async (e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            
+            const provinceName = mapIdToName(id);
+            if (tooltipRef.current) {
+              showTooltip(tooltipRef.current, provinceName);
+              moveTooltip(tooltipRef.current, touch.clientX, touch.clientY);
+              setTimeout(() => {
+                if (tooltipRef.current) hideTooltip(tooltipRef.current);
+              }, 1500);
+            }
+
+            await handleProvinceToggle(id, p, container);
+          }, { passive: true });
+        });
+
+        eventsAttachedRef.current = true;
+
+        const scrollController = new AbortController();
+        const resizeController = new AbortController();
+
+        window.addEventListener("scroll", throttledPinUpdate, { 
+          passive: true,
+          signal: scrollController.signal 
+        });
+        
+        window.addEventListener("resize", handlePinUpdate, {
+          signal: resizeController.signal
+        });
+
+        container.addEventListener("scroll", throttledPinUpdate, { 
+          passive: true,
+          signal: scrollController.signal 
+        });
+
+        // ✅ MutationObserver thay vì periodic check
+        const observer = new MutationObserver((mutations) => {
+          let needsUpdate = false;
+          
+          mutations.forEach((mutation) => {
+            if (mutation.type === 'childList') {
+              mutation.removedNodes.forEach((node) => {
+                if (node instanceof HTMLElement && node.classList.contains('map-pin-overlay')) {
+                  needsUpdate = true;
                 }
               });
             }
-          };
+          });
 
-          window.addEventListener("scroll", handlePinUpdate, { passive: true });
-          window.addEventListener("resize", handlePinUpdate);
-
-          if (mapContainer) {
-            mapContainer.addEventListener("scroll", handlePinUpdate, { passive: true });
-          }
-
-          // Periodic check to ensure pins exist (every 2 seconds)
-          const pinCheckInterval = setInterval(() => {
-            if (!mapContainer) return;
-            
+          if (needsUpdate) {
             provinces.forEach((p) => {
               const id = p.getAttribute("id") || "";
               if (!id) return;
               
               const visitedProvinceId = visitedRef.current.get(id);
-              if (visitedProvinceId) {
-                const existingPin = pinsRef.current.get(id);
-                // Check if pin exists in DOM
-                if (!existingPin || !document.body.contains(existingPin)) {
-                  const color = p.dataset.pinColor || colors[0];
-                  addPin(p, color, id, mapContainer, pinsRef.current);
-                }
+              if (visitedProvinceId && !pinsRef.current.has(id)) {
+                const color = p.dataset.pinColor || colors[0];
+                addPin(p, color, id, container, pinsRef.current);
               }
             });
-          }, 2000);
+          }
+        });
 
-          // Store interval ID for cleanup
-          (mapContainer as any)._pinCheckInterval = pinCheckInterval;
-        }
+        observer.observe(container, {
+          childList: true,
+          subtree: true,
+        });
+
+        container._mutationObserver = observer;
+        (container as any)._scrollController = scrollController;
+        (container as any)._resizeController = resizeController;
+
       } catch (error) {
         console.error("Error loading SVG:", error);
+        setError("Không thể tải bản đồ");
         setIsLoading(false);
       }
     };
@@ -335,16 +384,51 @@ export default function VietnamMap({
     loadSvgAndAttachEvents();
 
     return () => {
+      const container = svgContainerRef.current;
+      
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      
+      if (updateControllerRef.current) {
+        updateControllerRef.current.abort();
+      }
+
+      if (container) {
+        if (container._mutationObserver) {
+          container._mutationObserver.disconnect();
+        }
+        if ((container as any)._scrollController) {
+          (container as any)._scrollController.abort();
+        }
+        if ((container as any)._resizeController) {
+          (container as any)._resizeController.abort();
+        }
+      }
+
       pinsRef.current.forEach((pin) => pin.remove());
       pinsRef.current.clear();
+      
       if (tooltipRef.current) {
         removeTooltip(tooltipRef.current);
       }
     };
-  }, [userId, dataLoaded, setVisitedCount, setVisitedProvinces, onProvinceHover, onProvinceLeave, onProvinceClick]);
+  }, [userId, dataLoaded, setVisitedCount, setVisitedProvinces, onProvinceHover, onProvinceLeave, isHoveringPreview, handleProvinceToggle, handlePinUpdate, throttledPinUpdate]);
 
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden">
+      {/* Error Toast */}
+      {error && (
+        <div className="absolute top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg animate-slide-in">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-sm">{error}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -456,8 +540,23 @@ export default function VietnamMap({
           to { transform: rotate(360deg); }
         }
 
+        @keyframes slide-in {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
         .animate-spin {
           animation: spin 1s linear infinite;
+        }
+
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
         }
       `}</style>
     </div>

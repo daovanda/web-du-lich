@@ -316,7 +316,7 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
 
             <div>
               <label className="block text-sm font-semibold text-gray-300 mb-3">
-                Hình ảnh bổ sung <span className="text-gray-500">({additionalFiles.length}/9)</span>
+                Hình ảnh bổ sung <span className="text-gray-500">({additionalFiles.length}/50 ảnh)</span>
               </label>
               <button
                 type="button"

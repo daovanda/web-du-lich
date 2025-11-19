@@ -17,6 +17,7 @@ export interface CarFilterState {
   arrivalLocation: string;
   priceRange: string;
   departureTime: string;
+  sortBy: string; // THÊM MỚI
 }
 
 interface RouteOption {
@@ -57,6 +58,7 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
     arrivalLocation: initialFilters?.arrivalLocation || "",
     priceRange: initialFilters?.priceRange || "all",
     departureTime: initialFilters?.departureTime || "",
+    sortBy: initialFilters?.sortBy || "default", // THÊM MỚI
   });
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -158,6 +160,7 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
       arrivalLocation: "",
       priceRange: "all",
       departureTime: "",
+      sortBy: "default", // THÊM MỚI
     };
     setFilters(resetFilters);
     onFiltersChange(resetFilters);
@@ -169,7 +172,8 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
     filters.departureLocation ||
     filters.arrivalLocation ||
     filters.priceRange !== "all" ||
-    filters.departureTime;
+    filters.departureTime ||
+    filters.sortBy !== "default"; // THÊM MỚI
 
   return (
     <div
@@ -334,11 +338,36 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
             </select>
           </div>
 
-          {/* Price Range Buttons */}
+          {/* Price Range Buttons with Sort */}
           <div>
-            <label className="text-xs font-semibold text-neutral-400 mb-3 uppercase tracking-wide block">
-              Mức giá vé
-            </label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">
+                Mức giá vé
+              </label>
+              {/* Sort Buttons */}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleFilterChange("sortBy", "price-asc")}
+                  className={`px-2.5 py-1 rounded-md border text-xs font-semibold transition-all ${
+                    filters.sortBy === "price-asc"
+                      ? "bg-white text-black border-white"
+                      : "bg-neutral-900 hover:bg-neutral-800 border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  Tăng dần
+                </button>
+                <button
+                  onClick={() => handleFilterChange("sortBy", "price-desc")}
+                  className={`px-2.5 py-1 rounded-md border text-xs font-semibold transition-all ${
+                    filters.sortBy === "price-desc"
+                      ? "bg-white text-black border-white"
+                      : "bg-neutral-900 hover:bg-neutral-800 border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  Giảm dần
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {PRICE_RANGES.map((range) => (
                 <button
@@ -370,8 +399,6 @@ export default function CarFilters({ onFiltersChange, initialFilters, isInitialL
           )}
         </div>
       </div>
-
-
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Stay, StayFilterState } from "../_types/stay.types";
 import { fetchStays } from "../_api/stayApi";
-import { filterStaysByPrice } from "../_utils/stayQuery";
+import { filterStaysByPrice, sortStaysByPrice } from "../_utils/stayQuery";
 
 interface UseStaysResult {
   stays: Stay[];
@@ -28,7 +28,10 @@ export function useStays(filters: StayFilterState): UseStaysResult {
         const data = await fetchStays(filters);
 
         // Apply price filter in memory
-        const filteredData = filterStaysByPrice(data, filters.priceRange);
+        let filteredData = filterStaysByPrice(data, filters.priceRange);
+
+        // Apply sorting - THÊM MỚI
+        filteredData = sortStaysByPrice(filteredData, filters.sortBy);
 
         setStays(filteredData);
       } catch (err: any) {
