@@ -22,6 +22,7 @@ export default function MotorbikeServices() {
     maxYear: "",
     minPrice: "",
     maxPrice: "500000",
+    sortBy: "default", // THÊM MỚI
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +104,16 @@ export default function MotorbikeServices() {
         }
         if (filters.maxPrice && filters.maxPrice !== "500000") {
           query = query.lte("price", parseFloat(filters.maxPrice));
+        }
+
+        // THÊM SORTING - Áp dụng order theo sortBy
+        if (filters.sortBy === "price-asc") {
+          query = query.order("price", { ascending: true });
+        } else if (filters.sortBy === "price-desc") {
+          query = query.order("price", { ascending: false });
+        } else {
+          // Default sorting (có thể là id hoặc created_at)
+          query = query.order("id", { ascending: true });
         }
 
         const { data, error } = await query;
