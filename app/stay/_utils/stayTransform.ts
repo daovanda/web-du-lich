@@ -20,7 +20,7 @@ export function transformStayToCardData(stay: Stay): {
     price: stay.price,
     type: "stay", // ✅ Không cần as const nữa
     location: stay.location,
-    average_rating: stay.average_rating,
+    average_rating: stay.average_rating ?? undefined,
     reviews_count: stay.reviews_count,
   };
 }
