@@ -8,6 +8,7 @@ import StatsCard from "@/app/map/components/StatsCard";
 import VietnamMap from "@/app/map/components/VietnamMap";
 import ProvinceDetailModal from "@/app/map/components/ProvinceDetailModal";
 import ProvinceHoverPreview from "@/app/map/components/ProvinceHoverPreview";
+import ShareMapButton from "@/app/map/components/ShareMapButton";
 import { mapIdToName } from "@/app/map/lib/mapUtils";
 
 // ✅ Error Boundary Component
@@ -82,6 +83,8 @@ export default function MapPage() {
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isHoveringPreviewRef = useRef(false); // ✅ CRITICAL: Ref để track state thực sự, không có delay
+  const currentProvinceRef = useRef<string | null>(null); // ✅ Track tỉnh hiện tại đang show preview
   
   const TOTAL_LOCATIONS = 65;
   const percent = ((visitedCount / TOTAL_LOCATIONS) * 100).toFixed(1);
@@ -123,91 +126,98 @@ export default function MapPage() {
     visitedProvinceId: string,
     position: { x: number; y: number }
   ) => {
-    // Clear hide timeout nếu đang có
+    console.log("🗺️ Province HOVER:", provinceId);
+    
+    // Track tỉnh hiện tại
+    currentProvinceRef.current = provinceId;
+    
+    // ✅ CRITICAL: Clear ALL timeouts khi hover vào tỉnh
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
+      console.log("  ↳ Cleared hide timeout");
     }
 
-    // Clear show timeout cũ
     if (showTimeoutRef.current) {
       clearTimeout(showTimeoutRef.current);
+      console.log("  ↳ Cleared old show timeout");
     }
 
     const isVisited = !!visitedProvinceId;
     
-    // ✅ Show ngay lập tức để responsive hơn
-    showTimeoutRef.current = setTimeout(() => {
-      setHoverPreview({
-        provinceId,
-        visitedProvinceId: visitedProvinceId || '',
-        name: mapIdToName(provinceId),
-        position,
-        isVisited,
-      });
-    }, 50); // Chỉ 50ms để tránh flicker
+    // ✅ Show NGAY LẬP TỨC, không delay
+    console.log("  ↳ Setting preview immediately");
+    setHoverPreview({
+      provinceId,
+      visitedProvinceId: visitedProvinceId || '',
+      name: mapIdToName(provinceId),
+      position,
+      isVisited,
+    });
   }, []);
 
   // ✅ Hide với delay đủ lớn để user có thể di chuyển chuột
   const handleProvinceLeave = useCallback(() => {
-    console.log("🗺️ handleProvinceLeave called");
+    console.log("🗺️ Province LEAVE");
     
-    // Clear show timeout nếu đang có
-    if (showTimeoutRef.current) {
-      clearTimeout(showTimeoutRef.current);
-      showTimeoutRef.current = null;
-    }
-
+    // Clear tracking
+    currentProvinceRef.current = null;
+    
+    // ✅ KHÔNG clear show timeout ở đây - để preview có thể show
+    
     // Clear timeout cũ
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
+      console.log("  ↳ Cleared old hide timeout");
     }
 
-    // ✅ Delay 400ms để user có thời gian di chuyển chuột sang preview
+    // ✅ Delay 500ms để user có thời gian di chuyển chuột sang preview
     hoverTimeoutRef.current = setTimeout(() => {
-      console.log("⏰ Province leave timeout fired, checking isHoveringPreview...");
+      // ✅ CRITICAL: Check ref thay vì state vì ref update ngay lập tức
+      const isCurrentlyHovering = isHoveringPreviewRef.current;
+      console.log("⏰ Hide timeout fired, isHovering (ref):", isCurrentlyHovering);
       
-      // ✅ Check isHoveringPreview tại đúng thời điểm này (không dùng closure)
-      setHoverPreview(prev => {
-        // Nếu đang hover preview thì giữ lại
-        if (isHoveringPreview) {
-          console.log("❌ Preview is being hovered - keeping it");
-          return prev;
-        }
-        // Ngược lại thì hide
+      // ✅ Chỉ hide nếu KHÔNG đang hover preview
+      if (!isCurrentlyHovering) {
         console.log("✅ Hiding preview");
-        return null;
-      });
-    }, 400);
-  }, [isHoveringPreview]); // ✅ Add isHoveringPreview vào dependency
+        setHoverPreview(null);
+        currentProvinceRef.current = null;
+      } else {
+        console.log("❌ NOT hiding - user is hovering preview/bridge");
+      }
+    }, 500); // Tăng lên 500ms để dễ hơn
+  }, []); // ✅ Không cần dependency vì dùng ref
 
   // ✅ Handle preview hover - clear hide timeout khi hover vào preview
   const handlePreviewHoverChange = useCallback((isHovering: boolean) => {
-    console.log("🎯 Preview hover change:", isHovering); // Debug log
+    console.log("🎯 Preview hover change:", isHovering);
+    
+    // ✅ CRITICAL: Update ref NGAY LẬP TỨC (synchronous)
+    isHoveringPreviewRef.current = isHovering;
     setIsHoveringPreview(isHovering);
     
     if (isHovering) {
-      console.log("✅ User hovering preview - clearing all timeouts");
-      // Khi hover vào preview, cancel mọi hide timeout
+      console.log("✅ User hovering preview/bridge - clearing hide timeout");
+      // ✅ Clear hide timeout để preview không bị ẩn
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = null;
-      }
-      if (showTimeoutRef.current) {
-        clearTimeout(showTimeoutRef.current);
-        showTimeoutRef.current = null;
+        console.log("  ↳ Cleared hide timeout");
       }
     } else {
-      console.log("❌ User left preview - scheduling hide");
-      // Khi leave preview, hide sau delay nhỏ
+      console.log("❌ User left preview/bridge - scheduling hide");
+      
+      // Clear old timeout
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
       }
+      
+      // Khi leave preview, hide sau delay ngắn
       hoverTimeoutRef.current = setTimeout(() => {
-        console.log("⏰ Hiding preview after delay");
+        console.log("⏰ Preview leave timeout - hiding now");
         setHoverPreview(null);
-        setIsHoveringPreview(false);
-      }, 200); // 200ms delay khi leave preview
+        isHoveringPreviewRef.current = false;
+      }, 150); // 150ms delay khi leave preview
     }
   }, []);
 
@@ -260,6 +270,19 @@ export default function MapPage() {
                 onProvinceHover={handleProvinceHover}
                 onProvinceLeave={handleProvinceLeave}
                 isHoveringPreview={isHoveringPreview}
+              />
+            </div>
+
+            {/* ✅ Share Map Button */}
+            <div 
+              className={`transition-all duration-700 ease-out delay-500 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
+              }`}
+            >
+              <ShareMapButton
+                visitedCount={visitedCount}
+                total={TOTAL_LOCATIONS}
+                visitedProvinces={visitedProvinceIds}
               />
             </div>
 

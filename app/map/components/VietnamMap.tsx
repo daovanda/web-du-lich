@@ -35,6 +35,7 @@ export default function VietnamMap({
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const updateControllerRef = useRef<AbortController | null>(null);
+  const currentHoveredProvinceRef = useRef<string | null>(null); // ✅ Track tỉnh đang hover
   
   const [isLoading, setIsLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);

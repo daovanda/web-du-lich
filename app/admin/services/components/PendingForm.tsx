@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   PENDING_SERVICE_TYPES, 
   SERVICE_SOURCES,
@@ -22,7 +22,24 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [serverError, setServerError] = useState<string>("");
+
+  // ✅ Cleanup preview URLs on unmount
+  useEffect(() => {
+    const urls: string[] = [];
+    
+    if (avatarFile) {
+      urls.push(URL.createObjectURL(avatarFile));
+    }
+    
+    additionalFiles.forEach(file => {
+      urls.push(URL.createObjectURL(file));
+    });
+    
+    return () => {
+      urls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [avatarFile, additionalFiles]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -31,12 +48,12 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
     const fileError = validateFiles([file]);
     
     if (fileError) {
-      setErrors({ ...errors, files: fileError });
+      setErrors({ ...errors, avatar: fileError });
       return;
     }
     
     setAvatarFile(file);
-    setErrors({ ...errors, files: "" });
+    setErrors({ ...errors, avatar: "", files: "" });
   };
 
   const handleAdditionalFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,8 +79,11 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
   };
 
   const handleSubmit = async () => {
-    // ✅ Prevent submit khi đang loading
-    if (loading || uploadingFiles) return;
+    // ✅ Prevent submit when loading
+    if (loading) return;
+    
+    // ✅ Clear previous errors
+    setServerError("");
     
     const validationErrors = validatePendingForm(form, avatarFile, additionalFiles);
     
@@ -77,21 +97,35 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
     
     try {
       await onSubmit(form, avatarFile, additionalFiles);
-      // ✅ Reset form chỉ khi submit thành công (được handle ở parent)
+      
+      // ✅ CHỈ reset form khi parent KHÔNG throw error
       setForm(resetPendingForm());
       setAvatarFile(null);
       setAdditionalFiles([]);
       setErrors({});
+      setServerError("");
+      
+      // ✅ Scroll to top để thấy success message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Submit error:', error);
-      // Error được handle ở parent
+      
+      // ✅ Show error to user
+      setServerError(
+        error instanceof Error 
+          ? error.message 
+          : "Có lỗi xảy ra khi tạo dịch vụ. Vui lòng thử lại sau."
+      );
+      
+      // ✅ Scroll to error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const removeAvatar = () => {
     setAvatarFile(null);
-    if (errors.files) {
-      setErrors({ ...errors, files: "" });
+    if (errors.avatar || errors.files) {
+      setErrors({ ...errors, avatar: "", files: "" });
     }
   };
 
@@ -102,13 +136,13 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
     }
   };
 
-  // ✅ Tính toán trạng thái disable
-  const isDisabled = loading || uploadingFiles;
+  // ✅ Disable state
+  const isDisabled = loading;
 
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-3xl shadow-2xl overflow-hidden border border-gray-700/50">
-        {/* Header với gradient */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-8 text-center relative overflow-hidden">
           <div className="absolute inset-0 bg-black/20"></div>
           <div className="relative z-10">
@@ -121,6 +155,25 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
         </div>
 
         <div className="p-8 space-y-8">
+          {/* ✅ Server Error Display */}
+          {serverError && (
+            <div className="bg-red-900/20 border-2 border-red-500/50 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div className="flex-1">
+                  <p className="text-red-400 font-semibold mb-1">Có lỗi xảy ra</p>
+                  <p className="text-red-300 text-sm">{serverError}</p>
+                </div>
+                <button
+                  onClick={() => setServerError("")}
+                  className="text-red-400 hover:text-red-300 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Basic Info */}
           <div className="space-y-6">
             <div className="flex items-center gap-3 mb-4">
@@ -263,24 +316,17 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
             </div>
             
             <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-3">Ảnh đại diện</label>
+              <label className="block text-sm font-semibold text-gray-300 mb-3">
+                Ảnh đại diện <span className="text-red-400">*</span>
+              </label>
               <button
                 type="button"
                 onClick={() => document.getElementById("avatar-file")?.click()}
                 disabled={isDisabled}
                 className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
-                {uploadingFiles ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Đang tải lên...
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xl">📷</span>
-                    Chọn ảnh đại diện
-                  </>
-                )}
+                <span className="text-xl">📷</span>
+                Chọn ảnh đại diện
               </button>
               
               <input
@@ -291,6 +337,10 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 onChange={handleAvatarChange}
                 disabled={isDisabled}
               />
+
+              {errors.avatar && (
+                <p className="text-red-400 text-xs mt-2 flex items-center gap-1">⚠️ {errors.avatar}</p>
+              )}
 
               {avatarFile && (
                 <div className="flex items-center gap-3 p-4 bg-gray-800/50 border-2 border-gray-700 rounded-xl mt-3 hover:border-gray-600 transition-all">
@@ -324,17 +374,8 @@ export default function PendingForm({ onSubmit, loading }: PendingFormProps) {
                 disabled={isDisabled}
                 className="w-full py-4 rounded-xl bg-gray-800/50 border-2 border-gray-700 hover:bg-gray-800 hover:border-gray-600 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {uploadingFiles ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Đang tải lên...
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xl">🖼️</span>
-                    Thêm hình ảnh
-                  </>
-                )}
+                <span className="text-xl">🖼️</span>
+                Thêm hình ảnh
               </button>
               
               <input

@@ -6,6 +6,9 @@ export interface Stay {
   description: string;
   location: string;
   address: string;
+  image_url: string;
+  average_rating: number | null;
+  reviews_count: number;
   price: string;
   max_guests: number;
   number_of_rooms: number;

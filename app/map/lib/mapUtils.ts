@@ -4,6 +4,9 @@ const TOTAL_PROVINCES = 63;
 const TOTAL_ARCHIPELAGOS = 2;
 const TOTAL = TOTAL_PROVINCES + TOTAL_ARCHIPELAGOS;
 
+// ✅ Danh sách quần đảo
+export const ISLAND_PROVINCE_IDS = ['province-64', 'province-65'];
+
 export const mapIdToName = (id: string) => {
   const mapping: Record<string, string> = {
     "province-1": "Yên Bái",
@@ -74,6 +77,43 @@ export const mapIdToName = (id: string) => {
   };
   return mapping[id] || id;
 };
+
+/**
+ * ✅ Check if a province ID is an island (archipelago)
+ */
+export function isIslandProvince(provinceId: string): boolean {
+  return ISLAND_PROVINCE_IDS.includes(provinceId);
+}
+
+/**
+ * ✅ Get statistics breakdown for mainland and islands
+ */
+export function getProvinceStats(visitedProvinces: string[]) {
+  const visitedIslands = visitedProvinces.filter(id => isIslandProvince(id));
+  const visitedMainland = visitedProvinces.filter(id => !isIslandProvince(id));
+  
+  return {
+    mainland: {
+      visited: visitedMainland.length,
+      total: TOTAL_PROVINCES,
+      remaining: TOTAL_PROVINCES - visitedMainland.length,
+      percentage: ((visitedMainland.length / TOTAL_PROVINCES) * 100).toFixed(1),
+    },
+    islands: {
+      visited: visitedIslands.length,
+      total: TOTAL_ARCHIPELAGOS,
+      remaining: TOTAL_ARCHIPELAGOS - visitedIslands.length,
+      percentage: ((visitedIslands.length / TOTAL_ARCHIPELAGOS) * 100).toFixed(1),
+      names: visitedIslands.map(id => mapIdToName(id)),
+    },
+    overall: {
+      visited: visitedProvinces.length,
+      total: TOTAL,
+      remaining: TOTAL - visitedProvinces.length,
+      percentage: ((visitedProvinces.length / TOTAL) * 100).toFixed(1),
+    }
+  };
+}
 
 // No special province mapping - all provinces are independent
 export const specialProvinceMap: Record<string, string> = {};
