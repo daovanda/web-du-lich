@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, FC } from "react";
-import { useSupabase } from "@/components/SupabaseProvider";
+import { apiRequest } from "@/lib/apiClient";
+import { supabase } from "@/lib/supabase";
 import ChatMessages from "./ChatBox/ChatMessages";
 import ChatInput from "./ChatBox/ChatInput";
 
@@ -11,31 +12,47 @@ type ChatBoxProps = {
 };
 
 const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
-  const supabase = useSupabase();
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [lastMessageTime, setLastMessageTime] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false); 
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [oldestMessageTime, setOldestMessageTime] = useState<string | null>(null);
+  const [latestMessageTime, setLatestMessageTime] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [authResolved, setAuthResolved] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const latestMessageTimeRef = useRef<string | null>(null);
+  const userRef = useRef<any>(null);
 
   // 🧩 Lấy user hiện tại
   useEffect(() => {
     (async () => {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-      if (!error && user) {
-        setUser(user);
-      } else {
+      try {
+        const res = await apiRequest<{
+          data: {
+            user: { id: string; email: string | null } | null;
+            profile: { role?: string | null; username?: string | null; avatar_url?: string | null } | null;
+          };
+        }>("/api/auth/me");
+        if (res.data.user) {
+          setUser({
+            ...res.data.user,
+            role: res.data.profile?.role || "user",
+            profile: res.data.profile || null,
+          });
+        } else {
+          setUser(null);
+        }
+      } catch {
         setUser(null);
+      } finally {
+        setAuthResolved(true);
       }
     })();
-  }, [supabase]);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -44,81 +61,125 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
   // 🧩 Đánh dấu đã đọc
   const markAsRead = async () => {
     if (!user) return;
-    await supabase.from("chat_reads").upsert(
-      {
-        room_id: roomId,
-        user_id: user.id,
-        last_read_at: new Date().toISOString(),
-      },
-      { onConflict: "room_id,user_id" }
-    );
+    try {
+      await apiRequest("/api/chats/read", {
+        method: "POST",
+        body: JSON.stringify({ roomId }),
+      });
+    } catch {
+      // ignore read errors
+    }
   };
+
+  useEffect(() => {
+    latestMessageTimeRef.current = latestMessageTime;
+  }, [latestMessageTime]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const getMessagesEndpoint = () =>
+    isPrivate
+      ? `/api/chats/private?room_id=${encodeURIComponent(roomId)}`
+      : "/api/chats/public";
 
   // 🧩 Load 10 tin nhắn mới nhất
   const loadInitialMessages = async () => {
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .select(
-        "id, content, sender_id, from_admin, created_at, profiles ( username, avatar_url )"
-      )
-      .eq("room_id", roomId)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (!error && data) {
-      const reversed = data.reverse();
-      setMessages(reversed);
-      if (reversed.length > 0) setLastMessageTime(reversed[0].created_at);
-      if (data.length < 10) setHasMore(false);
-
+    setInitialLoading(true);
+    try {
+      const res = await apiRequest<{ data: any[] }>(
+        `${getMessagesEndpoint()}&limit=20`.replace("?&", "?")
+      );
+      const initial = res.data || [];
+      setMessages(initial);
+      setOldestMessageTime(initial[0]?.created_at || null);
+      setLatestMessageTime(initial[initial.length - 1]?.created_at || null);
+      setHasMore(initial.length >= 20);
       setTimeout(() => {
         scrollToBottom();
-        markAsRead();
+        void markAsRead();
       }, 100);
+    } catch {
+      setMessages([]);
+      setHasMore(false);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
   // 🧩 Load thêm tin nhắn cũ
   const loadMoreMessages = async () => {
-    if (!hasMore || loadingMore || !lastMessageTime) return;
+    if (!hasMore || loadingMore || !oldestMessageTime) return;
     setLoadingMore(true);
 
     const container = messagesContainerRef.current;
     const prevScrollHeight = container?.scrollHeight || 0;
 
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .select(
-        "id, content, sender_id, from_admin, created_at, profiles ( username, avatar_url )"
-      )
-      .eq("room_id", roomId)
-      .lt("created_at", lastMessageTime)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (!error && data) {
-      const reversed = data.reverse();
-      setMessages((prev) => [...reversed, ...prev]);
-      if (reversed.length > 0) setLastMessageTime(reversed[0].created_at);
-      if (data.length < 10) setHasMore(false);
-
+    try {
+      const res = await apiRequest<{ data: any[] }>(
+        `${getMessagesEndpoint()}&limit=20&before=${encodeURIComponent(oldestMessageTime)}`.replace(
+          "?&",
+          "?"
+        )
+      );
+      const older = res.data || [];
+      if (older.length > 0) {
+        setMessages((prev) => [...older, ...prev]);
+        setOldestMessageTime(older[0]?.created_at || oldestMessageTime);
+      }
+      if (older.length < 20) setHasMore(false);
       setTimeout(() => {
         if (container) {
           const newScrollHeight = container.scrollHeight;
           container.scrollTop = newScrollHeight - prevScrollHeight;
         }
       }, 50);
+    } finally {
+      setLoadingMore(false);
     }
-
-    setLoadingMore(false);
   };
 
-  // 🧩 Lắng nghe realtime
+  const syncNewMessages = async () => {
+    const latest = latestMessageTimeRef.current;
+    if (!latest) return;
+    try {
+      const res = await apiRequest<{ data: any[] }>(
+        `${getMessagesEndpoint()}&limit=50&since=${encodeURIComponent(latest)}`.replace(
+          "?&",
+          "?"
+        )
+      );
+      const next = res.data || [];
+      if (next.length === 0) return;
+      setMessages((prev) => {
+        const ids = new Set(prev.map((m) => m.id));
+        const merged = [...prev];
+        for (const m of next) {
+          if (!ids.has(m.id)) merged.push(m);
+        }
+        return merged;
+      });
+      setLatestMessageTime(next[next.length - 1]?.created_at || latest);
+      const hasFromOthers = next.some((m) => m.sender_id !== userRef.current?.id);
+      if (hasFromOthers) {
+        void markAsRead();
+      }
+      setTimeout(scrollToBottom, 100);
+    } catch {
+      // ignore polling errors
+    }
+  };
+
   useEffect(() => {
-    loadInitialMessages();
+    void loadInitialMessages();
+  }, [roomId, isPrivate]);
+
+  useEffect(() => {
+    if (!roomId) return;
 
     const channel = supabase
-      .channel("chat-room-" + roomId)
+      .channel(`chat-messages-${roomId}`)
       .on(
         "postgres_changes",
         {
@@ -127,21 +188,20 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
           table: "chat_messages",
           filter: `room_id=eq.${roomId}`,
         },
-        async (payload) => {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === payload.new.id)) return prev;
-            return [...prev, payload.new];
-          });
-          if (payload.new.sender_id !== user?.id) await markAsRead();
-          setTimeout(scrollToBottom, 100);
+        () => {
+          if (!latestMessageTimeRef.current) {
+            void loadInitialMessages();
+            return;
+          }
+          void syncNewMessages();
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [roomId, supabase, user]);
+  }, [roomId, isPrivate]);
 
   // 🧩 Scroll để load thêm
   useEffect(() => {
@@ -152,32 +212,32 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
     };
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [lastMessageTime, hasMore, loadingMore]);
+  }, [oldestMessageTime, hasMore, loadingMore]);
 
   // 🧩 Gửi tin nhắn
   const sendMessage = async () => {
     if (!input.trim() || !user) return;
-
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .insert({
-        room_id: roomId,
-        sender_id: user.id,
-        content: input,
-        from_admin: user.user_metadata?.role === "admin" || false,
-      })
-      .select(
-        "id, content, sender_id, from_admin, created_at, profiles ( username, avatar_url )"
-      )
-      .single();
-
-    if (!error && data) {
-      setMessages((prev) => [...prev, data]);
+    try {
+      const endpoint = isPrivate ? "/api/chats/private" : "/api/chats/public";
+      const payload = isPrivate ? { room_id: roomId, content: input } : { content: input };
+      const res = await apiRequest<{ data: any }>(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const data = res.data;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === data.id)) return prev;
+        return [...prev, data];
+      });
+      setLatestMessageTime(data.created_at || latestMessageTime);
+      if (!oldestMessageTime) setOldestMessageTime(data.created_at || null);
       setInput("");
       setTimeout(() => {
         scrollToBottom();
-        markAsRead();
+        void markAsRead();
       }, 100);
+    } catch {
+      // ignore send error in this pass
     }
   };
 
@@ -208,9 +268,10 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
         messagesContainerRef={messagesContainerRef}
         messagesEndRef={messagesEndRef}
         loadingMore={loadingMore}
+        initialLoading={initialLoading}
       />
 
-      {isPrivate && !user ? (
+      {isPrivate && !user && authResolved ? (
         // Login prompt - Instagram style
         <div className="border-t border-neutral-800 p-4 bg-black">
           <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 rounded-2xl p-4 text-center space-y-3">

@@ -1,17 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 export default function AdminPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ email: string | null } | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
+      try {
+        const response = await apiRequest<{
+          data: { user: { email: string | null } | null };
+        }>("/api/auth/me", {
+          fallbackMessage: "Không thể tải thông tin tài khoản",
+        });
+        setUser(response.data.user);
+      } catch {
+        setUser(null);
+      }
     };
     fetchUser();
   }, []);

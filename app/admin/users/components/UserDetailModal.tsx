@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { Profile, UserHistory } from "../types";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -31,19 +31,11 @@ export default function UserDetailModal({
   async function fetchHistory(id: string) {
     setLoading(true);
     try {
-      const [servicesRes, bookingsRes, serviceReviewsRes, locationReviewsRes] = await Promise.all([
-        supabase.from("services").select("id, title, type, created_at").eq("owner_id", id),
-        supabase.from("bookings").select("id, service_id, status, date_from, date_to, created_at").eq("user_id", id),
-        supabase.from("service_reviews").select("id, rating, comment, created_at, service_id").eq("user_id", id),
-        supabase.from("reviews").select("id, rating, comment, created_at, location_id").eq("user_id", id),
-      ]);
-
-      setHistory({
-        services: servicesRes.data ?? [],
-        bookings: bookingsRes.data ?? [],
-        service_reviews: serviceReviewsRes.data ?? [],
-        location_reviews: locationReviewsRes.data ?? [],
-      });
+      const response = await apiRequest<{ data: UserHistory }>(
+        `/api/admin/users/${id}/history`,
+        { fallbackMessage: "Không thể tải lịch sử người dùng" }
+      );
+      setHistory(response.data);
     } catch (error) {
       console.error("Lỗi tải lịch sử:", error);
     } finally {

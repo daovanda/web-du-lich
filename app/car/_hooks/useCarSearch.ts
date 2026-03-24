@@ -30,10 +30,10 @@ export function useCarSearch() {
           return acc;
         }, {} as Record<string, number>);
 
-        const topRoutes = Object.entries(routeCounts)
+        const topRoutes: RouteOption[] = Object.entries(routeCounts)
           .map(([key, count]) => {
             const [departure, arrival] = key.split('|');
-            return { departure, arrival, count };
+            return { departure, arrival, count: Number(count) };
           })
           .sort((a, b) => b.count - a.count)
           .slice(0, 3);

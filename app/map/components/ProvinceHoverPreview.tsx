@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getProvincePhotos } from "@/app/map/api/api";
-import { supabase } from "@/lib/supabase";
+import { getProvincePhotos, getVisitedProvince } from "@/app/map/api/api";
 import type { ProvincePhoto } from "@/app/map/types/types";
 
 type ProvinceHoverPreviewProps = {
@@ -120,12 +119,7 @@ export default function ProvinceHoverPreview({
     (async () => {
       try {
         const data = await getProvincePhotos(visitedProvinceId);
-        
-        const { data: provinceData } = await supabase
-          .from('visited_provinces')
-          .select('notes')
-          .eq('id', visitedProvinceId)
-          .single();
+        const provinceData = await getVisitedProvince(visitedProvinceId);
         
         if (!mountedRef.current) return;
 
@@ -137,9 +131,7 @@ export default function ProvinceHoverPreview({
           setPhotos([]);
         }
 
-        if (provinceData?.notes) {
-          setProvinceNotes(provinceData.notes);
-        }
+        setProvinceNotes(provinceData?.notes || "");
       } catch (err) {
         if (!mountedRef.current) return;
         
@@ -415,4 +407,4 @@ export default function ProvinceHoverPreview({
       `}</style>
     </>
   );
-}
+} 

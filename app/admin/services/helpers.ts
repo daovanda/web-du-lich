@@ -1,5 +1,4 @@
 // helpers.ts
-import { supabase } from "@/lib/supabase";
 import type { PendingFormData } from "./types";
 
 /** 
@@ -13,46 +12,23 @@ export async function uploadImagesToBucket(
   if (!files || files.length === 0) return [];
 
   const urls: string[] = [];
+  const formData = new FormData();
+  formData.append("bucketName", bucketName);
+  formData.append("folderPath", folderPath);
+  files.forEach((file) => formData.append("files", file));
 
-  for (const file of files) {
-    try {
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const safeName = file.name.replace(/\s+/g, '-'); // Loại bỏ khoảng trắng
-      const fileName = `${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2)}-${safeName}`;
-      
-      // Thêm folderPath vào filePath
-      const filePath = folderPath 
-        ? `${folderPath}/${fileName}` 
-        : fileName;
-
-      // Upload file to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from(bucketName)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        console.error(`Error uploading file ${file.name}:`, uploadError.message);
-        continue; // Tiếp tục upload file khác thay vì throw error
-      }
-
-      // Get public URL
-      const { data } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-
-      if (data?.publicUrl) {
-        urls.push(data.publicUrl);
-      }
-    } catch (err) {
-      console.error(`Upload exception for ${file.name}:`, err);
-      // Không throw, tiếp tục với file tiếp theo
+  try {
+    const res = await fetch("/api/uploads/images", {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+      throw new Error(payload?.error || "Lỗi upload ảnh");
     }
+    urls.push(...(payload?.data || []));
+  } catch (err) {
+    console.error("Upload images error:", err);
   }
 
   console.log(`✅ Successfully uploaded ${urls.length}/${files.length} images to ${bucketName}${folderPath ? '/' + folderPath : ''}`);

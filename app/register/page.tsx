@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ResizableLayout from "@/components/ResizableLayout";
+import { apiRequest } from "@/lib/apiClient";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -18,17 +18,24 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
 
-  // Kiểm tra phiên đăng nhập khi tải trang
+  // Kiểm tra session qua REST để giữ nhất quán với luồng refactor.
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        router.push("/");
+      try {
+        const response = await apiRequest<{
+          data: { user: { id: string; email: string | null } | null };
+        }>("/api/auth/me", {
+          fallbackMessage: "Không thể kiểm tra phiên đăng nhập",
+        });
+        if (response.data.user) router.push("/");
+      } catch {
+        // noop
       }
     };
     checkUser();
   }, [router]);
 
+  // ✅ Gọi REST API thay vì Supabase SDK trực tiếp
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -42,54 +49,39 @@ export default function RegisterPage() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
+      const data = await apiRequest<{ message: string }>("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+        fallbackMessage: "Đăng ký thất bại",
       });
-
-      if (error) {
-        if (error.message.includes("Password should be at least")) {
-          setError("Mật khẩu phải có ít nhất 6 ký tự");
-        } else {
-          setError("Đã xảy ra lỗi: " + error.message);
-        }
-      } else if (data.user) {
-        if (data.user.identities && data.user.identities.length === 0) {
-          setError("Email này đã được đăng ký");
-        } else {
-          setSuccess("Đăng ký thành công! Vui lòng kiểm tra email để xác nhận.");
-          setTimeout(() => router.push("/login"), 2000);
-        }
-      }
-    } catch (err) {
-      setError("Lỗi hệ thống, vui lòng thử lại sau");
+      setSuccess(data.message);
+      setTimeout(() => router.push("/login"), 2000);
+    } catch {
+      setError("Không thể kết nối đến server");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
+  // OAuth qua REST endpoint, không dùng client SDK trực tiếp.
   const handleOAuthLogin = async (provider: "google" | "facebook" | "apple") => {
     setLoading(true);
     setError(null);
     setSuccess(null);
-
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/`,
-        },
+      const response = await apiRequest<{ data: { url: string } }>("/api/auth/oauth", {
+        method: "POST",
+        body: JSON.stringify({
+          provider,
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }),
+        fallbackMessage: "Không thể khởi tạo đăng ký OAuth",
       });
-
-      if (error) {
-        setError("Lỗi đăng ký với " + provider + ": " + error.message);
-      }
+      window.location.href = response.data.url;
     } catch (err) {
-      setError("Lỗi hệ thống, vui lòng thử lại sau");
+      setError(err instanceof Error ? err.message : "Lỗi hệ thống, vui lòng thử lại sau");
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -101,7 +93,7 @@ export default function RegisterPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          {/* ✨ Logo & Hero Section */}
+          {/* Logo & Hero */}
           <div className="text-center mb-8">
             <motion.div
               className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 mb-6 shadow-[0_0_30px_rgba(168,85,247,0.4)]"
@@ -113,7 +105,7 @@ export default function RegisterPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
             </motion.div>
-            
+
             <motion.h1
               className="text-2xl font-bold mb-2"
               initial={{ opacity: 0, y: -10 }}
@@ -122,7 +114,7 @@ export default function RegisterPage() {
             >
               Tạo tài khoản mới
             </motion.h1>
-            
+
             <motion.p
               className="text-sm text-neutral-500"
               initial={{ opacity: 0 }}
@@ -133,14 +125,14 @@ export default function RegisterPage() {
             </motion.p>
           </div>
 
-          {/* 🎨 Register Card */}
+          {/* Register Card */}
           <motion.div
             className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 space-y-5"
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5, duration: 0.4 }}
           >
-            {/* ⚠️ Error Message */}
+            {/* Error Message */}
             {error && (
               <motion.div
                 className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl"
@@ -154,7 +146,7 @@ export default function RegisterPage() {
               </motion.div>
             )}
 
-            {/* ✅ Success Message */}
+            {/* Success Message */}
             {success && (
               <motion.div
                 className="flex items-start gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl"
@@ -169,7 +161,7 @@ export default function RegisterPage() {
             )}
 
             <form onSubmit={handleRegister} className="space-y-4">
-              {/* 📧 Email Input */}
+              {/* Email */}
               <div>
                 <label className="block text-xs font-medium text-neutral-500 mb-2 uppercase tracking-wide">
                   Email
@@ -184,7 +176,7 @@ export default function RegisterPage() {
                 />
               </div>
 
-              {/* 🔒 Password Input */}
+              {/* Password */}
               <div>
                 <label className="block text-xs font-medium text-neutral-500 mb-2 uppercase tracking-wide">
                   Mật khẩu
@@ -220,7 +212,7 @@ export default function RegisterPage() {
                 </p>
               </div>
 
-              {/* 🔒 Confirm Password Input */}
+              {/* Confirm Password */}
               <div>
                 <label className="block text-xs font-medium text-neutral-500 mb-2 uppercase tracking-wide">
                   Xác nhận mật khẩu
@@ -253,7 +245,7 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* 📜 Terms & Conditions */}
+              {/* Terms */}
               <div className="flex items-start gap-2 p-3 bg-neutral-900/50 rounded-lg border border-neutral-800/50">
                 <svg className="w-4 h-4 text-neutral-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -271,7 +263,7 @@ export default function RegisterPage() {
                 </p>
               </div>
 
-              {/* 🚀 Register Button */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
@@ -295,7 +287,7 @@ export default function RegisterPage() {
               </button>
             </form>
 
-            {/* 📱 Divider */}
+            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-neutral-800"></div>
@@ -307,11 +299,11 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* 🌐 OAuth Buttons */}
+            {/* OAuth Buttons */}
             <div className="space-y-3">
               <button
                 onClick={() => handleOAuthLogin("google")}
-                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200 group"
+                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200"
                 disabled={loading}
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -325,7 +317,7 @@ export default function RegisterPage() {
 
               <button
                 onClick={() => handleOAuthLogin("facebook")}
-                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200 group"
+                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200"
                 disabled={loading}
               >
                 <svg className="w-5 h-5" fill="#1877F2" viewBox="0 0 24 24">
@@ -336,7 +328,7 @@ export default function RegisterPage() {
 
               <button
                 onClick={() => handleOAuthLogin("apple")}
-                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200 group"
+                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200"
                 disabled={loading}
               >
                 <svg className="w-5 h-5" fill="white" viewBox="0 0 24 24">
@@ -347,7 +339,7 @@ export default function RegisterPage() {
             </div>
           </motion.div>
 
-          {/* 📝 Login Link */}
+          {/* Login Link */}
           <motion.div
             className="mt-6 text-center"
             initial={{ opacity: 0 }}
@@ -356,16 +348,13 @@ export default function RegisterPage() {
           >
             <p className="text-sm text-neutral-500">
               Đã có tài khoản?{" "}
-              <Link
-                href="/login"
-                className="text-white font-semibold hover:text-neutral-300 transition-colors"
-              >
+              <Link href="/login" className="text-white font-semibold hover:text-neutral-300 transition-colors">
                 Đăng nhập
               </Link>
             </p>
           </motion.div>
 
-          {/* 🔒 Security Note */}
+          {/* Security Note */}
           <motion.div
             className="mt-8 flex items-center justify-center gap-2 text-xs text-neutral-600"
             initial={{ opacity: 0 }}
@@ -380,7 +369,6 @@ export default function RegisterPage() {
         </motion.div>
       </div>
 
-      {/* ✨ Custom CSS */}
       <style jsx>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

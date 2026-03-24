@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 interface Service {
   id: string;
@@ -26,30 +26,23 @@ export default function SpecialEvents({ isInitialLoad = false }: SpecialEventsPr
   const [services, setServices] = useState<Service[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [imageLoaded, setImageLoaded] = useState(false);
 
-  // 🧭 Fetch data from Supabase
+  // 🧭 Fetch data từ REST API
   useEffect(() => {
     const fetchServices = async () => {
       setLoading(true);
-
-      const { data, error } = await supabase
-        .from("services")
-        .select(
-          "id, title, description, image_url, location, price, type, average_rating, reviews_count"
-        )
-        .eq("status", "active");
-
-      if (error) {
+      try {
+        const response = await apiRequest<{ data: Service[] }>("/api/home/services", {
+          fallbackMessage: "Lỗi khi tải dịch vụ nổi bật",
+        });
+        const filtered = (response.data || []).filter((s) => !!s.image_url);
+        const shuffled = filtered.sort(() => Math.random() - 0.5);
+        setServices(shuffled.slice(0, 5));
+      } catch (error) {
         console.error("Error fetching services:", error);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const filtered = (data || []).filter((s) => !!s.image_url);
-      const shuffled = filtered.sort(() => Math.random() - 0.5);
-      setServices(shuffled.slice(0, 5));
-      setLoading(false);
     };
 
     fetchServices();

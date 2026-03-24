@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchTours } from "../_api/tourApi";
 import { Tour, UseTourResult } from "../_types/tour.types";
+import { useRef } from "react";
 
 export function useTours(): UseTourResult {
   const [tours, setTours] = useState<Tour[]>([]);
@@ -10,6 +11,7 @@ export function useTours(): UseTourResult {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const initialLoadRef = useRef(true);
 
   useEffect(() => {
     const loadTours = async () => {
@@ -32,14 +34,15 @@ export function useTours(): UseTourResult {
         setTours([]);
       } finally {
         setLoading(false);
-        if (isInitialLoad) {
+        if (initialLoadRef.current) {
+          initialLoadRef.current = false;
           setIsInitialLoad(false);
         }
       }
     };
 
     loadTours();
-  }, [searchQuery, isInitialLoad]);
+  }, [searchQuery]);
 
   return {
     tours,

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSupabase } from "@/components/SupabaseProvider";
+import { apiRequest } from "@/lib/apiClient";
+import { supabase } from "@/lib/supabase";
 import ChatBox from "./ChatBox";
 import { Loader2, MessageCircle, ArrowLeft, Search, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function ChatAdminPanel() {
-  const supabase = useSupabase();
   const [user, setUser] = useState<any>(null);
   const [rooms, setRooms] = useState<any[]>([]);
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
@@ -43,182 +43,92 @@ export default function ChatAdminPanel() {
   // 🧩 Lấy user hiện tại
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data?.user) return;
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, full_name, avatar_url, email")
-        .eq("id", data.user.id)
-        .maybeSingle();
-
-      setUser({
-        ...data.user,
-        email: profile?.email || data.user.email,
-        role: profile?.role || data.user.user_metadata?.role || "user",
-        avatar_url: profile?.avatar_url || "/default-avatar.png",
-      });
+      try {
+        const res = await apiRequest<{
+          data: {
+            user: { id: string; email: string | null } | null;
+            profile: { role?: string | null; avatar_url?: string | null } | null;
+          };
+        }>("/api/auth/me");
+        if (!res.data.user) return;
+        setUser({
+          ...res.data.user,
+          role: res.data.profile?.role || "user",
+          avatar_url: res.data.profile?.avatar_url || "/default-avatar.png",
+        });
+      } catch {
+        // noop
+      }
     })();
-  }, [supabase]);
+  }, []);
 
-  // 🧩 Lấy danh sách phòng chat (có tin nhắn mới nhất)
-  useEffect(() => {
+  const fetchRooms = async () => {
     if (!user) return;
-    const fetchRooms = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("user_chats_view")
-          .select("room_id, type, user_id, user_name, user_email, created_at")
-          .neq("room_id", PUBLIC_ROOM_ID);
-
-        if (error) {
-          console.warn("⚠️ Supabase query error:", error);
-          setRooms([]);
-          return;
-        }
-
-        // ✅ Lấy thêm tin nhắn mới nhất của mỗi phòng
-        const roomsWithDetails = await Promise.all(
-          data.map(async (r) => {
-            if (!r?.user_id) return null;
-
-            const [{ data: profile }, { data: lastMsg }, { data: unread }] =
-              await Promise.all([
-                supabase
-                  .from("profiles")
-                  .select("avatar_url, email")
-                  .eq("id", r.user_id)
-                  .maybeSingle(),
-                supabase
-                  .from("chat_messages")
-                  .select("content, created_at")
-                  .eq("room_id", r.room_id)
-                  .order("created_at", { ascending: false })
-                  .limit(1)
-                  .maybeSingle(),
-                supabase.rpc("count_unread_in_room", {
-                  p_user_id: user.id,
-                  p_room_id: r.room_id,
-                }),
-              ]);
-
-            return {
-              ...r,
-              unread: unread || 0,
-              avatar_url: profile?.avatar_url || "/default-avatar.png",
-              display_name:
-                r.user_name || profile?.email || r.user_email || "Người dùng",
-              last_message: lastMsg?.content || "",
-              last_message_time: lastMsg?.created_at || r.created_at,
-            };
-          })
-        );
-
-        // ✅ Phòng Public cố định đầu tiên (GHIM)
-        const { data: unreadPublic } = await supabase.rpc(
-          "count_unread_in_room",
-          {
-            p_user_id: user.id,
-            p_room_id: PUBLIC_ROOM_ID,
-          }
-        );
-
-        const { data: lastPublicMsg } = await supabase
-          .from("chat_messages")
-          .select("content, created_at")
-          .eq("room_id", PUBLIC_ROOM_ID)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const publicRoom = {
-          room_id: PUBLIC_ROOM_ID,
-          type: "public",
-          display_name: "Phòng chung",
-          avatar_url: PUBLIC_AVATAR_URL,
-          unread: unreadPublic || 0,
-          last_message: lastPublicMsg?.content || "",
-          last_message_time:
-            lastPublicMsg?.created_at || new Date().toISOString(),
-        };
-
-        // ✅ Gộp + sắp xếp, nhưng public luôn ở đầu
-        const privateRooms = roomsWithDetails.filter(Boolean) as any[];
-        privateRooms.sort((a, b) => {
-          const timeA = a?.last_message_time
-            ? new Date(a.last_message_time).getTime()
-            : 0;
-          const timeB = b?.last_message_time
-            ? new Date(b.last_message_time).getTime()
-            : 0;
-          return timeB - timeA;
+        const res = await apiRequest<{
+          data: {
+            role: string;
+            rooms: any[];
+          };
+        }>("/api/chats/rooms", {
+          fallbackMessage: "Không thể tải danh sách phòng chat",
         });
-
-        const cleanRooms = [publicRoom, ...privateRooms];
-        setRooms(cleanRooms);
+        setRooms(res.data.rooms || []);
       } catch (err: any) {
         console.error("🔥 Lỗi fetchRooms:", err?.message || err);
         setRooms([]);
       } finally {
         setLoading(false);
       }
-    };
+  };
 
-    fetchRooms();
-  }, [user, supabase]);
-
-  // 🧩 Theo dõi realtime tin nhắn mới
   useEffect(() => {
     if (!user) return;
+    void fetchRooms();
+    const refreshRooms = () => {
+      void fetchRooms();
+    };
+
     const channel = supabase
-      .channel("admin-realtime-chats")
+      .channel(`chat-admin-room-events-${user.id}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_messages" },
-        (payload) => {
-          const { room_id, sender_id, content, created_at } = payload.new;
-          if (sender_id === user.id) return;
-          setRooms((prev) =>
-            prev.map((r) =>
-              r.room_id === room_id
-                ? {
-                    ...r,
-                    unread: (r.unread || 0) + 1,
-                    last_message: content,
-                    last_message_time: created_at,
-                  }
-                : r
-            )
-          );
-        }
+        { event: "*", schema: "public", table: "chat_messages" },
+        refreshRooms
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "chat_reads" },
+        refreshRooms
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "chat_rooms" },
+        refreshRooms
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [user, supabase]);
+  }, [user?.id]);
 
   // 🧩 Đánh dấu đã đọc
   useEffect(() => {
     if (!activeRoom || !user) return;
     (async () => {
-      await supabase.from("chat_reads").upsert(
-        {
-          room_id: activeRoom,
-          user_id: user.id,
-          last_read_at: new Date().toISOString(),
-        },
-        { onConflict: "room_id,user_id" }
-      );
+      await apiRequest("/api/chats/read", {
+        method: "POST",
+        body: JSON.stringify({ roomId: activeRoom }),
+      });
       setRooms((prev) =>
         prev.map((r) =>
           r.room_id === activeRoom ? { ...r, unread: 0 } : r
         )
       );
     })();
-  }, [activeRoom, user, supabase]);
+  }, [activeRoom, user]);
 
   // 🧩 Lọc theo từ khóa tìm kiếm
   const filteredRooms = rooms.filter((r) =>

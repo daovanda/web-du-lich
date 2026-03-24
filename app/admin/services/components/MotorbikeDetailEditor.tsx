@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { MotorbikeDetail, BIKE_TYPES, POPULAR_BRANDS } from "../types";
 
 type Props = {
@@ -59,26 +59,15 @@ export default function MotorbikeDetailEditor({
     try {
       const motorbikeData = { ...formData };
 
-      const { data: existingData } = await supabase
-        .from("motorbikes")
-        .select("id")
-        .eq("id", serviceId)
-        .maybeSingle();
-
-      if (existingData) {
-        const { error } = await supabase
-          .from("motorbikes")
-          .update(motorbikeData)
-          .eq("id", serviceId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("motorbikes")
-          .insert({ id: serviceId, ...motorbikeData });
-
-        if (error) throw error;
-      }
+      await apiRequest<{ success: boolean }>("/api/admin/services/details", {
+        method: "PATCH",
+        body: JSON.stringify({
+          serviceId,
+          type: "motorbike",
+          payload: motorbikeData,
+        }),
+        fallbackMessage: "Lỗi khi lưu thông tin xe máy",
+      });
 
       alert("Đã lưu thông tin xe máy thành công!");
       onSave();

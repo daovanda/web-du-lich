@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { colors, mapIdToName } from "@/app/map/lib/mapUtils";
 import { addPin, updatePinPositions } from "@/app/map/lib/mapPinUtils";
 import { createTooltip, showTooltip, moveTooltip, hideTooltip, removeTooltip } from "@/app/map/lib/mapTooltipUtils";
-import { supabase } from "@/lib/supabase";
 import { getUserVisitedProvinces, toggleProvince } from "@/app/map/api/api";
+import { apiRequest } from "@/lib/apiClient";
 
 type VietnamMapProps = {
   setVisitedCount: (n: number) => void;
@@ -80,10 +80,13 @@ export default function VietnamMap({
   useEffect(() => {
     const getSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (session?.user) {
-          setUserId(session.user.id);
+        const response = await apiRequest<{
+          data: { user: { id: string; email: string | null } | null };
+        }>("/api/auth/me", {
+          fallbackMessage: "Không thể tải phiên đăng nhập",
+        });
+        if (response.data.user) {
+          setUserId(response.data.user.id);
         }
       } catch (err) {
         console.error("Failed to get session:", err);

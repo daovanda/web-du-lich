@@ -1,28 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Search, SlidersHorizontal, X, MapPin, Bike, Wrench, Calendar } from "lucide-react";
+import type { MotorbikeFilterState } from "../_types/motorbike.types";
+import { DEFAULT_MOTORBIKE_FILTERS } from "../_types/motorbike.types";
 
-export interface MotorbikeFiltersProps {
+export type MotorbikeFiltersProps = {
   onFiltersChange: (filters: MotorbikeFilterState) => void;
   initialFilters?: Partial<MotorbikeFilterState>;
   isInitialLoad?: boolean;
   availableLocations?: string[];
   topLocations?: string[];
-}
-
-export interface MotorbikeFilterState {
-  searchQuery: string;
-  bikeType: string;
-  location: string;
-  minEngineSize: string;
-  maxEngineSize: string;
-  minYear: string;
-  maxYear: string;
-  minPrice: string;
-  maxPrice: string;
-  sortBy: string; // THÊM MỚI
-}
+};
 
 const BIKE_TYPES = [
   { value: "", label: "Tất cả loại" },
@@ -39,75 +28,38 @@ const PRICE_RANGES = [
   { label: ">200k", min: "200000", max: "" },
 ];
 
-const formatPrice = (price: number): string => {
-  if (price >= 1000000) {
-    return `${(price / 1000000).toFixed(1)}tr`;
-  }
-  return `${(price / 1000).toFixed(0)}k`;
-};
-
-export default function MotorbikeFilters({ 
-  onFiltersChange, 
-  initialFilters, 
+export default function MotorbikeFilters({
+  onFiltersChange,
+  initialFilters,
   isInitialLoad = false,
   availableLocations = [],
-  topLocations = []
+  topLocations = [],
 }: MotorbikeFiltersProps) {
   const [filters, setFilters] = useState<MotorbikeFilterState>({
-    searchQuery: initialFilters?.searchQuery || "",
-    bikeType: initialFilters?.bikeType || "",
-    location: initialFilters?.location || "",
-    minEngineSize: initialFilters?.minEngineSize || "0",
-    maxEngineSize: initialFilters?.maxEngineSize || "",
-    minYear: initialFilters?.minYear || "2000",
-    maxYear: initialFilters?.maxYear || "",
-    minPrice: initialFilters?.minPrice || "",
-    maxPrice: initialFilters?.maxPrice || "500000",
-    sortBy: initialFilters?.sortBy || "default", // THÊM MỚI
+    ...DEFAULT_MOTORBIKE_FILTERS,
+    ...(initialFilters || {}),
   });
 
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     onFiltersChange(filters);
   }, [filters, onFiltersChange]);
 
   const handleFilterChange = (key: keyof MotorbikeFilterState, value: string) => {
-    const newFilters = { ...filters, [key]: value };
-    setFilters(newFilters);
-    onFiltersChange(newFilters);
+    setFilters((prev) => ({ ...prev, [key]: value } as MotorbikeFilterState));
   };
 
   const handlePriceRangeSelect = (min: string, max: string) => {
-    const newFilters = { 
-      ...filters, 
-      minPrice: min, 
-      maxPrice: max || "500000" 
-    };
-    setFilters(newFilters);
-    onFiltersChange(newFilters);
+    setFilters((prev) => ({
+      ...prev,
+      minPrice: min,
+      maxPrice: max || "500000",
+    }));
   };
 
   const handleReset = () => {
-    const resetFilters: MotorbikeFilterState = {
-      searchQuery: "",
-      bikeType: "",
-      location: "",
-      minEngineSize: "0",
-      maxEngineSize: "",
-      minYear: "2000",
-      maxYear: "",
-      minPrice: "",
-      maxPrice: "500000",
-      sortBy: "default", // THÊM MỚI
-    };
-    setFilters(resetFilters);
-    onFiltersChange(resetFilters);
+    setFilters(DEFAULT_MOTORBIKE_FILTERS);
   };
 
   const hasActiveFilters =
@@ -120,14 +72,7 @@ export default function MotorbikeFilters({
     filters.maxYear ||
     filters.minPrice ||
     (filters.maxPrice && filters.maxPrice !== "500000") ||
-    (filters.sortBy && filters.sortBy !== "default"); // THÊM MỚI
-
-  const getActivePriceRange = () => {
-    const range = PRICE_RANGES.find(
-      r => r.min === filters.minPrice && r.max === filters.maxPrice
-    );
-    return range?.label || null;
-  };
+    (filters.sortBy && filters.sortBy !== "default");
 
   return (
     <div
@@ -180,16 +125,14 @@ export default function MotorbikeFilters({
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-300 w-full ${
-          hasActiveFilters 
-            ? "bg-white text-black border-white" 
+          hasActiveFilters
+            ? "bg-white text-black border-white"
             : "bg-black hover:bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-400"
         }`}
       >
         <SlidersHorizontal className="w-4 h-4" />
         <span className="text-sm font-semibold">Bộ lọc</span>
-        {hasActiveFilters && (
-          <span className="ml-1 w-2 h-2 bg-black rounded-full"></span>
-        )}
+        {hasActiveFilters && <span className="ml-1 w-2 h-2 bg-black rounded-full"></span>}
       </button>
 
       {/* Expanded Filters */}
@@ -235,7 +178,9 @@ export default function MotorbikeFilters({
             >
               <option value="">Tất cả địa điểm</option>
               {availableLocations.map((loc) => (
-                <option key={loc} value={loc}>{loc}</option>
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
               ))}
             </select>
           </div>
@@ -305,13 +250,10 @@ export default function MotorbikeFilters({
             </div>
           </div>
 
-          {/* Price Range với Sort Buttons */}
+          {/* Price Range + Sort Buttons */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">
-                Giá thuê/ngày
-              </label>
-              {/* Sort Buttons - THÊM MỚI */}
+              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Giá thuê/ngày</label>
               <div className="flex gap-1">
                 <button
                   onClick={() => handleFilterChange("sortBy", "price-asc")}
@@ -335,10 +277,13 @@ export default function MotorbikeFilters({
                 </button>
               </div>
             </div>
+
             <div className="grid grid-cols-3 gap-2">
               {PRICE_RANGES.map((range) => {
-                const isActive = filters.minPrice === range.min && 
-                                (filters.maxPrice === range.max || (!range.max && filters.maxPrice === "500000"));
+                const isActive =
+                  filters.minPrice === range.min &&
+                  (filters.maxPrice === range.max ||
+                    (!range.max && filters.maxPrice === "500000"));
                 return (
                   <button
                     key={range.label}
@@ -373,3 +318,4 @@ export default function MotorbikeFilters({
     </div>
   );
 }
+

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { UserPost } from "../types";
 import { deletePost } from "../actions/postActions";
 import { MoreVertical } from "lucide-react";
@@ -48,27 +48,15 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
 
     const fetchUserPosts = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("posts")
-        .select(`
-          id,
-          caption,
-          created_at,
-          status,
-          author_id,
-          custom_service_link,
-          service:services(id, title, type),
-          images:post_images(image_url)
-        `)
-        .eq("author_id", currentUserId)
-        .order("created_at", { ascending: false });
+      try {
+        const response = await apiRequest<{ data: any[] }>(
+          `/api/posts/user-posts?authorId=${currentUserId}`,
+          { fallbackMessage: "Không thể tải bài đăng của bạn" }
+        );
+        const data = response.data || [];
 
-      if (error) {
-        console.error("❌ Lỗi khi lấy bài đăng:", error);
-        setPosts([]);
-      } else {
         const normalized: UserPost[] =
-          data?.map((p: any) => ({
+          data.map((p: any) => ({
             id: p.id,
             caption: p.caption,
             created_at: p.created_at,
@@ -82,8 +70,12 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
           })) || [];
 
         setPosts(normalized);
+      } catch (error) {
+        console.error("❌ Lỗi khi lấy bài đăng:", error);
+        setPosts([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchUserPosts();
@@ -95,7 +87,7 @@ export default function UserPostsTable({ currentUserId, onOpenPost }: UserPostsT
   const handleDelete = async (postId: string) => {
     if (!confirm("🗑 Bạn có chắc muốn xóa bài đăng này không?")) return;
     try {
-      await deletePost(postId, currentUserId);
+      await deletePost(postId);
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       toast.success("✅ Bài đăng đã được xóa thành công!");
     } catch (error) {

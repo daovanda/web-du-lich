@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { Post, PostStats } from "../types";
 
 export function usePosts() {
@@ -16,23 +16,28 @@ export function usePosts() {
 
   const fetchPosts = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("posts_detailed")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) {
-      setPosts(data as Post[]);
+    try {
+      const response = await apiRequest<{ data: Post[] }>("/api/admin/posts", {
+        fallbackMessage: "Không thể tải danh sách bài viết",
+      });
+      const data = response.data || [];
+      setPosts(data);
       const total = data.length;
-      const approved = data.filter(p => p.status === "approved").length;
-      const pending = data.filter(p => p.status === "pending").length;
-      const rejected = data.filter(p => p.status === "rejected").length;
+      const approved = data.filter((p) => p.status === "approved").length;
+      const pending = data.filter((p) => p.status === "pending").length;
+      const rejected = data.filter((p) => p.status === "rejected").length;
       setStats({ total, approved, pending, rejected });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("posts").update({ status }).eq("id", id);
+    await apiRequest(`/api/admin/posts/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+      fallbackMessage: "Không thể cập nhật trạng thái bài viết",
+    });
     fetchPosts();
   };
 

@@ -180,7 +180,7 @@ export default function PostCard({ post, currentUser }: PostCardProps) {
                         alert("Không thể xác định người dùng hoặc bài để xóa.");
                         return;
                       }
-                      const res = await deletePost(post.id, currentUser.id);
+                      const res = await deletePost(post.id);
 
                       if (res?.success) {
                         alert("Đã xóa bài");

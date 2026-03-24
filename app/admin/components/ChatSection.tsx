@@ -1,35 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSupabase } from "@/components/SupabaseProvider";
+import { apiRequest } from "@/lib/apiClient";
 import ChatWidget from "./ChatWidget";
 import ChatAdminPanel from "./ChatAdminPanel";
 
 export default function ChatSection() {
-  const supabase = useSupabase();
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRole = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      try {
+        const response = await apiRequest<{
+          data: { user: { id: string; email: string | null } | null; profile: { role?: string | null } | null };
+        }>("/api/auth/me");
+        if (!response.data.user) {
+          setRole(null);
+          return;
+        }
+        setRole(response.data.profile?.role || "user");
+      } catch {
         setRole(null);
-        return;
       }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      setRole(profile?.role || user.user_metadata?.role || "user");
     };
 
-    fetchRole();
-  }, [supabase]);
+    void fetchRole();
+  }, []);
 
   if (role === "admin") return <ChatAdminPanel />;
   return <ChatWidget />;

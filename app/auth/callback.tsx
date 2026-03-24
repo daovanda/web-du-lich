@@ -2,22 +2,22 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
 
-  // Hàm lấy profile có retry (đợi trigger insert xong)
-  const getProfileWithRetry = async (userId: string, retries = 5) => {
+  // Retry nhẹ để chờ profile sync sau OAuth callback.
+  const getMeWithRetry = async (retries = 5) => {
     for (let i = 0; i < retries; i++) {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (profile) return profile;
-      // chờ 0.5s rồi thử lại
+      const response = await apiRequest<{
+        data: { user: { id: string; email: string | null } | null; profile: { role?: string } | null };
+      }>("/api/auth/me", {
+        fallbackMessage: "Không thể lấy thông tin đăng nhập",
+      });
+      if (response.data.user) {
+        return response.data;
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
     return null;
@@ -25,19 +25,13 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const handleRedirect = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
+      const me = await getMeWithRetry();
+      if (!me?.user) {
         router.replace("/login");
         return;
       }
 
-      // Lấy profile (có retry)
-      const profile = await getProfileWithRetry(user.id);
-
-      if (profile?.role === "admin") {
+      if (me.profile?.role === "admin") {
         router.replace("/admin");
       } else {
         router.replace("/");

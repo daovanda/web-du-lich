@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiRequest } from "@/lib/apiClient";
 import { Service } from "../types";
 import { uploadImagesToBucket } from "../helpers";
-import { supabase } from "@/lib/supabase";
 import { useServiceDetail } from "../hooks/useServiceDetails";
 import ImageEditorModal from "./ImageEditorModal";
 import TourDetailEditor from "../components/TourDetailEditor";
@@ -143,17 +143,16 @@ export default function ServiceDetailModal({ open, service, onClose, onUpdate }:
       newImages = [...newImages, ...urls];
     }
     
-    // Cập nhật database
-    const { error: dbError } = await supabase
-      .from("services")
-      .update({
+    // Cập nhật database qua REST API
+    await apiRequest<{ success: boolean }>(`/api/admin/services/${service.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
         image_url: newImageUrl,
         images: newImages,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", service.id);
-      
-    if (dbError) throw dbError;
+      }),
+      fallbackMessage: "Không thể cập nhật ảnh dịch vụ",
+    });
     
     // Cập nhật local state
     const updatedService = { ...service, image_url: newImageUrl, images: newImages };

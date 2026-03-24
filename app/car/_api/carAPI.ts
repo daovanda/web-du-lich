@@ -1,39 +1,22 @@
-import { supabase } from "@/lib/supabase";
-import { CarFilterState } from "../_types/car.types";
+import { apiRequest } from "@/lib/apiClient";
+import { Car, CarFilterState } from "../_types/car.types";
 
 export async function fetchCars(filters: CarFilterState) {
-  let query = supabase.from("cars_view").select("*");
+  const params = new URLSearchParams();
+  if (filters.searchQuery) params.set("searchQuery", filters.searchQuery);
+  if (filters.vehicleType) params.set("vehicleType", filters.vehicleType);
+  if (filters.departureLocation) params.set("departureLocation", filters.departureLocation);
+  if (filters.arrivalLocation) params.set("arrivalLocation", filters.arrivalLocation);
 
-  // Apply filters
-  if (filters.searchQuery) {
-    query = query.or(
-      `title.ilike.%${filters.searchQuery}%,description.ilike.%${filters.searchQuery}%,location.ilike.%${filters.searchQuery}%,address.ilike.%${filters.searchQuery}%,departure_location.ilike.%${filters.searchQuery}%,arrival_location.ilike.%${filters.searchQuery}%`
-    );
-  }
-
-  if (filters.vehicleType) {
-    query = query.eq("vehicle_type", filters.vehicleType);
-  }
-
-  if (filters.departureLocation) {
-    query = query.eq("departure_location", filters.departureLocation);
-  }
-
-  if (filters.arrivalLocation) {
-    query = query.eq("arrival_location", filters.arrivalLocation);
-  }
-
-  const { data, error } = await query;
-  
-  if (error) throw error;
-  
-  return data || [];
+  const res = await apiRequest<{ data: Car[] }>(`/api/cars?${params.toString()}`, {
+    fallbackMessage: "Không thể tải danh sách xe",
+  });
+  return res.data || [];
 }
 
 export async function fetchFilterOptions() {
-  const { data } = await supabase
-    .from("cars_view")
-    .select("departure_location, arrival_location");
-
-  return data || [];
+  const res = await apiRequest<{ data: Pick<Car, "departure_location" | "arrival_location">[] }>("/api/cars", {
+    fallbackMessage: "Không thể tải bộ lọc",
+  });
+  return res.data || [];
 }

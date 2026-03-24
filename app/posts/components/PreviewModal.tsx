@@ -3,7 +3,7 @@
 import { ImageItem } from "../types";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 interface PreviewModalProps {
   previewOpen: boolean;
@@ -34,26 +34,24 @@ export default function PreviewModal({
   // Lấy thông tin người dùng từ Supabase
   useEffect(() => {
     async function fetchUserProfile() {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData?.user) {
+      const response = await apiRequest<{ user: any; profile: { username?: string; avatar_url?: string } | null }>(
+        "/api/posts/me",
+        { fallbackMessage: "Không thể tải hồ sơ người dùng" }
+      ).catch(() => null);
+
+      if (!response?.user) {
         setUserProfile({ username: "Người dùng", avatar_url: "/default-avatar.png" });
         return;
       }
 
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("username, avatar_url")
-        .eq("id", userData.user.id)
-        .single();
-
-      if (profileError || !profileData) {
+      if (!response.profile) {
         setUserProfile({ username: "Người dùng", avatar_url: "/default-avatar.png" });
         return;
       }
 
       setUserProfile({
-        username: profileData.username || "Người dùng",
-        avatar_url: profileData.avatar_url || "/default-avatar.png",
+        username: response.profile.username || "Người dùng",
+        avatar_url: response.profile.avatar_url || "/default-avatar.png",
       });
     }
 

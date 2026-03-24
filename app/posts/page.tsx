@@ -9,7 +9,6 @@ import PreviewModal from "./components/PreviewModal";
 import ImageGrid from "./components/ImageGrid";
 import AspectRatioSelector from "./components/AspectRatioSelector";
 import ResizableLayout from "@/components/ResizableLayout";
-import { supabase } from "@/lib/supabase";
 import ServiceSelector from "./components/ServiceSelector";
 import toast from "react-hot-toast";
 import UserPostsTable from "./components/UserPostsTable";
@@ -51,24 +50,11 @@ export default function CreatePostPage() {
     handleTouchEnd,
   } = usePost();
 
-  const [services, setServices] = useState<any[]>([]);
   const [customService, setCustomService] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   
   // ✨ State cho animation
   const [isVisible, setIsVisible] = useState(false);
-
-  // 🔹 Lấy danh sách dịch vụ
-  useEffect(() => {
-    const fetchServices = async () => {
-      const { data, error } = await supabase
-        .from("services")
-        .select("id, title")
-        .order("title", { ascending: true });
-      if (!error && data) setServices(data);
-    };
-    fetchServices();
-  }, []);
 
   // ✨ Trigger animation khi component mount
   useEffect(() => {

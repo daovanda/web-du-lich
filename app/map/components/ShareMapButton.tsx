@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
 import { exportMapImage, getAchievementBadge } from "../lib/exportMapImage";
+import { apiRequest } from "@/lib/apiClient";
 
 type ShareMapButtonProps = {
   visitedCount: number;
@@ -28,30 +28,26 @@ export default function ShareMapButton({
   useEffect(() => {
     const loadUserInfo = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          // Try to get profile data
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url')
-            .eq('id', session.user.id)
-            .single();
+        const response = await apiRequest<{
+          data: {
+            user: { id: string; email: string | null } | null;
+            profile: { full_name?: string | null; avatar_url?: string | null } | null;
+          };
+        }>("/api/auth/me", {
+          fallbackMessage: "Không thể tải thông tin người dùng",
+        });
 
-          if (profile) {
-            if (profile.full_name) {
-              setUserName(profile.full_name);
-            } else if (session.user.user_metadata?.full_name) {
-              setUserName(session.user.user_metadata.full_name);
-            } else if (session.user.email) {
-              setUserName(session.user.email.split('@')[0]);
-            }
+        const user = response.data.user;
+        const profile = response.data.profile;
+        if (user) {
+          if (profile?.full_name) {
+            setUserName(profile.full_name);
+          } else if (user.email) {
+            setUserName(user.email.split("@")[0]);
+          }
 
-            if (profile.avatar_url) {
-              setUserAvatar(profile.avatar_url);
-            } else if (session.user.user_metadata?.avatar_url) {
-              setUserAvatar(session.user.user_metadata.avatar_url);
-            }
+          if (profile?.avatar_url) {
+            setUserAvatar(profile.avatar_url);
           }
         }
       } catch (err) {

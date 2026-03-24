@@ -19,6 +19,7 @@ export interface CarFilterState {
   arrivalLocation: string;
   priceRange: string;
   departureTime: string;
+  sortBy: "default" | "price-asc" | "price-desc";
 }
 
 export interface RouteOption {

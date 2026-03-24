@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiFormRequest, apiRequest } from "@/lib/apiClient";
 import ResizableLayout from "@/components/ResizableLayout";
 import PaymentProgress from "./components/PaymentProgress";
 import Step1DepositPayment from "./components/Step1DepositPayment";
@@ -85,14 +85,10 @@ function PaymentContent() {
 
     const fetchBooking = async () => {
       try {
-        const { data, error } = await supabase
-          .from("bookings")
-          .select("*, services(title, price, type)")
-          .eq("id", bookingId)
-          .single();
-
-        if (error) throw error;
-        setBooking(data as Booking);
+        const res = await apiRequest<{ data: Booking }>(`/api/bookings/${bookingId}`, {
+          fallbackMessage: "Không tìm thấy thông tin thanh toán",
+        });
+        setBooking(res.data as Booking);
       } catch (err: any) {
         console.error("Payment fetch error:", err);
         setError("Không tìm thấy thông tin thanh toán.");
@@ -104,26 +100,15 @@ function PaymentContent() {
 
     fetchBooking();
 
-    // Real-time subscription
-    const channel = supabase
-      .channel(`booking-${bookingId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "bookings",
-          filter: `id=eq.${bookingId}`,
-        },
-        (payload) => {
-          setBooking((prev) => (prev ? { ...prev, ...payload.new } : null));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiRequest<{ data: Booking }>(`/api/bookings/${bookingId}`);
+        setBooking(res.data);
+      } catch {
+        // ignore polling errors
+      }
+    }, 8000);
+    return () => clearInterval(interval);
   }, [bookingId]);
 
   const handleFileUpload = async (file: File) => {
@@ -133,28 +118,27 @@ function PaymentContent() {
     setError(null);
 
     try {
-      const fileExt = file.name.split(".").pop();
       const isFullPayment = currentStep === 3;
-      const fileName = `${isFullPayment ? "payment" : "deposit"}_${Date.now()}.${fileExt}`;
-      const filePath = `payment_proofs/${booking.id}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("payment_proofs")
-        .upload(filePath, file);
+      const formData = new FormData();
+      formData.append("bucketName", "payment_proofs");
+      formData.append("folderPath", `${booking.id}`);
+      formData.append("files", file);
 
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("payment_proofs").getPublicUrl(filePath);
+      const uploadPayload = await apiFormRequest<{ data: string[] }>("/api/uploads/images", {
+        method: "POST",
+        formData,
+        fallbackMessage: "Upload chứng từ thất bại",
+      });
+      const publicUrl = uploadPayload?.data?.[0];
+      if (!publicUrl) throw new Error("Không lấy được URL upload");
 
       const updateField = isFullPayment ? "payment_proof_url" : "deposit_proof_url";
-      const { error: updateError } = await supabase
-        .from("bookings")
-        .update({ [updateField]: publicUrl })
-        .eq("id", booking.id);
-
-      if (updateError) throw updateError;
+      await apiRequest(`/api/bookings/${booking.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ [updateField]: publicUrl }),
+        fallbackMessage: "Không thể cập nhật bằng chứng thanh toán",
+      });
 
       setBooking({ ...booking, [updateField]: publicUrl });
 

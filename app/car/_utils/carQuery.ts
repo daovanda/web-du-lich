@@ -42,3 +42,16 @@ export function filterByPriceRange(cars: Car[], priceRange: string) {
     }
   });
 }
+
+export function sortCars(cars: Car[], sortBy: CarFilterState["sortBy"]) {
+  if (sortBy === "default") return cars;
+
+  return [...cars].sort((a, b) => {
+    const priceA = parseInt(a.price?.replace(/[^0-9]/g, "") || "0");
+    const priceB = parseInt(b.price?.replace(/[^0-9]/g, "") || "0");
+
+    if (sortBy === "price-asc") return priceA - priceB;
+    if (sortBy === "price-desc") return priceB - priceA;
+    return 0;
+  });
+}

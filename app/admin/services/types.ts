@@ -238,7 +238,7 @@ export const SERVICE_SOURCES = [
 export const SERVICE_STATUSES = [
   { value: "draft", label: "Mới" },
   { value: "pending", label: "Đang xem xét" },
-  { value: "rejeted", label: "Bị từ chối" },
+  { value: "rejected", label: "Bị từ chối" },
   { value: "approved", label: "Đã xác nhận" },
   { value: "active", label: "Hoạt động" },
   { value: "inactive", label: "Tạm dừng" },
@@ -248,7 +248,7 @@ export const SERVICE_STATUSES = [
 export const PENDING_STATUSES = [
   { value: "draft", label: "Mới" },
   { value: "pending", label: "Đang xem xét" },
-  { value: "rejeted", label: "Bị từ chối" },
+  { value: "rejected", label: "Bị từ chối" },
   { value: "approved", label: "Đã xác nhận" },
   { value: "active", label: "Hoạt động" },
   { value: "inactive", label: "Tạm dừng" },

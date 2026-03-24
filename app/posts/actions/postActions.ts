@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { ImageItem } from "../types";
 import { toast } from 'react-hot-toast';
 
@@ -54,33 +54,25 @@ export const createPost = async (
     }
 
     // 🪄 Tạo bài đăng
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .insert({
+    const created = await apiRequest<{ data: { id: string } }>("/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
         caption,
-        status: "pending",
-        author_id: user.id,
         service_id,
         custom_service_link,
-      })
-      .select()
-      .single();
-
-    if (postError || !post) {
-      throw new Error(postError?.message || "Không thể tạo bài đăng");
-    }
+      }),
+      fallbackMessage: "Không thể tạo bài đăng",
+    });
+    const post = created.data;
 
     // 🖼 Upload ảnh
     const urls = await uploadImages(post.id, images);
     if (urls.length > 0) {
-      const { error: imageError } = await supabase.from("post_images").insert(
-        urls.map((url, index) => ({
-          post_id: post.id,
-          image_url: url,
-          order_index: index,
-        }))
-      );
-      if (imageError) throw new Error(imageError.message);
+      await apiRequest(`/api/posts/${post.id}/images`, {
+        method: "POST",
+        body: JSON.stringify({ urls }),
+        fallbackMessage: "Không thể lưu ảnh cho bài đăng",
+      });
     }
 
     // ✅ Reset form
@@ -102,57 +94,12 @@ export const createPost = async (
 
 
 
-export const deletePost = async (postId: string, userId: string) => {
+export const deletePost = async (postId: string) => {
   try {
-    // ✅ Kiểm tra quyền người xóa
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .select("id, author_id")
-      .eq("id", postId)
-      .single();
-
-    if (postError || !post) throw new Error("Bài đăng không tồn tại");
-    if (post.author_id !== userId) throw new Error("Bạn không có quyền xóa bài đăng này");
-
-    // ✅ Thư mục chứa ảnh = chính là postId (KHÔNG có /)
-    const folder = postId;
-
-    // ✅ Lấy danh sách file trong thư mục
-    const { data: files, error: listError } = await supabase.storage
-      .from("post_images")
-      .list(folder, { limit: 100 });
-
-    console.log("📂 Files trong bucket:", files);
-    console.log("⚠️ List error:", listError);
-
-    // ✅ Xoá từng file trong thư mục
-    if (files && files.length > 0) {
-      const filePaths = files.map((file) => `${folder}/${file.name}`);
-
-      console.log("🗑️ Sẽ xoá file:", filePaths);
-
-      const { error: removeError } = await supabase.storage
-        .from("post_images")
-        .remove(filePaths);
-
-      console.log("🔍 Kết quả xoá file:", removeError);
-      if (removeError) throw new Error(`Không thể xóa ảnh: ${removeError.message}`);
-    }
-
-    // ✅ Xoá thư mục rỗng sau khi xoá ảnh
-    const { error: folderRemoveError } = await supabase.storage
-      .from("post_images")
-      .remove([folder]);
-
-    console.log("📁 Kết quả xoá thư mục:", folderRemoveError);
-
-    // ✅ Xoá bài đăng
-    const { error: deleteError } = await supabase
-      .from("posts")
-      .delete()
-      .eq("id", postId);
-
-    if (deleteError) throw new Error(`Lỗi khi xóa bài đăng: ${deleteError.message}`);
+    await apiRequest(`/api/posts/${postId}`, {
+      method: "DELETE",
+      fallbackMessage: "Không thể xóa bài đăng",
+    });
 
     toast.success("✅ Đã xóa bài đăng và ảnh liên quan");
     return { success: true };

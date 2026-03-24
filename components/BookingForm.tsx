@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { ApiError, apiRequest } from "@/lib/apiClient";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -92,30 +92,19 @@ export default function BookingForm({
     if (initialCheckOut) setTo(initialCheckOut);
   }, [initialCheckIn, initialCheckOut]);
 
-  // Fetch service category và duration_days cho tour
+  // Fetch service category và duration_days cho tour qua REST
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await supabase
-          .from("services")
-          .select("type")
-          .eq("id", serviceId)
-          .single();
-        
-        if (data?.type) {
-          setServiceCategory(data.type.toLowerCase());
-          
-          // Nếu là tour, lấy duration_days
-          if (data.type.toLowerCase() === 'tour') {
-            const { data: tourData } = await supabase
-              .from("tours")
-              .select("duration_days")
-              .eq("id", serviceId)
-              .single();
-            
-            if (tourData?.duration_days) {
-              setTourDurationDays(tourData.duration_days);
-            }
+        const res = await apiRequest<{
+          data: { serviceType: string | null; tourDurationDays: number | null };
+        }>(`/api/services/${serviceId}/booking-meta`);
+
+        const serviceType = res.data?.serviceType;
+        if (serviceType) {
+          setServiceCategory(serviceType);
+          if (serviceType === "tour" && res.data.tourDurationDays) {
+            setTourDurationDays(res.data.tourDurationDays);
           }
         }
       } catch (err) {
@@ -241,23 +230,20 @@ export default function BookingForm({
     return Math.round(totalPrice * 0.00003)*10000;
   }, [totalPrice]);
 
-  // Prefill fullName + email từ profiles
+  // Prefill fullName + email từ endpoint profile
   useEffect(() => {
     (async () => {
       setPrefillLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, email")
-          .eq("id", user.id)
-          .maybeSingle();
-
+        const res = await apiRequest<{
+          data?: { full_name?: string | null; email?: string | null };
+        }>("/api/profile/me");
+        const profile = res.data;
         if (profile?.full_name && !fullName) setFullName(profile.full_name);
-        const initialEmail = profile?.email || user.email || "";
+        const initialEmail = profile?.email || "";
         if (initialEmail && !email) setEmail(initialEmail);
+      } catch {
+        // unauthenticated users can still manually fill form
       } finally {
         setPrefillLoading(false);
       }
@@ -273,48 +259,37 @@ export default function BookingForm({
     setError(null);
 
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        router.push("/login");
-        return;
-      }
-
-      const bookingCode = generateBookingCode();
       const payment_status = "unpaid";
       const payment_method = "bank_transfer";
       const deposit_status = "unpaid";
       const deposit_percentage = 30;
 
-      const { data: inserted, error: insertError } = await supabase
-        .from("bookings")
-        .insert({
-          user_id: user.id,
-          service_id: serviceId,
-          booking_code: bookingCode,
-          date_from: formatDate(from),
-          date_to: formatDate(to),
+      const res = await apiRequest<{
+        data: { id: string; booking_code: string | null; user_id: string };
+      }>("/api/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          serviceId,
+          dateFrom: formatDate(from),
+          dateTo: formatDate(to),
           quantity: pricingConfig.requiresQuantity ? quantityNum : null,
-          full_name: fullName,
+          fullName,
           phone,
-          additional_requests: note,
-          status: "pending",
-          total_price: totalPrice,
-          deposit_amount: depositAmount,
-          deposit_percentage: deposit_percentage,
-          payment_status,
-          payment_method: payment_method,
-          deposit_status: deposit_status,
-        })
-        .select("id")
-        .single();
-
-      if (insertError) throw insertError;
+          note,
+          totalPrice,
+          depositAmount,
+          depositPercentage: deposit_percentage,
+          paymentStatus: payment_status,
+          paymentMethod: payment_method,
+          depositStatus: deposit_status,
+        }),
+      });
 
       if (onSubmitSuccess) {
         await onSubmitSuccess({
-          bookingId: inserted.id,
-          bookingCode: bookingCode,
-          userId: user.id,
+          bookingId: res.data.id,
+          bookingCode: res.data.booking_code || generateBookingCode(),
+          userId: res.data.user_id,
           serviceId,
           fullName,
           email,
@@ -336,6 +311,10 @@ export default function BookingForm({
         });
       }
     } catch (err: any) {
+      if (err instanceof ApiError && err.status === 401) {
+        router.push("/login");
+        return;
+      }
       console.error("Booking error:", err);
       setError(err.message || "Đặt dịch vụ thất bại. Vui lòng thử lại.");
     } finally {

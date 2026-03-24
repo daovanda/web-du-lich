@@ -30,7 +30,7 @@ export default function TourList({ tours, isInitialLoad }: TourListProps) {
           className={`transition-all duration-600 ease-out ${
             isInitialLoad
               ? "opacity-0 translate-y-6"
-              : "opacity-100 translante-y-0"
+              : "opacity-100 translate-y-0"
           }`}
           style={{
             transitionDelay: `${800 + index * 100}ms`,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 type Suggestion = {
   id: string;
@@ -47,23 +47,19 @@ export default function Suggestions() {
 
       fetchPromise = (async () => {
         try {
-          const { data, error } = await supabase.rpc("random_services");
-          
-          if (error) {
-            console.error("Lỗi khi tải gợi ý:", error);
-            
-            // ✅ Nếu có lỗi nhưng có cache cũ, vẫn dùng cache
-            if (cachedSuggestions) {
-              setSuggestions(cachedSuggestions);
-            }
-            return;
-          }
-
-          if (data) {
+          const response = await apiRequest<{ data: Suggestion[] }>("/api/home/services", {
+            fallbackMessage: "Lỗi khi tải gợi ý dịch vụ",
+          });
+          const data = (response.data || [])
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 5);
+          if (data.length > 0) {
             // ✅ Cập nhật cache
             cachedSuggestions = data;
             cacheTimestamp = Date.now();
             setSuggestions(data);
+          } else {
+            setSuggestions([]);
           }
         } catch (err) {
           console.error("Error fetching suggestions:", err);

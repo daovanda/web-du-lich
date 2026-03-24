@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { CarDetail, VEHICLE_TYPES, POPULAR_LOCATIONS } from "../types";
 
 type Props = {
@@ -82,7 +82,7 @@ export default function CarDetailEditor({
     }
   }, [formData.departure_time, formData.arrival_time]);
 
-  const handleInputChange = (field: keyof CarDetail, value: any) => {
+  const handleInputChange = (field: keyof CarDetail, value: CarDetail[keyof CarDetail]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -99,33 +99,23 @@ export default function CarDetailEditor({
             : null,
       };
 
-      const { data: existingData } = await supabase
-        .from("cars")
-        .select("id")
-        .eq("id", serviceId)
-        .maybeSingle();
-
-      if (existingData) {
-        const { error } = await supabase
-          .from("cars")
-          .update(carData)
-          .eq("id", serviceId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("cars")
-          .insert({ id: serviceId, ...carData });
-
-        if (error) throw error;
-      }
+      await apiRequest("/api/admin/services/details", {
+        method: "PATCH",
+        body: JSON.stringify({
+          serviceId,
+          type: "car",
+          payload: carData,
+        }),
+        fallbackMessage: "Không thể lưu chi tiết xe",
+      });
 
       alert("Đã lưu thông tin xe thành công!");
       onSave();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error saving car:", err);
-      alert(`Lỗi: ${err.message}`);
+      const message = err instanceof Error ? err.message : "Không thể lưu chi tiết xe";
+      alert(`Lỗi: ${message}`);
     } finally {
       setLoading(false);
     }

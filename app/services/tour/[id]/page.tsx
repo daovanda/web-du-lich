@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import ResizableLayout from "@/components/ResizableLayout";
 
 import ServiceBreadcrumb from "@/app/services/components/ServiceBreadcrumb";
@@ -73,46 +73,13 @@ export default function TourDetailPage() {
 
     const fetchData = async () => {
       try {
-        // Tour details
-        const { data, error: fetchError } = await supabase
-          .from("tour_with_reviews")
-          .select("*")
-          .eq("service_id", id)
-          .single();
-
-        if (fetchError) throw new Error(fetchError.message);
-        setTour(data as Tour);
-
-        // Địa điểm gần đó
-        const region = data?.service_location || data?.tour_destination || "";
-        if (region) {
-          const { data: locs } = await supabase
-            .from("locations")
-            .select("*")
-            .ilike("region", `%${region}%`)
-            .limit(6);
-          setNearby(locs || []);
-        }
-
-        // Đánh giá
-        const { data: rv } = await supabase
-          .from("service_reviews")
-          .select(`
-            id,
-            rating,
-            comment,
-            user:profiles(full_name, username)
-          `)
-          .eq("service_id", id)
-          .order("created_at", { ascending: false })
-          .limit(4);
-
-        setReviews(
-          (rv || []).map((r: any) => ({
-            ...r,
-            user: Array.isArray(r.user) ? r.user[0] : r.user,
-          }))
+        const res = await apiRequest<{ service: Tour; nearby: NearbyLocation[]; reviews: ServiceReview[] }>(
+          `/api/services/${id}/detail?type=tour`,
+          { fallbackMessage: "Không thể tải dữ liệu tour" }
         );
+        setTour(res.service);
+        setNearby(res.nearby || []);
+        setReviews(res.reviews || []);
       } catch (err) {
         console.error("Error fetching tour:", err);
         setError("Không tìm thấy tour.");

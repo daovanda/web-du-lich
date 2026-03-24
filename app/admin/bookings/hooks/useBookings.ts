@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { Booking, BookingStatus, PayoutStatus, RefundStatus } from "../types";
 import { format } from "date-fns";
 
@@ -24,42 +24,22 @@ export function useBookings(
     setLoading(true);
 
     try {
-      let query = supabase
-        .from("bookings_view")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (filterStatus !== "all") {
-        query = query.eq("status", filterStatus);
-      }
-
-      if (filterPayoutStatus !== "all") {
-        query = query.eq("payout_status", filterPayoutStatus);
-      }
-
-      if (search.trim()) {
-        const q = search.trim();
-        query = query.or(`
-          full_name.ilike.%${q}%,
-          phone.ilike.%${q}%,
-          service_title.ilike.%${q}%
-        `);
-      }
-
+      const params = new URLSearchParams({
+        status: filterStatus,
+        payoutStatus: filterPayoutStatus,
+        search: search.trim(),
+      });
       if (startDate) {
-        const formattedStart = format(startDate, "yyyy-MM-dd");
-        query = query.gte("date_from", formattedStart);
+        params.set("startDate", format(startDate, "yyyy-MM-dd"));
       }
       if (endDate) {
-        const formattedEnd = format(endDate, "yyyy-MM-dd");
-        query = query.lte("date_from", formattedEnd);
+        params.set("endDate", format(endDate, "yyyy-MM-dd"));
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const bookingsData = (data || []) as Booking[];
+      const response = await apiRequest<{ data: Booking[] }>(`/api/admin/bookings?${params.toString()}`, {
+        fallbackMessage: "Lỗi khi tải danh sách booking",
+      });
+      const bookingsData = (response.data || []) as Booking[];
       setBookings(bookingsData);
     } catch (err: any) {
       console.error("Fetch bookings error:", err.message);
@@ -71,57 +51,55 @@ export function useBookings(
 
   // Cập nhật trạng thái đơn đặt
   async function updateStatus(id: string, status: BookingStatus) {
-    const { error } = await supabase
-      .from("bookings")
-      .update({ status })
-      .eq("id", id);
-
-    if (error) {
-      alert("Lỗi cập nhật trạng thái: " + error.message);
-      return false;
-    } else {
+    try {
+      await apiRequest<{ success: boolean }>(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+        fallbackMessage: "Lỗi cập nhật trạng thái đơn",
+      });
       alert("Cập nhật trạng thái thành công!");
       fetchBookings();
       return true;
+    } catch (error: any) {
+      alert("Lỗi cập nhật trạng thái: " + error.message);
+      return false;
     }
   }
 
   // Xác nhận đặt cọc
   async function confirmDeposit(id: string) {
-    const { error } = await supabase
-      .from("bookings")
-      .update({ 
-        deposit_status: "paid",
-        deposit_paid_at: new Date().toISOString()
-      })
-      .eq("id", id);
-
-    if (error) {
-      alert("Lỗi xác nhận đặt cọc: " + error.message);
-      return false;
-    } else {
+    try {
+      await apiRequest<{ success: boolean }>(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          deposit_status: "paid",
+          deposit_paid_at: new Date().toISOString(),
+        }),
+        fallbackMessage: "Lỗi xác nhận đặt cọc",
+      });
       alert("Xác nhận đặt cọc thành công!");
       fetchBookings();
       return true;
+    } catch (error: any) {
+      alert("Lỗi xác nhận đặt cọc: " + error.message);
+      return false;
     }
   }
 
   // Xác nhận thanh toán full
   async function confirmPayment(id: string) {
-    const { error } = await supabase
-      .from("bookings")
-      .update({ 
-        payment_status: "paid"
-      })
-      .eq("id", id);
-
-    if (error) {
-      alert("Lỗi xác nhận thanh toán: " + error.message);
-      return false;
-    } else {
+    try {
+      await apiRequest<{ success: boolean }>(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ payment_status: "paid" }),
+        fallbackMessage: "Lỗi xác nhận thanh toán",
+      });
       alert("Xác nhận thanh toán thành công!");
       fetchBookings();
       return true;
+    } catch (error: any) {
+      alert("Lỗi xác nhận thanh toán: " + error.message);
+      return false;
     }
   }
 
@@ -136,18 +114,18 @@ export function useBookings(
     };
     if (payout_proof_url) updateData.payout_proof_url = payout_proof_url;
 
-    const { error } = await supabase
-      .from("bookings")
-      .update(updateData)
-      .eq("id", id);
-
-    if (error) {
-      alert("Lỗi cập nhật thanh toán partner: " + error.message);
-      return false;
-    } else {
+    try {
+      await apiRequest<{ success: boolean }>(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(updateData),
+        fallbackMessage: "Lỗi cập nhật thanh toán partner",
+      });
       alert("Cập nhật thanh toán partner thành công!");
       fetchBookings();
       return true;
+    } catch (error: any) {
+      alert("Lỗi cập nhật thanh toán partner: " + error.message);
+      return false;
     }
   }
 
@@ -173,12 +151,11 @@ export function useBookings(
 
       // Thêm note vào notes field nếu có
       if (note) {
-        // Lấy booking hiện tại để append note
-        const { data: currentBooking } = await supabase
-          .from("bookings")
-          .select("notes")
-          .eq("id", id)
-          .single();
+        const bookingRes = await apiRequest<{ data: Pick<Booking, "notes"> }>(
+          `/api/admin/bookings/${id}`,
+          { fallbackMessage: "Lỗi lấy thông tin booking hiện tại" }
+        );
+        const currentBooking = bookingRes.data;
 
         const existingNotes = currentBooking?.notes || "";
         const timestamp = new Date().toLocaleString("vi-VN");
@@ -188,12 +165,11 @@ export function useBookings(
           : newNote;
       }
 
-      const { error } = await supabase
-        .from("bookings")
-        .update(updateData)
-        .eq("id", id);
-
-      if (error) throw error;
+      await apiRequest<{ success: boolean }>(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(updateData),
+        fallbackMessage: "Lỗi cập nhật hoàn trả",
+      });
 
       alert(
         refund_status === "completed" 

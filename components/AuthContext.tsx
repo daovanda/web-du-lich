@@ -1,8 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
-import { supabase } from "@/lib/supabase";
-import { User } from "@supabase/supabase-js";
+import { apiRequest } from "@/lib/apiClient";
 
 type Profile = {
   full_name?: string;
@@ -10,8 +9,13 @@ type Profile = {
   avatar_url?: string;
 };
 
+type AuthUser = {
+  id: string;
+  email: string | null;
+};
+
 type AuthContextType = {
-  user: User | null;
+  user: AuthUser | null;
   profile: Profile | null;
   isLoading: boolean;
   refreshProfile: () => Promise<void>;
@@ -27,26 +31,21 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 // ✅ In-memory cache để tránh re-fetch mỗi lần mount
-let cachedUser: User | null = null;
+let cachedUser: AuthUser | null = null;
 let cachedProfile: Profile | null = null;
 let isFetchingProfile = false;
 let profilePromise: Promise<void> | null = null;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(cachedUser);
+  const [user, setUser] = useState<AuthUser | null>(cachedUser);
   const [profile, setProfile] = useState<Profile | null>(cachedProfile);
   const [isLoading, setIsLoading] = useState(!cachedUser); // ✅ Nếu có cache thì không loading
   const isInitialized = useRef(false);
 
-  const fetchProfile = async (userId: string, retries = 3) => {
+  const fetchAuthState = async (retries = 3) => {
     // ✅ Nếu đang fetch, đợi promise hiện tại
     if (isFetchingProfile && profilePromise) {
       await profilePromise;
-      return;
-    }
-
-    // ✅ Nếu đã có profile cho user này, skip
-    if (cachedProfile && cachedUser?.id === userId) {
       return;
     }
 
@@ -55,21 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profilePromise = (async () => {
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-          const { data, error } = await supabase
-            .from("profiles")
-            .select("full_name, username, avatar_url")
-            .eq("id", userId)
-            .maybeSingle();
-
-          if (!error && data) {
-            cachedProfile = data; // ✅ Cache
-            setProfile(data);
-            return;
-          }
-
-          if (attempt < retries) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          }
+          const response = await apiRequest<{
+            data: { user: AuthUser | null; profile: Profile | null };
+          }>("/api/auth/me", {
+            fallbackMessage: "Không thể tải thông tin đăng nhập",
+          });
+          cachedUser = response.data.user;
+          cachedProfile = response.data.profile;
+          setUser(response.data.user);
+          setProfile(response.data.profile);
+          return;
         } catch (err) {
           console.error(`Profile fetch attempt ${attempt}/${retries} failed:`, err);
           if (attempt < retries) {
@@ -77,7 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      cachedUser = null;
       cachedProfile = null;
+      setUser(null);
       setProfile(null);
     })();
 
@@ -87,10 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshProfile = async () => {
-    if (user) {
-      cachedProfile = null; // ✅ Clear cache để force refresh
-      await fetchProfile(user.id);
-    }
+    cachedProfile = null; // ✅ Clear cache để force refresh
+    await fetchAuthState();
   };
 
   useEffect(() => {
@@ -109,32 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(cachedUser);
           setProfile(cachedProfile);
           setIsLoading(false);
-          return;
         }
-
-        // Retry getting session
-        let session = null;
-        for (let i = 0; i < 3; i++) {
-          const { data } = await supabase.auth.getSession();
-          if (data?.session) {
-            session = data.session;
-            break;
-          }
-          if (i < 2) await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        if (!mounted) return;
-
-        const currentUser = session?.user || null;
-        cachedUser = currentUser; // ✅ Cache
-        setUser(currentUser);
-
-        if (currentUser) {
-          await fetchProfile(currentUser.id);
-        } else {
-          cachedProfile = null;
-          setProfile(null);
-        }
+        await fetchAuthState();
       } catch (err) {
         console.error("Auth initialization error:", err);
       } finally {
@@ -144,33 +114,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
 
-    // Auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-
-        console.log("Auth event:", event);
-
-        const currentUser = session?.user || null;
-        
-        // ✅ Chỉ update nếu user thực sự thay đổi
-        if (currentUser?.id !== cachedUser?.id) {
-          cachedUser = currentUser;
-          setUser(currentUser);
-
-          if (currentUser) {
-            await fetchProfile(currentUser.id);
-          } else {
-            cachedProfile = null;
-            setProfile(null);
-          }
-        }
-      }
-    );
+    // Khi quay lại tab thì đồng bộ lại session/profile từ server
+    const onFocus = () => {
+      void fetchAuthState();
+    };
+    window.addEventListener("focus", onFocus);
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      window.removeEventListener("focus", onFocus);
     };
   }, []); // ✅ Empty deps - chỉ chạy một lần
 

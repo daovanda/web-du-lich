@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 export interface Summary {
   total: number;
@@ -30,33 +30,10 @@ export function useBookingsSummary() {
     try {
       setLoading(true);
 
-      const [
-        { count: total },
-        { count: pending },
-        { count: confirmed },
-        { count: cancelled },
-        { count: partner_pending },
-        { count: partner_paid },
-        { count: partner_failed },
-      ] = await Promise.all([
-        supabase.from("bookings_view").select("*", { count: "exact", head: true }),
-        supabase.from("bookings_view").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("bookings_view").select("*", { count: "exact", head: true }).eq("status", "confirmed"),
-        supabase.from("bookings_view").select("*", { count: "exact", head: true }).eq("status", "cancelled"),
-        supabase.from("bookings_view").select("*", { count: "exact", head: true }).eq("payout_status", "pending"),
-        supabase.from("bookings_view").select("*", { count: "exact", head: true }).eq("payout_status", "paid"),
-        supabase.from("bookings_view").select("*", { count: "exact", head: true }).eq("payout_status", "failed"),
-      ]);
-
-      setSummary({
-        total: total ?? 0,
-        pending: pending ?? 0,
-        confirmed: confirmed ?? 0,
-        cancelled: cancelled ?? 0,
-        partner_pending: partner_pending ?? 0,
-        partner_paid: partner_paid ?? 0,
-        partner_failed: partner_failed ?? 0,
+      const response = await apiRequest<{ data: Summary }>("/api/admin/bookings/summary", {
+        fallbackMessage: "Lỗi khi tải thống kê booking",
       });
+      setSummary(response.data);
     } catch (err: any) {
       console.error("Fetch summary error:", err.message);
     } finally {

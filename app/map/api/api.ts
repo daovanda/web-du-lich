@@ -1,6 +1,5 @@
-// app/map/api/api.ts
-import { supabase } from '@/lib/supabase';
-import type { VisitedProvince, ProvincePhoto, ToggleProvinceResult } from '../types/types';
+import { apiFormRequest, apiRequest } from "@/lib/apiClient";
+import type { VisitedProvince, ProvincePhoto, ToggleProvinceResult } from "../types/types";
 
 // ==========================================
 // VISITED PROVINCES OPERATIONS
@@ -11,23 +10,14 @@ import type { VisitedProvince, ProvincePhoto, ToggleProvinceResult } from '../ty
  */
 export async function getUserVisitedProvinces(userId: string) {
   try {
-    const { data, error } = await supabase
-      .from('visited_provinces')
-      .select(`
-        *,
-        photos:province_photos(*)
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching visited provinces:', error);
-      return null;
-    }
-
-    return data;
+    void userId;
+    const response = await apiRequest<{ data: (VisitedProvince & { photos: ProvincePhoto[] })[] }>(
+      "/api/map/visited",
+      { fallbackMessage: "Không thể tải danh sách tỉnh đã ghé" }
+    );
+    return response.data;
   } catch (error) {
-    console.error('Unexpected error in getUserVisitedProvinces:', error);
+    console.error("Unexpected error in getUserVisitedProvinces:", error);
     return null;
   }
 }
@@ -40,56 +30,23 @@ export async function toggleProvince(
   provinceId: string
 ): Promise<ToggleProvinceResult> {
   try {
-    // Check nếu đã tồn tại
-    const { data: existing, error: checkError } = await supabase
-      .from('visited_provinces')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('province_id', provinceId)
-      .maybeSingle(); // ✅ Use maybeSingle() instead of single()
-
-    if (checkError) {
-      console.error('Error checking province:', checkError);
-      return { success: false, action: 'removed', error: checkError };
-    }
-
-    if (existing) {
-      // Xóa nếu đã tồn tại (cascade sẽ xóa photos)
-      const { error } = await supabase
-        .from('visited_provinces')
-        .delete()
-        .eq('id', existing.id);
-
-      if (error) {
-        console.error('Error removing province:', error);
-        return { success: false, action: 'removed', error };
-      }
-
-      return { success: true, action: 'removed', id: existing.id };
-    } else {
-      // Thêm mới
-      const { data, error } = await supabase
-        .from('visited_provinces')
-        .insert({
-          user_id: userId,
-          province_id: provinceId,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error adding province:', error);
-        return { success: false, action: 'added', error };
-      }
-
-      return { success: true, action: 'added', data };
-    }
+    void userId;
+    const response = await apiRequest<{
+      data:
+        | { success: true; action: "added"; data: VisitedProvince }
+        | { success: true; action: "removed"; id: string };
+    }>("/api/map/visited", {
+      method: "POST",
+      body: JSON.stringify({ provinceId }),
+      fallbackMessage: "Không thể cập nhật tỉnh đã ghé",
+    });
+    return response.data;
   } catch (error) {
-    console.error('Unexpected error in toggleProvince:', error);
-    return { 
-      success: false, 
-      action: 'removed', 
-      error: error as any 
+    console.error("Unexpected error in toggleProvince:", error);
+    return {
+      success: false,
+      action: "removed",
+      error: error as any,
     };
   }
 }
@@ -102,21 +59,34 @@ export async function updateProvinceNotes(
   notes: string
 ): Promise<VisitedProvince | null> {
   try {
-    const { data, error } = await supabase
-      .from('visited_provinces')
-      .update({ notes })
-      .eq('id', visitedProvinceId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating province notes:', error);
-      return null;
-    }
-
-    return data;
+    const response = await apiRequest<{ data: VisitedProvince }>(
+      `/api/map/visited/${visitedProvinceId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ notes }),
+        fallbackMessage: "Không thể cập nhật ghi chú",
+      }
+    );
+    return response.data;
   } catch (error) {
-    console.error('Unexpected error in updateProvinceNotes:', error);
+    console.error("Unexpected error in updateProvinceNotes:", error);
+    return null;
+  }
+}
+
+export async function getVisitedProvince(
+  visitedProvinceId: string
+): Promise<VisitedProvince | null> {
+  try {
+    const response = await apiRequest<{ data: VisitedProvince }>(
+      `/api/map/visited/${visitedProvinceId}`,
+      {
+        fallbackMessage: "Không thể tải dữ liệu tỉnh đã ghé",
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Unexpected error in getVisitedProvince:", error);
     return null;
   }
 }
@@ -132,20 +102,13 @@ export async function getProvincePhotos(
   visitedProvinceId: string
 ): Promise<ProvincePhoto[] | null> {
   try {
-    const { data, error } = await supabase
-      .from('province_photos')
-      .select('*')
-      .eq('visited_province_id', visitedProvinceId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching photos:', error);
-      return null;
-    }
-
-    return data;
+    const response = await apiRequest<{ data: ProvincePhoto[] }>(
+      `/api/map/photos?visitedProvinceId=${encodeURIComponent(visitedProvinceId)}`,
+      { fallbackMessage: "Không thể tải ảnh tỉnh thành" }
+    );
+    return response.data;
   } catch (error) {
-    console.error('Unexpected error in getProvincePhotos:', error);
+    console.error("Unexpected error in getProvincePhotos:", error);
     return null;
   }
 }
@@ -160,75 +123,48 @@ export async function uploadProvincePhoto(
   provinceId: string
 ): Promise<string | null> {
   try {
-    // ✅ Validate inputs
     if (!file || !userId || !provinceId) {
-      console.error('Missing required parameters');
+      console.error("Missing required parameters");
       return null;
     }
 
-    // ✅ Validate file type
-    if (!file.type.startsWith('image/')) {
-      console.error('Invalid file type:', file.type);
+    if (!file.type.startsWith("image/")) {
+      console.error("Invalid file type:", file.type);
       return null;
     }
 
-    // ✅ Validate file size (max 10MB)
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
-      console.error('File too large:', file.size);
+      console.error("File too large:", file.size);
       return null;
     }
 
-    // ✅ Get file extension
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    
-    // ✅ Allowed extensions
-    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const allowedExtensions = ["jpg", "jpeg", "png", "webp", "gif"];
     if (!allowedExtensions.includes(fileExt)) {
-      console.error('Invalid file extension:', fileExt);
+      console.error("Invalid file extension:", fileExt);
       return null;
     }
 
-    // ✅ Generate unique filename với timestamp và random string
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    const fileName = `${timestamp}_${randomStr}.${fileExt}`;
+    const formData = new FormData();
+    formData.append("bucketName", "province_photos");
+    formData.append("folderPath", `${userId}/${provinceId}`);
+    formData.append("files", file);
 
-    // ✅ Construct file path: userid/province_id/filename.ext
-    const filePath = `${userId}/${provinceId}/${fileName}`;
-
-    console.log('📤 Uploading to path:', filePath);
-
-    // ✅ Upload file to province_photos bucket
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('province_photos') // ✅ Bucket name với underscore
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false, // Don't overwrite existing files
-      });
-
-    if (uploadError) {
-      console.error('❌ Error uploading photo:', uploadError);
+    const payload = await apiFormRequest<{ data: string[] }>("/api/uploads/images", {
+      method: "POST",
+      formData,
+      fallbackMessage: "Không thể upload ảnh tỉnh thành",
+    }).catch((error) => {
+      console.error("Upload failed:", error);
+      return null;
+    });
+    if (!payload?.data?.[0]) {
       return null;
     }
-
-    console.log('✅ Upload successful:', uploadData);
-
-    // ✅ Get public URL
-    const { data: urlData } = supabase.storage
-      .from('province_photos')
-      .getPublicUrl(filePath);
-
-    if (!urlData || !urlData.publicUrl) {
-      console.error('❌ Failed to get public URL');
-      return null;
-    }
-
-    console.log('✅ Public URL:', urlData.publicUrl);
-    return urlData.publicUrl;
-    
+    return payload.data[0] as string;
   } catch (error) {
-    console.error('❌ Upload error:', error);
+    console.error("Upload error:", error);
     return null;
   }
 }
@@ -244,26 +180,20 @@ export async function addProvincePhoto(
   note?: string
 ): Promise<ProvincePhoto | null> {
   try {
-    const { data, error } = await supabase
-      .from('province_photos')
-      .insert({
-        visited_province_id: visitedProvinceId,
-        user_id: userId,
-        image_url: imageUrl,
+    void userId;
+    const response = await apiRequest<{ data: ProvincePhoto }>("/api/map/photos", {
+      method: "POST",
+      body: JSON.stringify({
+        visitedProvinceId,
+        imageUrl,
         title,
         note,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error adding photo:', error);
-      return null;
-    }
-
-    return data;
+      }),
+      fallbackMessage: "Không thể lưu ảnh",
+    });
+    return response.data;
   } catch (error) {
-    console.error('Unexpected error in addProvincePhoto:', error);
+    console.error("Unexpected error in addProvincePhoto:", error);
     return null;
   }
 }
@@ -276,33 +206,24 @@ export async function updatePhoto(
   updates: { title?: string | null; note?: string | null }
 ): Promise<ProvincePhoto | null> {
   try {
-    // ✅ Clean up updates - convert empty strings to null
     const cleanUpdates: any = {};
-    
-    if ('title' in updates) {
+
+    if ("title" in updates) {
       cleanUpdates.title = updates.title?.trim() || null;
     }
-    
-    if ('note' in updates) {
+
+    if ("note" in updates) {
       cleanUpdates.note = updates.note?.trim() || null;
     }
 
-    const { data, error } = await supabase
-      .from('province_photos')
-      .update(cleanUpdates)
-      .eq('id', photoId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating photo:', error);
-      return null;
-    }
-
-    console.log('✅ Photo updated successfully');
-    return data;
+    const response = await apiRequest<{ data: ProvincePhoto }>(`/api/map/photos/${photoId}`, {
+      method: "PATCH",
+      body: JSON.stringify(cleanUpdates),
+      fallbackMessage: "Không thể cập nhật ảnh",
+    });
+    return response.data;
   } catch (error) {
-    console.error('Unexpected error in updatePhoto:', error);
+    console.error("Unexpected error in updatePhoto:", error);
     return null;
   }
 }
@@ -316,66 +237,16 @@ export async function deletePhoto(
   imageUrl: string
 ): Promise<boolean> {
   try {
-    // ✅ Extract file path from URL - hỗ trợ cả hai format
-    let filePath: string | null = null;
-    
-    // Try province_photos first (new format)
-    let urlParts = imageUrl.split('/province_photos/');
-    if (urlParts.length === 2) {
-      filePath = urlParts[1];
-    } else {
-      // Fallback to province-photos (old format)
-      urlParts = imageUrl.split('/province-photos/');
-      if (urlParts.length === 2) {
-        filePath = urlParts[1];
+    await apiRequest<{ success: boolean }>(
+      `/api/map/photos/${photoId}?imageUrl=${encodeURIComponent(imageUrl)}`,
+      {
+        method: "DELETE",
+        fallbackMessage: "Không thể xóa ảnh",
       }
-    }
-
-    if (!filePath) {
-      console.error('❌ Invalid image URL format:', imageUrl);
-      return false;
-    }
-
-    console.log('🗑️ Deleting file at path:', filePath);
-
-    // ✅ Try to delete from new bucket first
-    let storageError = null;
-    const { error: error1 } = await supabase.storage
-      .from('province_photos')
-      .remove([filePath]);
-
-    if (error1) {
-      // If failed, try old bucket
-      const { error: error2 } = await supabase.storage
-        .from('province-photos')
-        .remove([filePath]);
-      
-      storageError = error2;
-    }
-
-    if (storageError) {
-      console.error('⚠️ Error deleting from storage:', storageError);
-      // Continue to delete from database even if storage delete fails
-    } else {
-      console.log('✅ Deleted from storage');
-    }
-
-    // ✅ Delete from database
-    const { error: dbError } = await supabase
-      .from('province_photos')
-      .delete()
-      .eq('id', photoId);
-
-    if (dbError) {
-      console.error('❌ Error deleting photo record:', dbError);
-      return false;
-    }
-
-    console.log('✅ Deleted from database');
+    );
     return true;
-    
   } catch (error) {
-    console.error('❌ Delete photo error:', error);
+    console.error("Delete photo error:", error);
     return false;
   }
 }
@@ -392,21 +263,11 @@ export async function listProvincePhotosFromStorage(
   provinceId: string
 ): Promise<string[]> {
   try {
-    const folderPath = `${userId}/${provinceId}`;
-    
-    const { data, error } = await supabase.storage
-      .from('province_photos')
-      .list(folderPath);
-
-    if (error) {
-      console.error('Error listing photos:', error);
-      return [];
-    }
-
-    return data?.map(file => `${folderPath}/${file.name}`) || [];
-    
+    void userId;
+    void provinceId;
+    return [];
   } catch (error) {
-    console.error('List error:', error);
+    console.error("List error:", error);
     return [];
   }
 }
@@ -503,12 +364,8 @@ export async function uploadMultiplePhotos(
 
   for (let i = 0; i < files.length; i++) {
     try {
-      // Optional: Compress before upload
-      // const compressedFile = await compressImage(files[i]);
-      // const imageUrl = await uploadProvincePhoto(compressedFile, userId, provinceId);
-      
       const imageUrl = await uploadProvincePhoto(files[i], userId, provinceId);
-      
+
       if (imageUrl) {
         const photo = await addProvincePhoto(visitedProvinceId, userId, imageUrl);
         if (photo) {

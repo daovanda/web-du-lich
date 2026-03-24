@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { apiRequest } from "@/lib/apiClient";
+
+type AuthUser = {
+  id: string;
+  email: string | null;
+};
 
 export default function LeftSidebar({
   width,
@@ -12,23 +17,21 @@ export default function LeftSidebar({
   width: number;
   overlay?: boolean;
 }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
+      try {
+        const response = await apiRequest<{ data: { user: AuthUser | null } }>("/api/auth/me", {
+          fallbackMessage: "Không thể tải phiên đăng nhập",
+        });
+        setUser(response.data.user);
+      } catch {
+        setUser(null);
+      }
     };
     checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user || null);
-      }
-    );
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const categories = [

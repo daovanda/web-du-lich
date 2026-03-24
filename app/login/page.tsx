@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import ResizableLayout from "@/components/ResizableLayout";
-import { useSupabase } from "@/components/SupabaseProvider";
+import { apiRequest } from "@/lib/apiClient";
 
 export default function LoginPage() {
-  const supabase = useSupabase();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -16,50 +15,44 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // 🔹 Đăng nhập bằng email + password
+  // ✅ Gọi REST API thay vì Supabase SDK trực tiếp
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
+    try {
+      const data = await apiRequest<{ redirectTo: string }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+        fallbackMessage: "Đăng nhập thất bại",
+      });
+      router.push(data.redirectTo);
+    } catch {
+      setError("Không thể kết nối đến server");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const user = data.user;
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile?.role === "admin") router.push("/admin");
-      else router.push("/");
-    }
-
-    setLoading(false);
   };
 
-  // 🔹 Đăng nhập OAuth
+  // OAuth qua REST endpoint, không dùng client SDK trực tiếp.
   const handleOAuthLogin = async (provider: "google" | "facebook" | "apple") => {
     setLoading(true);
     setError(null);
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-
-    if (error) setError(error.message);
-    setLoading(false);
+    try {
+      const response = await apiRequest<{ data: { url: string } }>("/api/auth/oauth", {
+        method: "POST",
+        body: JSON.stringify({
+          provider,
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }),
+        fallbackMessage: "Không thể khởi tạo đăng nhập OAuth",
+      });
+      window.location.href = response.data.url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Đăng nhập OAuth thất bại");
+      setLoading(false);
+    }
   };
 
   return (
@@ -71,7 +64,7 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          {/* ✨ Logo & Hero Section */}
+          {/* Logo & Hero */}
           <div className="text-center mb-8">
             <motion.div
               className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 mb-6 shadow-[0_0_30px_rgba(168,85,247,0.4)]"
@@ -83,7 +76,7 @@ export default function LoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
             </motion.div>
-            
+
             <motion.h1
               className="text-2xl font-bold mb-2"
               initial={{ opacity: 0, y: -10 }}
@@ -92,7 +85,7 @@ export default function LoginPage() {
             >
               Chào mừng trở lại
             </motion.h1>
-            
+
             <motion.p
               className="text-sm text-neutral-500"
               initial={{ opacity: 0 }}
@@ -103,14 +96,14 @@ export default function LoginPage() {
             </motion.p>
           </div>
 
-          {/* 🎨 Login Card */}
+          {/* Login Card */}
           <motion.div
             className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 space-y-5"
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5, duration: 0.4 }}
           >
-            {/* ⚠️ Error Message */}
+            {/* Error Message */}
             {error && (
               <motion.div
                 className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl"
@@ -125,7 +118,7 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleLogin} className="space-y-4">
-              {/* 📧 Email Input */}
+              {/* Email */}
               <div>
                 <label className="block text-xs font-medium text-neutral-500 mb-2 uppercase tracking-wide">
                   Email
@@ -140,7 +133,7 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* 🔒 Password Input */}
+              {/* Password */}
               <div>
                 <label className="block text-xs font-medium text-neutral-500 mb-2 uppercase tracking-wide">
                   Mật khẩu
@@ -173,7 +166,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* 🔗 Forgot Password Link */}
+              {/* Forgot Password */}
               <div className="flex justify-end">
                 <Link
                   href="/forgot-password"
@@ -183,7 +176,7 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              {/* 🚀 Login Button */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
@@ -207,7 +200,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* 📱 Divider */}
+            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-neutral-800"></div>
@@ -219,11 +212,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* 🌐 OAuth Buttons */}
+            {/* OAuth Buttons */}
             <div className="space-y-3">
               <button
                 onClick={() => handleOAuthLogin("google")}
-                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200 group"
+                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200"
                 disabled={loading}
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -237,7 +230,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => handleOAuthLogin("facebook")}
-                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200 group"
+                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200"
                 disabled={loading}
               >
                 <svg className="w-5 h-5" fill="#1877F2" viewBox="0 0 24 24">
@@ -248,7 +241,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => handleOAuthLogin("apple")}
-                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200 group"
+                className="w-full flex items-center justify-center gap-3 bg-black border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/50 py-3 rounded-lg transition-all duration-200"
                 disabled={loading}
               >
                 <svg className="w-5 h-5" fill="white" viewBox="0 0 24 24">
@@ -259,7 +252,7 @@ export default function LoginPage() {
             </div>
           </motion.div>
 
-          {/* 📝 Sign Up Link */}
+          {/* Sign Up Link */}
           <motion.div
             className="mt-6 text-center"
             initial={{ opacity: 0 }}
@@ -277,7 +270,7 @@ export default function LoginPage() {
             </p>
           </motion.div>
 
-          {/* 🔒 Security Note */}
+          {/* Security Note */}
           <motion.div
             className="mt-8 flex items-center justify-center gap-2 text-xs text-neutral-600"
             initial={{ opacity: 0 }}
@@ -292,7 +285,6 @@ export default function LoginPage() {
         </motion.div>
       </div>
 
-      {/* ✨ Custom CSS */}
       <style jsx>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

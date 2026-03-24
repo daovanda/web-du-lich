@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
 import {
   getProvincePhotos,
+  getVisitedProvince,
   updateProvinceNotes,
   uploadProvincePhoto,
   addProvincePhoto,
   deletePhoto,
   updatePhoto,
 } from "@/app/map/api/api";
+import { apiRequest } from "@/lib/apiClient";
 import type { ProvincePhoto } from "@/app/map/types/types";
 
 type ProvinceDetailModalProps = {
@@ -57,10 +58,13 @@ export default function ProvinceDetailModal({
   useEffect(() => {
     const getUser = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (session?.user && mountedRef.current) {
-          setUserId(session.user.id);
+        const response = await apiRequest<{
+          data: { user: { id: string; email: string | null } | null };
+        }>("/api/auth/me", {
+          fallbackMessage: "Không thể tải thông tin người dùng",
+        });
+        if (response.data.user && mountedRef.current) {
+          setUserId(response.data.user.id);
         }
       } catch (err) {
         console.error("Failed to get user:", err);
@@ -94,16 +98,7 @@ export default function ProvinceDetailModal({
     
     try {
       const photosData = await getProvincePhotos(visitedProvinceId);
-      
-      const { data: provinceData, error: notesError } = await supabase
-        .from('visited_provinces')
-        .select('notes')
-        .eq('id', visitedProvinceId)
-        .single();
-
-      if (notesError && notesError.code !== 'PGRST116') {
-        console.error("Failed to load notes:", notesError);
-      }
+      const provinceData = await getVisitedProvince(visitedProvinceId);
 
       if (mountedRef.current) {
         if (photosData) {

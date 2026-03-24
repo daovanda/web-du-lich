@@ -21,6 +21,13 @@ type StatusConfig = {
   requiresApprover?: boolean;
 };
 
+/**
+ * ✅ Type guard to check if a string is a valid ServiceStatus
+ */
+export function isValidServiceStatus(status: string): status is ServiceStatus {
+  return ['draft', 'pending', 'approved', 'rejected', 'active', 'inactive', 'archived'].includes(status);
+}
+
 export type StatusTransition = {
   from: ServiceStatus;
   to: ServiceStatus;

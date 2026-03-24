@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase";
-
 // types.ts - CẬP NHẬT với 7 bước thanh toán
 export type BookingStatus = "pending" | "confirmed" | "cancelled";
 export type PaymentStatus = "unpaid" | "paid" | "refunded";
@@ -340,39 +338,51 @@ export function getDaysUntilServiceEnd(booking: Booking): number | null {
   return diffDays;
 }
 
+async function uploadProofViaApi(
+  bookingId: string,
+  file: File,
+  type: "deposit" | "payment" | "refund" | "payout"
+): Promise<string> {
+  const timestamp = Date.now();
+  const extension = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
+  const safeExt = extension || "jpg";
+  const renamedFile = new File([file], `${type}_${timestamp}.${safeExt}`, {
+    type: file.type || "application/octet-stream",
+  });
+
+  const formData = new FormData();
+  formData.append("bucketName", "payment_proofs");
+  formData.append("folderPath", bookingId);
+  formData.append("files", renamedFile);
+
+  const response = await fetch("/api/uploads/images", {
+    method: "POST",
+    body: formData,
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.error || "Upload chứng từ thất bại");
+  }
+
+  const uploadedUrl = Array.isArray(payload?.data) ? payload.data[0] : null;
+  if (!uploadedUrl) {
+    throw new Error("Không nhận được URL ảnh sau khi upload");
+  }
+
+  return uploadedUrl as string;
+}
+
 
 /**
- * Upload ảnh chứng từ hoàn trả lên Supabase Storage
+ * Upload ảnh chứng từ hoàn trả
  * @param bookingId - ID của booking
  * @param file - File ảnh cần upload
  * @returns Public URL của ảnh đã upload
  */
 export async function uploadRefundProof(bookingId: string, file: File): Promise<string> {
   try {
-    // Tạo tên file unique với timestamp
-    const timestamp = Date.now();
-    const fileExt = file.name.split('.').pop();
-    const fileName = `refund_${timestamp}.${fileExt}`;
-    const filePath = `payment_proofs/${bookingId}/${fileName}`;
-
-    // Upload file lên Supabase Storage
-    const { data, error } = await supabase.storage
-      .from('payment_proofs')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (error) {
-      throw new Error(`Upload failed: ${error.message}`);
-    }
-
-    // Lấy public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('payment_proofs')
-      .getPublicUrl(filePath);
-
-    return publicUrl;
+    return await uploadProofViaApi(bookingId, file, "refund");
   } catch (error) {
     console.error('Error uploading refund proof:', error);
     throw error;
@@ -388,27 +398,7 @@ export async function uploadPaymentProof(
   type: 'deposit' | 'payment' | 'refund' | 'payout'
 ): Promise<string> {
   try {
-    const timestamp = Date.now();
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${type}_${timestamp}.${fileExt}`;
-    const filePath = `payment_proofs/${bookingId}/${fileName}`;
-
-    const { data, error } = await supabase.storage
-      .from('payment_proofs')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (error) {
-      throw new Error(`Upload failed: ${error.message}`);
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('payment_proofs')
-      .getPublicUrl(filePath);
-
-    return publicUrl;
+    return await uploadProofViaApi(bookingId, file, type);
   } catch (error) {
     console.error(`Error uploading ${type} proof:`, error);
     throw error;

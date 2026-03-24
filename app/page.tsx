@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import ResizableLayout from "@/components/ResizableLayout";
 import PostCard from "@/components/PostCard";
 import SpecialEvents from "@/components/SpecialEvents";
@@ -69,34 +69,17 @@ export default function Page() {
       setLoading(true);
 
       try {
-        let query = supabase
-          .from("posts")
-          .select(
-            `
-            id,
-            caption,
-            created_at,
-            custom_service_link,
-            author:profiles(id, username, avatar_url),
-            service:services(id, title, type),
-            images:post_images(id, image_url)
-          `
-          )
-          .order("created_at", { ascending: false })
-          .limit(limit);
-
-        if (!reset && lastCursorRef.current) {
-          query = query.lt("created_at", lastCursorRef.current);
-        }
-
-        if (currentSearchRef.current.trim()) {
-          query = query.ilike("caption", `%${currentSearchRef.current}%`);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        const fetched = data || [];
+        const params = new URLSearchParams({
+          limit: String(limit),
+          search: currentSearchRef.current.trim(),
+        });
+        if (!reset && lastCursorRef.current) params.set("cursor", lastCursorRef.current);
+        const res = await apiRequest<{ posts: any[]; user: any }>(
+          `/api/home/feed?${params.toString()}`,
+          { fallbackMessage: "Không thể tải bài đăng" }
+        );
+        const fetched = res.posts || [];
+        setUser((prev: any) => prev || res.user || null);
 
         if (reset) {
           setPosts(fetched);
@@ -126,15 +109,6 @@ export default function Page() {
     },
     []
   );
-
-  // 🧠 Fetch user session
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data } = await supabase.auth.getSession();
-      setUser(data?.session?.user || null);
-    };
-    checkUser();
-  }, []);
 
   // 🔎 Debounce search - cập nhật ref (giữ logic, chỉ ẩn UI tìm kiếm)
   useEffect(() => {
@@ -210,26 +184,10 @@ export default function Page() {
     (async () => {
       try {
         setServicesLoading(true);
-        const { data, error } = await supabase
-          .from("services")
-          .select(`
-            id,
-            title,
-            description,
-            image_url,
-            price,
-            type,
-            location,
-            average_rating,
-            reviews_count,
-            status,
-            created_at
-          `)
-          .eq("status", "active")
-          .order("created_at", { ascending: false })
-          .limit(20);
-        if (error) throw error;
-        if (mounted) setServices(data || []);
+        const res = await apiRequest<{ data: any[] }>("/api/home/services", {
+          fallbackMessage: "Không thể tải danh sách dịch vụ",
+        });
+        if (mounted) setServices(res.data || []);
       } catch (e) {
         console.error("Fetch services error:", e);
         if (mounted) setServices([]);

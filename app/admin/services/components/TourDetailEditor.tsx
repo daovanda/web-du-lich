@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { TourDetail } from "../types";
 
 type Props = {
@@ -110,26 +110,15 @@ export default function TourDetailEditor({
         itinerary: Object.keys(itineraryObj).length > 0 ? itineraryObj : null,
       };
 
-      const { data: existingData } = await supabase
-        .from("tours")
-        .select("id")
-        .eq("id", serviceId)
-        .maybeSingle();
-
-      if (existingData) {
-        const { error } = await supabase
-          .from("tours")
-          .update(tourData)
-          .eq("id", serviceId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("tours")
-          .insert({ id: serviceId, ...tourData });
-
-        if (error) throw error;
-      }
+      await apiRequest<{ success: boolean }>("/api/admin/services/details", {
+        method: "PATCH",
+        body: JSON.stringify({
+          serviceId,
+          type: "tour",
+          payload: tourData,
+        }),
+        fallbackMessage: "Lỗi khi lưu thông tin tour",
+      });
 
       alert("Đã lưu thông tin tour thành công!");
       onSave();

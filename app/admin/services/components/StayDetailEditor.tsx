@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { StayDetail, ACCOMMODATION_TYPES } from "../types";
 
 type Props = {
@@ -65,26 +65,15 @@ export default function StayDetailEditor({
             : null,
       };
 
-      const { data: existingData } = await supabase
-        .from("stays")
-        .select("id")
-        .eq("id", serviceId)
-        .maybeSingle();
-
-      if (existingData) {
-        const { error } = await supabase
-          .from("stays")
-          .update(stayData)
-          .eq("id", serviceId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("stays")
-          .insert({ id: serviceId, ...stayData });
-
-        if (error) throw error;
-      }
+      await apiRequest<{ success: boolean }>("/api/admin/services/details", {
+        method: "PATCH",
+        body: JSON.stringify({
+          serviceId,
+          type: "stay",
+          payload: stayData,
+        }),
+        fallbackMessage: "Lỗi khi lưu thông tin chỗ ở",
+      });
 
       alert("Đã lưu thông tin chỗ ở thành công!");
       onSave();

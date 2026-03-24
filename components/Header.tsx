@@ -1,37 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { apiRequest } from "@/lib/apiClient";
+
+type AuthUser = {
+  id: string;
+  email: string | null;
+};
 
 export default function Header() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
+    const getMe = async () => {
+      try {
+        const response = await apiRequest<{ data: { user: AuthUser | null } }>("/api/auth/me", {
+          fallbackMessage: "Không thể tải thông tin người dùng",
+        });
+        setUser(response.data.user);
+      } catch {
+        setUser(null);
+      }
     };
-    getUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription?.unsubscribe();
+    getMe();
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    router.push("/");
+    try {
+      await apiRequest<{ success: boolean }>("/api/auth/logout", {
+        method: "POST",
+        fallbackMessage: "Đăng xuất thất bại",
+      });
+    } finally {
+      setUser(null);
+      router.push("/");
+      router.refresh();
+    }
   };
 
   return (

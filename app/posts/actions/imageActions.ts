@@ -1,6 +1,6 @@
 import imageCompression from "browser-image-compression";
-import { supabase } from "@/lib/supabase";
 import { ImageItem } from "../types";
+import { apiFormRequest } from "@/lib/apiClient";
 
 export const autoCrop = async (originalFile: File, aspect: number): Promise<ImageItem> => {
   const img = document.createElement("img");
@@ -99,14 +99,15 @@ export const handleSelectImages = async (
 
 
 export const uploadImages = async (postId: string, images: ImageItem[]) => {
-  const urls: string[] = [];
-  for (const file of images.map((i) => i.cropped)) {
-    const ext = file.name.split(".").pop();
-    const path = `${postId}/${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from("post_images").upload(path, file);
-    if (!error) {
-      urls.push(supabase.storage.from("post_images").getPublicUrl(path).data.publicUrl);
-    }
-  }
-  return urls;
+  const formData = new FormData();
+  formData.append("bucketName", "post_images");
+  formData.append("folderPath", postId);
+  images.forEach((image) => formData.append("files", image.cropped));
+
+  const payload = await apiFormRequest<{ data: string[] }>("/api/uploads/images", {
+    method: "POST",
+    formData,
+    fallbackMessage: "Không thể upload ảnh",
+  });
+  return (payload?.data || []) as string[];
 };

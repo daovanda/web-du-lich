@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 type Service = {
   id: string;
@@ -47,13 +47,14 @@ export default function ServiceModal({
   useEffect(() => {
     const fetchServices = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("services")
-        .select("id, title, image_url, location, description, type")
-        .order("title", { ascending: true });
-
-      if (!error && data) setServices(data);
-      setLoading(false);
+      try {
+        const response = await apiRequest<{ data: Service[] }>("/api/posts/services", {
+          fallbackMessage: "Không thể tải danh sách dịch vụ",
+        });
+        setServices(response.data || []);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchServices();
   }, []);

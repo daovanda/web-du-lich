@@ -1,6 +1,6 @@
 // hooks/useServiceHistory.ts
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 // Define proper types
 interface ServiceInfo {
@@ -64,29 +64,10 @@ export function useServiceHistory({
       setLoading(true);
       setError("");
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setData([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data: bookingsData, error: fetchError } = await supabase
-        .from("bookings")
-        .select(`
-          id, user_id, service_id, date_from, date_to, total_price, 
-          payment_status, deposit_status, deposit_amount, deposit_proof_url,
-          payment_proof_url, status, created_at, cancelled_at,
-          deposit_paid_at, deposit_payment_method, payment_method,
-          refund_status, refund_amount, refund_proof_url, 
-          refund_requested_at, refund_processed_at, refund_reason,
-          quantity, booking_code,
-          services(title, type, image_url)
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (fetchError) throw fetchError;
+      const res = await apiRequest<{ data: any[] }>("/api/profile/bookings", {
+        fallbackMessage: "Không thể tải dữ liệu",
+      });
+      const bookingsData = res.data || [];
       
       // Transform the data: services comes as array from Supabase, take first item
       const transformedData = (bookingsData || []).map(booking => ({
@@ -126,15 +107,11 @@ export function useServiceHistory({
     }
     
     try {
-      const { error: updateError } = await supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-          cancelled_at: new Date().toISOString()
-        })
-        .eq("id", bookingId);
-      
-      if (updateError) throw updateError;
+      await apiRequest(`/api/profile/bookings/${bookingId}/cancel`, {
+        method: "PATCH",
+        body: JSON.stringify({ withRefund: false }),
+        fallbackMessage: "Không thể hủy dịch vụ",
+      });
       
       // Update local state
       setData(prevData => 
@@ -167,19 +144,15 @@ export function useServiceHistory({
     }
     
     try {
-      const { error: updateError } = await supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-          cancelled_at: new Date().toISOString(),
-          refund_status: "requested",
-          refund_amount: refundAmount,
-          refund_requested_at: new Date().toISOString(),
-          refund_reason: reason.trim()
-        })
-        .eq("id", bookingId);
-      
-      if (updateError) throw updateError;
+      await apiRequest(`/api/profile/bookings/${bookingId}/cancel`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          withRefund: true,
+          refundAmount,
+          reason: reason.trim(),
+        }),
+        fallbackMessage: "Không thể gửi yêu cầu hoàn tiền",
+      });
       
       // Update local state
       setData(prevData => 

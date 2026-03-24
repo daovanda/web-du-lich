@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import { ImageItem } from "../types";
 
 export const usePost = () => {
@@ -21,9 +21,11 @@ export const usePost = () => {
   const [touchEndX, setTouchEndX] = useState(0);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data?.user || null);
-    });
+    apiRequest<{ user: any }>("/api/posts/me", {
+      fallbackMessage: "Không thể tải thông tin người dùng",
+    })
+      .then((res) => setUser(res.user || null))
+      .catch(() => setUser(null));
   }, []);
 
   const handleDragStart = (index: number) => setDragIndex(index);

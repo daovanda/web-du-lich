@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { supabase } from "@/lib/supabase";
+import { ApiError, apiRequest } from "@/lib/apiClient";
 
 // Kiểu dữ liệu giống services
 type Service = {
@@ -14,7 +14,7 @@ type Service = {
   type: "stay" | "car" | "motorbike";
   location: string | null;
   price: string | null;        // text: "400.000đ/đêm"
-  image_url: string | null;
+  images: string[];
 };
 
 export default function BookingPage() {
@@ -66,13 +66,20 @@ export default function BookingPage() {
     if (!id) return;
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from("services")
-          .select("*")
-          .eq("id", id)
-          .single();
-        if (error) throw error;
-        setService(data as Service);
+        const res = await apiRequest<{
+          service: {
+            id: string;
+            title: string;
+            description: string | null;
+            type: "stay" | "car" | "motorbike";
+            location: string | null;
+            price: string | null;
+            images: string[];
+          };
+        }>(`/api/services/${id}/detail?type=stay`, {
+          fallbackMessage: "Không thể tải dịch vụ",
+        });
+        setService(res.service as Service);
       } catch (e: any) {
         console.error(e);
         setErr("Không tìm thấy dịch vụ.");
@@ -108,26 +115,35 @@ export default function BookingPage() {
 
     setIsSubmitting(true);
     try {
-      // Lấy user_id nếu đã đăng nhập
-      const { data: userData } = await supabase.auth.getUser();
-      const user_id = userData?.user?.id ?? null;
-
-      // DEMO insert booking (RLS cần cho phép)
-      const { error } = await supabase.from("bookings").insert({
-        user_id,                      // gắn user nếu có
-        service_id: id,
-        date_from: dateFrom,
-        date_to: dateTo,
-        status: "pending",
+      await apiRequest("/api/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          serviceId: id,
+          dateFrom,
+          dateTo,
+          quantity: 1,
+          fullName,
+          phone,
+          note: requests.length ? requests.join(", ") : null,
+          totalPrice: total,
+          depositAmount: Math.round(total * 0.3),
+          depositPercentage: 30,
+          paymentStatus: "unpaid",
+          paymentMethod: "bank_transfer",
+          depositStatus: "unpaid",
+        }),
+        fallbackMessage: "Không thể tạo booking",
       });
-
-      if (error) throw error;
 
       alert("Đặt phòng thành công! (Demo) — chuyển sang bước thanh toán sau.");
       // TODO: router.push('/payment/...')
     } catch (e: any) {
       console.error(e);
-      alert("Không tạo được đặt phòng. Kiểm tra RLS/permissions trong Supabase.");
+      if (e instanceof ApiError && e.status === 401) {
+        alert("Bạn cần đăng nhập để đặt dịch vụ.");
+      } else {
+        alert("Không tạo được đặt phòng. Vui lòng thử lại.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -289,7 +305,7 @@ export default function BookingPage() {
             <div className="sticky top-4 rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="flex items-center gap-3">
                 <img
-                  src={service.image_url || gallery[0]}
+                  src={service.images?.[0] || gallery[0]}
                   alt={service.title}
                   className="h-20 w-28 rounded-lg object-cover"
                 />
@@ -356,11 +372,21 @@ function LoginBanner() {
   const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setAuthed(!!data.user));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
-      setAuthed(!!s?.user);
-    });
-    return () => subscription.unsubscribe();
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await apiRequest<{ data: { user: { id: string } | null } }>(
+          "/api/auth/me",
+          { fallbackMessage: "Không thể kiểm tra đăng nhập" }
+        );
+        if (mounted) setAuthed(!!res.data.user);
+      } catch {
+        if (mounted) setAuthed(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (authed === null || authed) return null; // đang kiểm tra hoặc đã login -> ẩn

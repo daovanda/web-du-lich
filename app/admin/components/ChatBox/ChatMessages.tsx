@@ -9,6 +9,7 @@ export default function ChatMessages({
   messagesContainerRef,
   messagesEndRef,
   loadingMore,
+  initialLoading,
 }: any) {
   if (!messages) return null;
 
@@ -54,7 +55,7 @@ export default function ChatMessages({
         </div>
       )}
 
-      {messages.length === 0 && !loadingMore && (
+      {messages.length === 0 && !loadingMore && !initialLoading && (
         <div className="flex flex-col items-center justify-center h-full text-center space-y-3 py-12">
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 flex items-center justify-center">
             <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

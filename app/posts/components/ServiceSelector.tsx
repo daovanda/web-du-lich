@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import ServiceModal from "./ServiceModal";
 
 type Service = {
@@ -75,14 +75,15 @@ export default function ServiceSelector({
       }
 
       setLoading(true);
-      const { data, error } = await supabase
-        .from("services")
-        .select("id, title, image_url, location, description, type")
-        .eq("id", id)
-        .single();
-
-      if (!error && data) setSelectedService(data);
-      setLoading(false);
+      try {
+        const response = await apiRequest<{ data: Service[] }>("/api/posts/services", {
+          fallbackMessage: "Không thể tải thông tin dịch vụ",
+        });
+        const found = (response.data || []).find((item) => item.id === id) || null;
+        setSelectedService(found);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchServiceDetail();
   }, [serviceId]);

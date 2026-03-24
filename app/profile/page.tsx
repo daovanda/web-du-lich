@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiFormRequest, apiRequest } from "@/lib/apiClient";
 import ResizableLayout from "@/components/ResizableLayout";
 import ProfileHeader from "./components/ProfileHeader";
 import ProfileForm from "./components/ProfileForm";
@@ -30,19 +30,16 @@ export default function ProfilePage() {
   /* ---------------------- Fetch user data ---------------------- */
   useEffect(() => {
     const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const res = await apiRequest<{ user: any; profile: any }>("/api/profile/me", {
+        fallbackMessage: "Không thể tải thông tin người dùng",
+      }).catch(() => ({ user: null, profile: null }));
+      const user = res.user;
 
       if (user) {
         setUser(user);
         setEmail(user.email || "");
 
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("full_name, username, phone, avatar_url")
-          .eq("id", user.id)
-          .maybeSingle();
+        const profileData = res.profile;
 
         if (profileData) {
           setFullName(profileData.full_name || "");
@@ -91,12 +88,17 @@ export default function ProfilePage() {
     }
 
     if (email !== (user?.email || "")) {
-      const { error: updateEmailError } = await supabase.auth.updateUser({ email });
-      if (updateEmailError) {
+      try {
+        await apiRequest("/api/profile/email", {
+          method: "PATCH",
+          body: JSON.stringify({ email }),
+          fallbackMessage: "Không thể cập nhật email",
+        });
+      } catch (err: any) {
         setError(
-          updateEmailError.message.includes("already registered")
+          String(err?.message || "").includes("already registered")
             ? "Email này đã được đăng ký, vui lòng chọn email khác"
-            : "Không thể cập nhật email: " + updateEmailError.message
+            : "Không thể cập nhật email: " + (err?.message || "lỗi không xác định")
         );
         setLoading(false);
         return;
@@ -106,22 +108,28 @@ export default function ProfilePage() {
 
     let avatarUrlToUpdate = avatarUrl;
     if (avatarFile) {
-      const fileExt = avatarFile.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, avatarFile, { upsert: true });
-
-      if (uploadError) {
-        setError("Lỗi khi tải ảnh đại diện: " + uploadError.message);
+      const formData = new FormData();
+      formData.append("bucketName", "avatars");
+      formData.append("folderPath", user.id);
+      formData.append("files", avatarFile);
+      let uploadPayload: { data: string[] };
+      try {
+        uploadPayload = await apiFormRequest<{ data: string[] }>("/api/uploads/images", {
+          method: "POST",
+          formData,
+          fallbackMessage: "Upload ảnh đại diện thất bại",
+        });
+      } catch (err: any) {
+        setError("Lỗi khi tải ảnh đại diện: " + (err?.message || "upload thất bại"));
         setLoading(false);
         return;
       }
-
-      const { data: publicUrlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
-      avatarUrlToUpdate = publicUrlData?.publicUrl || avatarUrlToUpdate;
+      if (!uploadPayload?.data?.[0]) {
+        setError("Lỗi khi tải ảnh đại diện: upload thất bại");
+        setLoading(false);
+        return;
+      }
+      avatarUrlToUpdate = uploadPayload.data[0] || avatarUrlToUpdate;
       setAvatarUrl(avatarUrlToUpdate);
     }
 
@@ -133,13 +141,16 @@ export default function ProfilePage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error: updateProfileError } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", user.id);
-
-    if (updateProfileError) setError(updateProfileError.message);
-    else if (!success) setSuccess("Cập nhật hồ sơ thành công");
+    try {
+      await apiRequest("/api/profile/me", {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+        fallbackMessage: "Không thể cập nhật hồ sơ",
+      });
+      if (!success) setSuccess("Cập nhật hồ sơ thành công");
+    } catch (err: any) {
+      setError(err?.message || "Không thể cập nhật hồ sơ");
+    }
 
     setLoading(false);
   };
@@ -283,7 +294,10 @@ export default function ProfilePage() {
               >
                 <button
                   onClick={async () => {
-                    await supabase.auth.signOut();
+                    await apiRequest("/api/auth/logout", {
+                      method: "POST",
+                      fallbackMessage: "Đăng xuất thất bại",
+                    });
                     window.location.href = "/";
                   }}
                   className="w-full bg-neutral-950 border border-neutral-800/50 text-neutral-400 py-3 rounded-xl text-sm font-medium hover:bg-neutral-900 hover:text-white hover:border-neutral-700 transition-all duration-300 ease-out backdrop-blur-sm"

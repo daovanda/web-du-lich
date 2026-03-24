@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 import ResizableLayout from "@/components/ResizableLayout";
 
 import ServiceBreadcrumb from "@/app/services/components/ServiceBreadcrumb";
@@ -52,8 +52,6 @@ type ServiceReview = {
 };
 
 export default function CarDetailPage() {
-  console.log("BookingFormWrapper:", BookingFormWrapper);
-
   const { id: rawId } = useParams();
   const id = Array.isArray(rawId) ? rawId[0] : rawId ?? "";
 
@@ -68,44 +66,13 @@ export default function CarDetailPage() {
     if (!id) return;
     const fetchData = async () => {
       try {
-        const { data, error: fetchError } = await supabase
-          .from("services")
-          .select("*")
-          .eq("id", id)
-          .eq("type", "car")
-          .single();
-
-        if (fetchError) throw new Error(fetchError.message);
-        setService(data as Service);
-
-        const region = data?.location || "";
-        if (region) {
-          const { data: locs } = await supabase
-            .from("locations")
-            .select("*")
-            .ilike("region", `%${region}%`)
-            .limit(6);
-          setNearby(locs || []);
-        }
-
-        const { data: rv } = await supabase
-          .from("service_reviews")
-          .select(`
-            id,
-            rating,
-            comment,
-            user:profiles(full_name, username)
-          `)
-          .eq("service_id", id)
-          .order("created_at", { ascending: false })
-          .limit(4);
-
-        setReviews(
-          (rv || []).map((r: any) => ({
-            ...r,
-            user: Array.isArray(r.user) ? r.user[0] : r.user,
-          }))
+        const res = await apiRequest<{ service: Service; nearby: NearbyLocation[]; reviews: ServiceReview[] }>(
+          `/api/services/${id}/detail?type=car`,
+          { fallbackMessage: "Không thể tải dữ liệu dịch vụ" }
         );
+        setService(res.service);
+        setNearby(res.nearby || []);
+        setReviews(res.reviews || []);
       } catch (err) {
         console.error("Error fetching car service:", err);
         setError("Không tìm thấy dịch vụ.");

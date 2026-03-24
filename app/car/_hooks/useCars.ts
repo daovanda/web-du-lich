@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { fetchCars } from "../_api/carAPI";
-import { filterByDepartureTime, filterByPriceRange } from "../_utils/carQuery";
+import { filterByDepartureTime, filterByPriceRange, sortCars } from "../_utils/carQuery";
 import { Car, CarFilterState } from "../_types/car.types";
 
 export function useCars(filters: CarFilterState) {
@@ -17,10 +17,11 @@ export function useCars(filters: CarFilterState) {
         // Apply client-side filters
         data = filterByDepartureTime(data, filters.departureTime);
         data = filterByPriceRange(data, filters.priceRange);
+        data = sortCars(data, filters.sortBy);
         
         setCars(data);
         setError(null);
-      } catch (err: any) {
+      } catch (err) {
         setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
         console.error("Error fetching cars:", err);
       } finally {

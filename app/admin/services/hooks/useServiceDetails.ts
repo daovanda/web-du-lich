@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/apiClient";
 
 type ServiceType = "stay" | "car" | "motorbike" | "tour";
 
@@ -19,58 +19,12 @@ export function useServiceDetail(serviceId: string | null, type: ServiceType | n
     setError(null);
 
     try {
-      let result = null;
+      const response = await apiRequest<{ data: any }>(
+        `/api/admin/services/details?serviceId=${serviceId}&type=${type}`,
+        { fallbackMessage: `Không thể tải chi tiết dịch vụ ${type}` }
+      );
 
-      switch (type) {
-        case "stay":
-          const { data: stayData, error: stayError } = await supabase
-            .from("stays")
-            .select("*")
-            .eq("id", serviceId)
-            .maybeSingle();
-
-          if (stayError) throw stayError;
-          result = stayData;
-          break;
-
-        case "car":
-          const { data: carData, error: carError } = await supabase
-            .from("cars")
-            .select("*")
-            .eq("id", serviceId)
-            .maybeSingle();
-
-          if (carError) throw carError;
-          result = carData;
-          break;
-
-        case "motorbike":
-          const { data: motorbikeData, error: motorbikeError } = await supabase
-            .from("motorbikes")
-            .select("*")
-            .eq("id", serviceId)
-            .maybeSingle();
-
-          if (motorbikeError) throw motorbikeError;
-          result = motorbikeData;
-          break;
-
-        case "tour":
-          const { data: tourData, error: tourError } = await supabase
-            .from("tours")
-            .select("*")
-            .eq("id", serviceId)
-            .maybeSingle();
-
-          if (tourError) throw tourError;
-          result = tourData;
-          break;
-
-        default:
-          throw new Error(`Unsupported service type: ${type}`);
-      }
-
-      setData(result);
+      setData(response.data ?? null);
     } catch (err: any) {
       console.error(`Error fetching ${type} details:`, err);
       setError(err.message);
@@ -97,58 +51,11 @@ export async function fetchServiceDetail(
   type: ServiceType
 ): Promise<any> {
   try {
-    let data = null;
-
-    switch (type) {
-      case "stay":
-        const { data: stayData, error: stayError } = await supabase
-          .from("stays")
-          .select("*")
-          .eq("id", serviceId)
-          .maybeSingle();
-
-        if (stayError) throw stayError;
-        data = stayData;
-        break;
-
-      case "car":
-        const { data: carData, error: carError } = await supabase
-          .from("cars")
-          .select("*")
-          .eq("id", serviceId)
-          .maybeSingle();
-
-        if (carError) throw carError;
-        data = carData;
-        break;
-
-      case "motorbike":
-        const { data: motorbikeData, error: motorbikeError } = await supabase
-          .from("motorbikes")
-          .select("*")
-          .eq("id", serviceId)
-          .maybeSingle();
-
-        if (motorbikeError) throw motorbikeError;
-        data = motorbikeData;
-        break;
-
-      case "tour":
-        const { data: tourData, error: tourError } = await supabase
-          .from("tours")
-          .select("*")
-          .eq("id", serviceId)
-          .maybeSingle();
-
-        if (tourError) throw tourError;
-        data = tourData;
-        break;
-
-      default:
-        throw new Error(`Unsupported service type: ${type}`);
-    }
-
-    return data;
+    const response = await apiRequest<{ data: any }>(
+      `/api/admin/services/details?serviceId=${serviceId}&type=${type}`,
+      { fallbackMessage: `Không thể tải chi tiết dịch vụ ${type}` }
+    );
+    return response.data ?? null;
   } catch (error) {
     console.error(`Error fetching ${type} details:`, error);
     return null;
@@ -165,43 +72,17 @@ export function useServicesDetailStatus(services: any[]) {
       if (services.length === 0) return;
 
       setLoading(true);
-      const statusMap: Record<string, boolean> = {};
-
       try {
-        // Group services by type for batch checking
-        const servicesByType: Record<string, string[]> = {
-          stay: [],
-          car: [],
-          motorbike: [],
-          tour: [],
-        };
-
-        services.forEach((svc) => {
-          if (servicesByType[svc.type]) {
-            servicesByType[svc.type].push(svc.id);
+        const response = await apiRequest<{ data: Record<string, boolean> }>(
+          "/api/admin/services/detail-status",
+          {
+            method: "POST",
+            body: JSON.stringify({ services }),
+            fallbackMessage: "Không thể kiểm tra trạng thái chi tiết dịch vụ",
           }
-        });
+        );
 
-        // Check each type in batch
-        for (const [type, ids] of Object.entries(servicesByType)) {
-          if (ids.length === 0) continue;
-
-          const tableName = type === "stay" ? "stays" : 
-                           type === "car" ? "cars" : 
-                           type === "motorbike" ? "motorbikes" : "tours";
-
-          const { data } = await supabase
-            .from(tableName)
-            .select("id")
-            .in("id", ids);
-
-          // Mark services that have detail data
-          ids.forEach((id) => {
-            statusMap[id] = data?.some((item) => item.id === id) || false;
-          });
-        }
-
-        setDetailStatus(statusMap);
+        setDetailStatus(response.data || {});
       } catch (error) {
         console.error("Error checking detail status:", error);
       } finally {

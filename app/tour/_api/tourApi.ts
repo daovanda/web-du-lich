@@ -1,7 +1,7 @@
 // src/app/tours/_api/tourApi.ts
 
-import { supabase } from "@/lib/supabase";
 import { Tour } from "../_types/tour.types";
+import { apiRequest } from "@/lib/apiClient";
 
 export interface FetchToursParams {
   searchQuery?: string;
@@ -16,43 +16,16 @@ export async function fetchTours(
   params: FetchToursParams = {}
 ): Promise<FetchToursResult> {
   try {
-    const { searchQuery } = params;
-
-    let query = supabase
-      .from("tour_with_reviews")
-      .select(`
-        service_id,
-        title,
-        description,
-        service_location,
-        price,
-        image_url, 
-        images,
-        average_rating,
-        reviews_count,
-        tour_destination,
-        duration_days,
-        start_date,
-        end_date,
-        available_slots,
-        guide_name
-      `);
-
-    // Apply search filter if provided
-    if (searchQuery && searchQuery.trim()) {
-      query = query.or(
-        `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,tour_destination.ilike.%${searchQuery}%,service_location.ilike.%${searchQuery}%`
-      );
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    const searchQuery = params.searchQuery?.trim() || "";
+    const query = searchQuery
+      ? `/api/tours?searchQuery=${encodeURIComponent(searchQuery)}`
+      : "/api/tours";
+    const res = await apiRequest<{ data: Tour[] }>(query, {
+      fallbackMessage: "Không thể tải danh sách tour",
+    });
 
     return {
-      data: data as Tour[],
+      data: res.data || [],
       error: null,
     };
   } catch (err) {
