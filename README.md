@@ -4,7 +4,9 @@
 ## Demo
 - Live: [https://chagmihaydi.vercel.app](https://chagmihaydi.vercel.app)
 
-
+## tai khoan test
+- mail:        dabncm2k5@gmail.com
+- mat khau:    abc123
 ## Tech Stack
 - Frontend: Next.js, React.js, TypeScript, Tailwind CSS, Framer Motion
 - Backend: Next.js API Routes, RESTful API, Supabase (Auth, PostgreSQL, Storage, Realtime)
