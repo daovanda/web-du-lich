@@ -1,3 +1,4 @@
+// components/chat/ChatSection.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,23 +10,23 @@ export default function ChatSection() {
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRole = async () => {
+    (async () => {
       try {
-        const response = await apiRequest<{
-          data: { user: { id: string; email: string | null } | null; profile: { role?: string | null } | null };
+        const res = await apiRequest<{
+          data: {
+            user: { id: string; email: string | null } | null;
+            profile: { role?: string | null } | null;
+          };
         }>("/api/auth/me");
-        if (!response.data.user) {
-          setRole(null);
-          return;
-        }
-        setRole(response.data.profile?.role || "user");
+        setRole(res.data.user ? (res.data.profile?.role || "user") : null);
       } catch {
         setRole(null);
       }
-    };
-
-    void fetchRole();
+    })();
   }, []);
+
+  // Chưa resolve → không render gì để tránh layout shift
+  if (role === null) return null;
 
   if (role === "admin") return <ChatAdminPanel />;
   return <ChatWidget />;

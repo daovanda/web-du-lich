@@ -1,3 +1,4 @@
+// app/api/chats/public/route.ts
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 

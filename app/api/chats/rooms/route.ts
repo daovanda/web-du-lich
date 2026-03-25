@@ -1,3 +1,4 @@
+// app/api/chats/rooms/route.ts
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 
@@ -6,7 +7,7 @@ const PUBLIC_AVATAR_URL = "/group-chat.png";
 
 type RoomItem = {
   room_id: string;
-  type: "public" | "private";
+  type: "public" | "private" | "ai_bot";
   display_name: string;
   avatar_url: string;
   unread: number;
@@ -72,11 +73,13 @@ export async function GET() {
       last_message_time: publicLast?.created_at || null,
     };
 
+    // ── Admin: public + tất cả private (không có ai_bot) ──
     if (role === "admin") {
       const { data: rawRooms, error } = await supabase
         .from("user_chats_view")
         .select("room_id, type, user_id, user_name, user_email, created_at")
-        .neq("room_id", PUBLIC_ROOM_ID);
+        .neq("room_id", PUBLIC_ROOM_ID)
+        .eq("type", "private");
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -117,15 +120,15 @@ export async function GET() {
       return NextResponse.json({
         data: {
           role,
-          user: {
-            id: user.id,
-            email: user.email || null,
-          },
+          user: { id: user.id, email: user.email || null },
           rooms: [publicRoom, ...privateRooms],
         },
       });
     }
 
+    // ── User thường: public + private + ai_bot ──
+
+    // Lấy hoặc tạo private room
     const { data: privateRoom } = await supabase
       .from("chat_rooms")
       .select("id")
@@ -146,9 +149,33 @@ export async function GET() {
       finalPrivateRoomId = createdRoom.id;
     }
 
-    const [privateLast, privateUnread] = await Promise.all([
+    // Lấy hoặc tạo ai_bot room
+    const { data: aiBotRoom } = await supabase
+      .from("chat_rooms")
+      .select("id")
+      .eq("type", "ai_bot")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    let finalAiBotRoomId = aiBotRoom?.id || null;
+    if (!finalAiBotRoomId) {
+      const { data: createdAiRoom, error: createAiError } = await supabase
+        .from("chat_rooms")
+        .insert({ type: "ai_bot", user_id: user.id })
+        .select("id")
+        .single();
+      if (createAiError) {
+        return NextResponse.json({ error: createAiError.message }, { status: 500 });
+      }
+      finalAiBotRoomId = createdAiRoom.id;
+    }
+
+    // Lấy last message + unread cho cả 3 rooms song song
+    const [privateLast, privateUnread, aiBotLast, aiBotUnread] = await Promise.all([
       getLastMessage(supabase, finalPrivateRoomId),
       getUnreadCount(supabase, user.id, finalPrivateRoomId),
+      getLastMessage(supabase, finalAiBotRoomId),
+      getUnreadCount(supabase, user.id, finalAiBotRoomId),
     ]);
 
     const privateRoomItem: RoomItem = {
@@ -162,14 +189,22 @@ export async function GET() {
       user_id: user.id,
     };
 
+    const aiBotRoomItem: RoomItem = {
+      room_id: finalAiBotRoomId,
+      type: "ai_bot",
+      display_name: "Trợ lý AI",
+      avatar_url: "/ai-avatar.png",
+      unread: aiBotUnread,
+      last_message: aiBotLast?.content || "",
+      last_message_time: aiBotLast?.created_at || null,
+      user_id: user.id,
+    };
+
     return NextResponse.json({
       data: {
         role,
-        user: {
-          id: user.id,
-          email: user.email || null,
-        },
-        rooms: [publicRoom, privateRoomItem],
+        user: { id: user.id, email: user.email || null },
+        rooms: [publicRoom, privateRoomItem, aiBotRoomItem],
       },
     });
   } catch {
