@@ -1,4 +1,5 @@
 // app/api/chats/ai/route.ts
+import { TransformStream } from "stream/web"
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 
@@ -176,7 +177,7 @@ export async function POST(req: Request) {
       }
     })();
 
-    return new Response(readable, {
+    return new Response(readable as any, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
