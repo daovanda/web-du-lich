@@ -1,4 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Web Du Lịch – Travel & Social Application
+Ứng dụng web du lịch fullstack với Next.js, Supabase, Tailwind CSS và AI chatbot RAG. Hỗ trợ tìm kiếm, gợi ý, chat realtime và tư vấn thông minh.
+
+## Demo
+- Live: [https://chagmihaydi.vercel.app](https://chagmihaydi.vercel.app)
+
+
+## Tech Stack
+- Frontend: Next.js, React.js, TypeScript, Tailwind CSS, Framer Motion
+- Backend: Next.js API Routes, RESTful API, Supabase (Auth, PostgreSQL, Storage, Realtime)
+- AI / ML: RAG, Vector Search, Meta Llama 3, Cloudflare Workers AI
+- Deployment: Vercel (Frontend)
+- Tools: Git, GitHub
+
+
+## Features
+- Multi-auth (Email, Google, GitHub) với RBAC (admin/user)
+- Real-time chat system tích hợp AI chatbot
+- RAG pipeline: embedding → vector indexing → retrieval → generation
+- Secure storage & database management với Supabase
+- Responsive UI với Tailwind CSS + Framer Motion
+
+
+## Setup
+1. Clone repository
+```bash
+git clone https://github.com/daovanda/web-du-lich.git
+cd web-du-lich
+
+npm install
 
 ## Getting Started
 
