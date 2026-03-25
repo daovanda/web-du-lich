@@ -15,7 +15,7 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false); 
+  const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [oldestMessageTime, setOldestMessageTime] = useState<string | null>(null);
   const [latestMessageTime, setLatestMessageTime] = useState<string | null>(null);
@@ -84,12 +84,11 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
       ? `/api/chats/private?room_id=${encodeURIComponent(roomId)}`
       : "/api/chats/public";
 
-  // Ensure we append query params with `?` for endpoints without existing query string.
   const withQuery = (base: string, query: string) => {
     return base.includes("?") ? `${base}&${query}` : `${base}?${query}`;
   };
 
-  // 🧩 Load 10 tin nhắn mới nhất
+  // 🧩 Load 20 tin nhắn mới nhất
   const loadInitialMessages = async () => {
     setInitialLoading(true);
     try {
@@ -257,9 +256,14 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
   }, [user]);
 
   // 🧩 Đăng nhập nhanh
-  const handleLogin = async () => {
+  const handleLogin = () => {
     window.location.href = "/login";
   };
+
+  // 🧩 Nội dung login prompt theo loại phòng
+  const loginPromptContent = isPrivate
+    ? { title: "Đăng nhập để nhận hỗ trợ", subtitle: "Kết nối với đội ngũ hỗ trợ 24/7" }
+    : { title: "Đăng nhập để tham gia cộng đồng", subtitle: "Tham gia và trò chuyện cùng mọi người" };
 
   return (
     <div className="flex flex-col h-full bg-black">
@@ -273,8 +277,8 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
         initialLoading={initialLoading}
       />
 
-      {isPrivate && !user && authResolved ? (
-        // Login prompt - Instagram style
+      {!user && authResolved ? (
+        // Login prompt
         <div className="border-t border-neutral-800 p-4 bg-black">
           <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 rounded-2xl p-4 text-center space-y-3">
             <div className="w-12 h-12 mx-auto rounded-full bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center">
@@ -284,10 +288,10 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-white">
-                Đăng nhập để nhận hỗ trợ
+                {loginPromptContent.title}
               </p>
               <p className="text-xs text-neutral-500">
-                Kết nối với đội ngũ hỗ trợ 24/7
+                {loginPromptContent.subtitle}
               </p>
             </div>
             <button

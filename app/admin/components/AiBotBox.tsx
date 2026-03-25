@@ -20,20 +20,22 @@ type Message = {
 type AiBotBoxProps = { roomId: string };
 
 const STREAMING_ID = "__streaming__";
+const GUEST_SENDER_ID = "__guest__";
 
 const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
-  const [messages, setMessages]           = useState<Message[]>([]);
-  const [input, setInput]                 = useState("");
-  const [hasMore, setHasMore]             = useState(true);
-  const [loadingMore, setLoadingMore]     = useState(false);
+  const [messages, setMessages]             = useState<Message[]>([]);
+  const [input, setInput]                   = useState("");
+  const [hasMore, setHasMore]               = useState(true);
+  const [loadingMore, setLoadingMore]       = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [isGenerating, setIsGenerating]   = useState(false);
-  const [oldestTime, setOldestTime]       = useState<string | null>(null);
-  const [user, setUser]                   = useState<any>(null);
+  const [isGenerating, setIsGenerating]     = useState(false);
+  const [oldestTime, setOldestTime]         = useState<string | null>(null);
+  const [user, setUser]                     = useState<any>(null);
+  const [authResolved, setAuthResolved]     = useState(false);
 
-  const containerRef  = useRef<HTMLDivElement>(null);
-  const endRef        = useRef<HTMLDivElement>(null);
-  const abortRef      = useRef<AbortController | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const endRef       = useRef<HTMLDivElement>(null);
+  const abortRef     = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => endRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -50,11 +52,13 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
         setUser(res.data.user ? { ...res.data.user, profile: res.data.profile } : null);
       } catch {
         setUser(null);
+      } finally {
+        setAuthResolved(true);
       }
     })();
   }, []);
 
-  // ── Load tin nhắn ban đầu ──
+  // ── Load tin nhắn ban đầu (chỉ khi đã đăng nhập) ──
   const loadInitial = async () => {
     setInitialLoading(true);
     try {
@@ -73,7 +77,7 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
     }
   };
 
-  // ── Load thêm tin nhắn cũ ──
+  // ── Load thêm tin nhắn cũ (chỉ khi đã đăng nhập) ──
   const loadMore = async () => {
     if (!hasMore || loadingMore || !oldestTime) return;
     setLoadingMore(true);
@@ -97,10 +101,21 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
     }
   };
 
-  useEffect(() => { void loadInitial(); }, [roomId]);
-
-  // ── Realtime: nhận message bot sau khi stream xong ──
+  // ── Sau khi auth resolve: load DB nếu đã đăng nhập, bỏ qua nếu là guest ──
   useEffect(() => {
+    if (!authResolved) return;
+    if (user) {
+      void loadInitial();
+    } else {
+      // Guest: không load DB, chỉ hiển thị màn hình trống
+      setInitialLoading(false);
+      setHasMore(false);
+    }
+  }, [authResolved, roomId]);
+
+  // ── Realtime: chỉ lắng nghe khi đã đăng nhập ──
+  useEffect(() => {
+    if (!user) return;
     const ch = supabase
       .channel(`ai-bot-${roomId}`)
       .on(
@@ -119,21 +134,23 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
       )
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
-  }, [roomId]);
+  }, [roomId, user]);
 
-  // ── Scroll trigger để load thêm ──
+  // ── Scroll trigger để load thêm (chỉ khi đã đăng nhập) ──
   useEffect(() => {
+    if (!user) return;
     const el = containerRef.current;
     if (!el) return;
     const handler = () => { if (el.scrollTop === 0) void loadMore(); };
     el.addEventListener("scroll", handler);
     return () => el.removeEventListener("scroll", handler);
-  }, [oldestTime, hasMore, loadingMore]);
+  }, [oldestTime, hasMore, loadingMore, user]);
 
   // ── Gửi tin nhắn + stream ──
   const sendMessage = async () => {
-    if (!input.trim() || !user || isGenerating) return;
+    if (!input.trim() || isGenerating) return;
 
+    const isGuest = !user;
     const text = input.trim();
     setInput("");
     setIsGenerating(true);
@@ -142,23 +159,24 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
       .filter((m) => !m.isStreaming)
       .slice(-10)
       .map((m) => ({
-        role: (m.sender_id !== null ? "user" : "assistant") as "user" | "assistant",
+        role: (
+          m.sender_id === null ? "assistant" : "user"
+        ) as "user" | "assistant",
         content: m.content,
       }));
 
-    // Optimistic user message
+    // Optimistic: thêm tin nhắn user + placeholder streaming
     setMessages((prev) => [
       ...prev,
       {
         id: `opt-${Date.now()}`,
-        sender_id: user.id,
+        sender_id: isGuest ? GUEST_SENDER_ID : user.id,
         content: text,
         from_admin: false,
         created_at: new Date().toISOString(),
-        profiles: user.profile ?? null,
+        profiles: isGuest ? null : (user.profile ?? null),
         metadata: { role: "user" },
       },
-      // Streaming placeholder
       {
         id: STREAMING_ID,
         sender_id: null,
@@ -177,15 +195,20 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
       const res = await fetch("/api/chats/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, roomId, history }),
+        body: JSON.stringify({
+          message: text,
+          roomId: isGuest ? null : roomId,
+          history,
+          guest: isGuest,
+        }),
         signal: abortRef.current.signal,
       });
 
       if (!res.ok || !res.body) throw new Error("Stream failed");
 
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
+      const reader      = res.body.getReader();
+      const decoder     = new TextDecoder();
+      let accumulated   = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -200,12 +223,30 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
             if (parsed.response) {
               accumulated += parsed.response;
               setMessages((prev) =>
-                prev.map((m) => m.id === STREAMING_ID ? { ...m, content: accumulated } : m)
+                prev.map((m) =>
+                  m.id === STREAMING_ID ? { ...m, content: accumulated } : m
+                )
               );
               scrollToBottom();
             }
-          } catch { /* ignore */ }
+          } catch { /* ignore malformed SSE */ }
         }
+      }
+
+      // Guest: thay streaming placeholder bằng message in-memory thực sự
+      if (isGuest) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === STREAMING_ID
+              ? {
+                  ...m,
+                  id: `guest-ai-${Date.now()}`,
+                  isStreaming: false,
+                  content: accumulated,
+                }
+              : m
+          )
+        );
       }
     } catch (err: any) {
       if (err?.name === "AbortError") return;
@@ -239,6 +280,10 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
     }
   };
 
+  // ── Helper: xác định tin nhắn của user (kể cả guest) ──
+  const isUserMessage = (msg: Message) =>
+    msg.sender_id !== null && msg.sender_id !== undefined;
+
   // ── Render ──
   return (
     <div className="flex flex-col h-full bg-black">
@@ -264,10 +309,15 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
             </div>
             <p className="text-sm font-medium text-white">Trợ lý AI</p>
             <p className="text-xs text-neutral-500">Hỏi bất cứ điều gì, tôi luôn sẵn sàng hỗ trợ bạn.</p>
+            {!user && authResolved && (
+              <p className="text-[10px] text-neutral-600 mt-1">
+                Đoạn chat này sẽ không được lưu lại khi bạn đóng cửa sổ
+              </p>
+            )}
           </div>
         ) : (
           messages.map((msg) => {
-            const isUser = msg.sender_id !== null;
+            const isUser = isUserMessage(msg);
             return (
               <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 {!isUser && (
@@ -331,7 +381,9 @@ const AiBotBox: FC<AiBotBoxProps> = ({ roomId }) => {
           )}
         </div>
         <p className="text-[10px] text-neutral-600 text-center mt-1.5">
-          AI có thể mắc lỗi. Kiểm tra thông tin quan trọng.
+          {!user && authResolved
+            ? "Đăng nhập để lưu lịch sử trò chuyện"
+            : "AI có thể mắc lỗi. Kiểm tra thông tin quan trọng."}
         </p>
       </div>
 

@@ -1,10 +1,10 @@
 // app/api/chats/ai/route.ts
-import { TransformStream } from "stream/web"
+import { TransformStream } from "stream/web";
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 
 const WORKER_URL    = process.env.CLOUDFLARE_WORKER_URL!;
-const WORKER_SECRET = process.env.WORKER_SECRET!;   // khớp với tên biến trong .env của bạn
+const WORKER_SECRET = process.env.WORKER_SECRET!;
 
 const DEFAULT_SYSTEM_PROMPT = `Bạn là trợ lý AI hỗ trợ khách hàng. Hãy trả lời thân thiện, ngắn gọn và chính xác bằng tiếng Việt.
 Nếu không biết câu trả lời, hãy nói thẳng và gợi ý người dùng liên hệ với đội ngũ hỗ trợ.
@@ -50,6 +50,49 @@ export async function GET() {
 // ── POST /api/chats/ai — gửi message, stream response về client ──
 export async function POST(req: Request) {
   try {
+    const { message, roomId, history, guest } = (await req.json()) as {
+      message: string;
+      roomId: string | null;
+      history: Array<{ role: "user" | "assistant"; content: string }>;
+      guest?: boolean;
+    };
+
+    if (!message?.trim()) {
+      return NextResponse.json({ error: "Missing message" }, { status: 400 });
+    }
+
+    // ── Chế độ Guest: không cần auth, không lưu DB ──
+    if (guest) {
+      const workerRes = await fetch(`${WORKER_URL}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${WORKER_SECRET}`,
+        },
+        body: JSON.stringify({
+          message: message.trim(),
+          history: history ?? [],
+          roomId: null,
+          systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        }),
+      });
+
+      if (!workerRes.ok || !workerRes.body) {
+        const errText = await workerRes.text();
+        console.error("Worker error (guest):", errText);
+        return NextResponse.json({ error: "AI service error" }, { status: 502 });
+      }
+
+      // Forward stream trực tiếp về client, không lưu gì vào DB
+      return new Response(workerRes.body as any, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+
+    // ── Chế độ đã đăng nhập: yêu cầu auth + lưu DB ──
     const supabase = await createServerSupabase();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -57,14 +100,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, roomId, history } = (await req.json()) as {
-      message: string;
-      roomId: string;
-      history: Array<{ role: "user" | "assistant"; content: string }>;
-    };
-
-    if (!message?.trim() || !roomId) {
-      return NextResponse.json({ error: "Missing message or roomId" }, { status: 400 });
+    if (!roomId) {
+      return NextResponse.json({ error: "Missing roomId" }, { status: 400 });
     }
 
     // Kiểm tra quyền truy cập room
@@ -91,19 +128,12 @@ export async function POST(req: Request) {
       .select("id, created_at")
       .single();
 
-    // Lấy system prompt tùy chỉnh (nếu có trong DB, không thì dùng default)
-    const { data: botConfig } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
     // Gọi Cloudflare Worker — forward stream
     const workerRes = await fetch(`${WORKER_URL}/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${WORKER_SECRET}`,   // ← khớp với Worker
+        "Authorization": `Bearer ${WORKER_SECRET}`,
       },
       body: JSON.stringify({
         message: message.trim(),
@@ -127,9 +157,9 @@ export async function POST(req: Request) {
 
     // Background: đọc stream, forward tới client và thu thập text
     (async () => {
-      const reader = workerRes.body!.getReader();
+      const reader  = workerRes.body!.getReader();
       const decoder = new TextDecoder();
-      let fullText = "";
+      let fullText  = "";
 
       try {
         while (true) {
@@ -139,10 +169,9 @@ export async function POST(req: Request) {
           // Forward chunk tới client
           await writer.write(value);
 
-          // Thu thập text từ SSE chunks: "data: {"response":"...","p":"..."}\n\n"
+          // Thu thập text từ SSE chunks
           const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
-          for (const line of lines) {
+          for (const line of chunk.split("\n")) {
             if (!line.startsWith("data: ")) continue;
             const raw = line.slice(6).trim();
             if (raw === "[DONE]") continue;
@@ -159,7 +188,7 @@ export async function POST(req: Request) {
         if (fullText.trim()) {
           await supabase.from("chat_messages").insert({
             room_id: roomId,
-            sender_id: null, // bot không có sender_id
+            sender_id: null,
             content: fullText.trim(),
             from_admin: false,
             metadata: {
