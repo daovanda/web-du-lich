@@ -84,12 +84,17 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
       ? `/api/chats/private?room_id=${encodeURIComponent(roomId)}`
       : "/api/chats/public";
 
+  // Ensure we append query params with `?` for endpoints without existing query string.
+  const withQuery = (base: string, query: string) => {
+    return base.includes("?") ? `${base}&${query}` : `${base}?${query}`;
+  };
+
   // 🧩 Load 10 tin nhắn mới nhất
   const loadInitialMessages = async () => {
     setInitialLoading(true);
     try {
       const res = await apiRequest<{ data: any[] }>(
-        `${getMessagesEndpoint()}&limit=20`.replace("?&", "?")
+        withQuery(getMessagesEndpoint(), "limit=20")
       );
       const initial = res.data || [];
       setMessages(initial);
@@ -118,9 +123,9 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
 
     try {
       const res = await apiRequest<{ data: any[] }>(
-        `${getMessagesEndpoint()}&limit=20&before=${encodeURIComponent(oldestMessageTime)}`.replace(
-          "?&",
-          "?"
+        withQuery(
+          getMessagesEndpoint(),
+          `limit=20&before=${encodeURIComponent(oldestMessageTime)}`
         )
       );
       const older = res.data || [];
@@ -145,10 +150,7 @@ const ChatBox: FC<ChatBoxProps> = ({ roomId, isPrivate = false }) => {
     if (!latest) return;
     try {
       const res = await apiRequest<{ data: any[] }>(
-        `${getMessagesEndpoint()}&limit=50&since=${encodeURIComponent(latest)}`.replace(
-          "?&",
-          "?"
-        )
+        withQuery(getMessagesEndpoint(), `limit=50&since=${encodeURIComponent(latest)}`)
       );
       const next = res.data || [];
       if (next.length === 0) return;
